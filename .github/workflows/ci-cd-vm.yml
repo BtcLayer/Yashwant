@@ -199,6 +199,11 @@ jobs:
         pkill -f run_unified_bots.py || true
         sleep 2
         
+        # Ensure necessary directories exist
+        echo "📁 Creating necessary directories..."
+        mkdir -p logs
+        mkdir -p paper_trading_outputs/sheets_fallback
+        
         echo "🚀 Starting application with start_project.py..."
         # Use start_project.py with production flags:
         # --gunicorn: Use gunicorn with multiple workers for production
