@@ -110,10 +110,21 @@ jobs:
       run: |
         ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
         set -e
-        cd ${{ env.PROJECT_DIR }}
         
-        echo "📥 Pulling latest code..."
-        git fetch origin
+        # Check if repository exists, clone if not
+        if [ ! -d "${{ env.PROJECT_DIR }}/.git" ]; then
+            echo "📥 Repository not found, cloning..."
+            mkdir -p ${{ env.PROJECT_DIR }}
+            cd ${{ env.PROJECT_DIR }}
+            # Use GitHub Actions token for private repo access
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
+        else
+            echo "📥 Pulling latest code..."
+            cd ${{ env.PROJECT_DIR }}
+            # Configure git to use token for private repo
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            git fetch origin
+        fi
         
         # Stash any local changes to data directories (safety measure)
         echo "💾 Preserving bot data directories..."

@@ -73,6 +73,13 @@ frontend/.env.production.local
 # Nginx temp config
 nginx_temp.conf
 
+# Deployment temporary files
+setup_output.txt
+vm_ip.json
+deploy_vm.ps1
+vm_setup.sh
+add_github_key.sh
+
 # Secrets and credentials
 *.key
 *.pem
