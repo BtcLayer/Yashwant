@@ -157,12 +157,27 @@ jobs:
         
         echo "✅ Code updated, bot data preserved"
         
-        echo "🔄 Activating virtual environment..."
+        echo "🔄 Setting up Python virtual environment..."
+        # Check if venv exists, create if not
+        if [ ! -d "venv" ]; then
+            echo "   Creating Python virtual environment..."
+            python3.13 -m venv venv || python3 -m venv venv
+        fi
+        
+        echo "   Activating virtual environment..."
         source venv/bin/activate
         
-        echo "📦 Updating Python dependencies (if needed)..."
-        pip install -q --upgrade pip
+        echo "📦 Updating Python dependencies..."
+        pip install -q --upgrade pip setuptools wheel
         pip install -q -r requirements.txt
+        
+        # Install Node.js dependencies if needed
+        if [ ! -d "frontend/node_modules" ]; then
+            echo "📦 Installing Node.js dependencies..."
+            cd frontend
+            npm install
+            cd ..
+        fi
         
         echo "🛑 Stopping existing services..."
         pkill -f "python.*start_project.py" || true
