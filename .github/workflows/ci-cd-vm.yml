@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.10'  # Match VM Python version for compatibility
 
 jobs:
   # Job 1: Build Frontend and Test
