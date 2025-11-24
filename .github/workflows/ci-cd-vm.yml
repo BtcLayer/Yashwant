@@ -6,7 +6,7 @@ on:
   workflow_dispatch:  # Allow manual triggers
 
 env:
-  VM_HOST: 40.88.15.47
+  VM_HOST: 172.191.90.145
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit

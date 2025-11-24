@@ -1,0 +1,23 @@
+﻿[
+  {
+    "virtualMachine": {
+      "name": "metastacker-vm",
+      "network": {
+        "privateIpAddresses": [
+          "10.0.0.4"
+        ],
+        "publicIpAddresses": [
+          {
+            "id": "/subscriptions/f0271675-9c70-4daf-9ea9-3d0bfe22f58c/resourceGroups/trading-bot-rg/providers/Microsoft.Network/publicIPAddresses/metastacker-vmPublicIP",
+            "ipAddress": "172.191.90.145",
+            "ipAllocationMethod": "Static",
+            "name": "metastacker-vmPublicIP",
+            "resourceGroup": "trading-bot-rg",
+            "zone": null
+          }
+        ]
+      },
+      "resourceGroup": "trading-bot-rg"
+    }
+  }
+]
