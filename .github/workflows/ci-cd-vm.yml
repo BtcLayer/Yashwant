@@ -165,24 +165,46 @@ jobs:
             sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
         }
         
-        echo "🔄 Setting up Python virtual environment..."
-        # Check if venv exists, create if not
+        echo "🔄 Setting up Python environment..."
+        # Try to create venv, but use system Python if it fails
+        USE_VENV=false
         if [ ! -d "venv" ]; then
-            echo "   Creating Python virtual environment..."
-            # Try python3.13 first, fallback to python3
-            if command -v python3.13 &> /dev/null; then
-                python3.13 -m venv venv
+            echo "   Attempting to create virtual environment..."
+            if python3 -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
+                echo "✅ Virtual environment created"
+                USE_VENV=true
             else
-                python3 -m venv venv
+                echo "⚠️  Virtual environment creation failed, using system Python"
+                USE_VENV=false
             fi
+        elif [ -f "venv/bin/activate" ]; then
+            echo "✅ Virtual environment already exists"
+            USE_VENV=true
+        else
+            echo "⚠️  Existing venv directory invalid, using system Python"
+            USE_VENV=false
         fi
         
-        echo "   Activating virtual environment..."
-        source venv/bin/activate
+        if [ "$USE_VENV" = "true" ]; then
+            echo "   Activating virtual environment..."
+            source venv/bin/activate
+            PYTHON_CMD="python"
+            PIP_CMD="pip"
+        else
+            echo "   Using system Python (python3/pip3)"
+            PYTHON_CMD="python3"
+            PIP_CMD="pip3"
+        fi
         
         echo "📦 Updating Python dependencies..."
-        pip install -q --upgrade pip setuptools wheel
-        pip install -q -r requirements.txt
+        # Upgrade pip (try with --user if permission denied)
+        $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || echo "⚠️  pip upgrade failed, continuing..."
+        # Install requirements (try with --user if permission denied)
+        $PIP_CMD install -q -r requirements.txt 2>/dev/null || $PIP_CMD install -q -r requirements.txt --user 2>/dev/null || {
+            echo "❌ Failed to install Python dependencies"
+            echo "   Attempting with verbose output..."
+            $PIP_CMD install -r requirements.txt --user || true
+        }
         
         # Install Node.js dependencies if needed
         if [ ! -d "frontend/node_modules" ]; then
@@ -209,7 +231,8 @@ jobs:
         # --gunicorn: Use gunicorn with multiple workers for production
         # --daemon: Run in background mode
         # Frontend will auto-rebuild if source files changed
-        nohup python start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        # Use the correct Python command (venv or system)
+        nohup $PYTHON_CMD start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
         EOF
