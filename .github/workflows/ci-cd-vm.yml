@@ -232,6 +232,11 @@ jobs:
         # --daemon: Run in background mode
         # Frontend will auto-rebuild if source files changed
         # Use the correct Python command (venv or system)
+        # Add user-installed packages to PATH if using system Python
+        if [ "$USE_VENV" != "true" ]; then
+            export PATH=/root/.local/bin:$HOME/.local/bin:$PATH
+            export PYTHONPATH=/root/.local/lib/python3.10/site-packages:$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
+        fi
         nohup $PYTHON_CMD start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
