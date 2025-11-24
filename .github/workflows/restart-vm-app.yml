@@ -1,0 +1,140 @@
+name: Restart VM Application
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+env:
+  VM_HOST: 40.88.15.47
+  VM_USER: azureuser
+  VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+  PROJECT_DIR: /home/azureuser/MetaStackerBandit
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    name: Restart Application
+
+    steps:
+    - name: Set up SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ env.VM_SSH_KEY }}" > ~/.ssh/vm_key
+        chmod 600 ~/.ssh/vm_key
+        ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Check Current Status
+      run: |
+        echo "🔍 Checking current application status..."
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        set -e
+        cd ${{ env.PROJECT_DIR }}
+        
+        echo "📊 Current processes:"
+        ps aux | grep -E '(start_project|gunicorn|uvicorn)' | grep -v grep || echo "   No processes found"
+        
+        echo ""
+        echo "📋 Port 8000 status:"
+        netstat -tuln | grep :8000 || ss -tuln | grep :8000 || echo "   Port 8000 not listening"
+        
+        echo ""
+        echo "📝 Recent logs (last 20 lines):"
+        tail -20 logs/start_project.log 2>/dev/null || echo "   No logs found"
+        EOF
+
+    - name: Stop Application
+      run: |
+        echo "🛑 Stopping existing application..."
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        set -e
+        cd ${{ env.PROJECT_DIR }}
+        
+        echo "   Stopping processes..."
+        pkill -f "python.*start_project.py" || true
+        pkill -f gunicorn || true
+        pkill -f uvicorn || true
+        pkill -f run_unified_bots.py || true
+        sleep 3
+        
+        echo "   Verifying processes stopped..."
+        if ps aux | grep -E '(start_project|gunicorn|uvicorn)' | grep -v grep; then
+            echo "   Some processes still running, forcing kill..."
+            pkill -9 -f "python.*start_project.py" || true
+            pkill -9 -f gunicorn || true
+            pkill -9 -f uvicorn || true
+            sleep 2
+        else
+            echo "   ✅ All processes stopped"
+        fi
+        EOF
+
+    - name: Start Application
+      run: |
+        echo "🚀 Starting application..."
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        set -e
+        cd ${{ env.PROJECT_DIR }}
+        
+        echo "🔄 Activating virtual environment..."
+        source venv/bin/activate
+        
+        echo "📦 Checking dependencies..."
+        pip install -q -r requirements.txt
+        
+        echo "🚀 Starting with start_project.py..."
+        nohup python start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        
+        echo "✅ Start command executed"
+        EOF
+
+    - name: Verify Startup
+      run: |
+        echo "🔍 Verifying application startup..."
+        echo "   Waiting 20 seconds for services to initialize..."
+        sleep 20
+        
+        # Check processes
+        echo "📊 Checking processes..."
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        ps aux | grep -E '(start_project|gunicorn|uvicorn)' | grep -v grep || echo "   No processes found"
+        EOF
+        
+        # Health check with retries
+        echo ""
+        echo "🏥 Health check..."
+        for i in {1..10}; do
+          if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
+            echo "✅ Health check passed!"
+            break
+          else
+            echo "   Attempt $i/10: Health check failed, retrying in 5 seconds..."
+            sleep 5
+          fi
+        done
+        
+        # Final status
+        echo ""
+        echo "📋 Final status:"
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        echo "Processes:"
+        ps aux | grep -E '(start_project|gunicorn|uvicorn)' | grep -v grep || echo "   None"
+        echo ""
+        echo "Port 8000:"
+        netstat -tuln | grep :8000 || ss -tuln | grep :8000 || echo "   Not listening"
+        echo ""
+        echo "Recent logs:"
+        tail -10 logs/start_project.log 2>/dev/null || echo "   No logs"
+        EOF
+
+    - name: Summary
+      run: |
+        echo "## ✅ Application Restart Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Application URL:** [http://${{ env.VM_HOST }}:8000](http://${{ env.VM_HOST }}:8000)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Check logs:**" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "ssh ${{ env.VM_USER }}@${{ env.VM_HOST }}" >> $GITHUB_STEP_SUMMARY
+        echo "cd ${{ env.PROJECT_DIR }}" >> $GITHUB_STEP_SUMMARY
+        echo "tail -f logs/start_project.log" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
