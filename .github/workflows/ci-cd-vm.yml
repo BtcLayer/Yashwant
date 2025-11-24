@@ -131,6 +131,11 @@ jobs:
                 echo "⚠️  Git fetch failed, trying full reset..."
                 git reset --hard origin/main || exit 1
             }
+            # Pull latest changes
+            git pull origin main || {
+                echo "⚠️  Git pull failed, trying reset..."
+                git reset --hard origin/main || exit 1
+            }
         fi
         
         # Stash any local changes to data directories (safety measure)
@@ -187,15 +192,32 @@ jobs:
         fi
         
         if [ -z "$NODE_VERSION" ] || [ -z "$NPM_VERSION" ] || [ "$(echo "$NODE_VERSION" | cut -d'v' -f2 | cut -d'.' -f1)" -lt 14 ]; then
-            echo "   Installing Node.js 18 from NodeSource..."
+            echo "   Removing conflicting Node.js packages..."
+            # Remove all conflicting packages BEFORE setting up NodeSource
+            sudo apt-get remove -y --purge nodejs npm libnode-dev nodejs-doc libnode72 libnode72:amd64 2>/dev/null || true
+            sudo apt-get autoremove -y 2>/dev/null || true
+            # Fix any broken packages
+            sudo dpkg --configure -a 2>/dev/null || true
+            
+            echo "   Setting up NodeSource repository..."
             curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - || {
                 echo "❌ Failed to setup NodeSource repository"
                 exit 1
             }
-            sudo apt-get remove -y libnode-dev nodejs-doc libnode72 2>/dev/null || true
+            
+            # Update package list after adding NodeSource
+            sudo apt-get update -qq
+            
+            echo "   Installing Node.js 18..."
             sudo apt-get install -y nodejs || {
                 echo "❌ Failed to install nodejs"
-                exit 1
+                echo "   Attempting to fix broken packages..."
+                sudo dpkg --configure -a || true
+                sudo apt-get install -f -y || true
+                sudo apt-get install -y nodejs || {
+                    echo "❌ Node.js installation failed after fixes"
+                    exit 1
+                }
             }
         fi
         
@@ -221,6 +243,14 @@ jobs:
         echo "✅ npm $(npm --version) installed at $NPM_PATH"
         
         echo "🔄 Setting up Python environment..."
+        # Check Python version
+        PYTHON_VER=$(python3 --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
+        echo "   Python version: $(python3 --version)"
+        if [ "$(echo "$PYTHON_VER" | cut -d'.' -f1)" -lt 3 ] || ([ "$(echo "$PYTHON_VER" | cut -d'.' -f1)" -eq 3 ] && [ "$(echo "$PYTHON_VER" | cut -d'.' -f2)" -lt 8 ]); then
+            echo "❌ Python 3.8+ required, found $(python3 --version)"
+            exit 1
+        fi
+        
         # Try to create venv, but use system Python if it fails
         USE_VENV=false
         if [ ! -d "venv" ]; then
@@ -236,8 +266,15 @@ jobs:
             echo "✅ Virtual environment already exists"
             USE_VENV=true
         else
-            echo "⚠️  Existing venv directory invalid, using system Python"
-            USE_VENV=false
+            echo "⚠️  Existing venv directory invalid, recreating..."
+            rm -rf venv
+            if python3 -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
+                echo "✅ Virtual environment recreated"
+                USE_VENV=true
+            else
+                echo "⚠️  Virtual environment creation failed, using system Python"
+                USE_VENV=false
+            fi
         fi
         
         if [ "$USE_VENV" = "true" ]; then
@@ -271,46 +308,66 @@ jobs:
         fi
         
         # Install Node.js dependencies if needed
-        if [ ! -d "frontend/node_modules" ]; then
+        if [ ! -d "frontend/node_modules" ] || [ ! -f "frontend/node_modules/.package-lock.json" ] && [ -f "frontend/package-lock.json" ]; then
             echo "📦 Installing Node.js dependencies..."
             if ! command -v npm &> /dev/null; then
                 echo "❌ npm not found, cannot install frontend dependencies"
                 exit 1
             fi
             cd frontend || exit 1
-            npm install || {
+            # Use npm ci for reproducible builds, fallback to npm install
+            npm ci 2>/dev/null || npm install || {
                 echo "❌ npm install failed"
                 cd ..
                 exit 1
             }
             cd ..
+        else
+            echo "✅ Node.js dependencies already installed"
         fi
         
         # Build frontend if not exists or if source changed
         echo "📦 Building frontend..."
-        if [ ! -d "frontend/build" ] || [ ! -f "frontend/build/index.html" ]; then
-            echo "   Frontend build missing, building now..."
-            if ! command -v npm &> /dev/null; then
-                echo "❌ npm not found, cannot build frontend"
-                exit 1
-            fi
-            cd frontend || exit 1
-            npm run build || {
-                echo "❌ Frontend build failed"
-                cd ..
-                exit 1
-            }
-            cd ..
-            echo "✅ Frontend built successfully"
-        else
-            echo "✅ Frontend build already exists"
+        # Always rebuild to ensure latest code is used
+        if ! command -v npm &> /dev/null; then
+            echo "❌ npm not found, cannot build frontend"
+            exit 1
         fi
+        cd frontend || exit 1
+        echo "   Running npm run build..."
+        npm run build || {
+            echo "❌ Frontend build failed"
+            echo "   Checking for build errors..."
+            cat package.json 2>/dev/null || echo "   package.json not found"
+            cd ..
+            exit 1
+        }
+        cd ..
+        
+        # Verify build was successful
+        if [ ! -d "frontend/build" ] || [ ! -f "frontend/build/index.html" ]; then
+            echo "❌ Frontend build directory or index.html missing after build"
+            exit 1
+        fi
+        echo "✅ Frontend built successfully"
         
         echo "🛑 Stopping existing services..."
-        pkill -f "python.*start_project.py" || true
-        pkill -f gunicorn || true
-        pkill -f uvicorn || true
-        pkill -f run_unified_bots.py || true
+        # Kill processes more aggressively
+        pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        pkill -9 -f "gunicorn" 2>/dev/null || true
+        pkill -9 -f "uvicorn" 2>/dev/null || true
+        pkill -9 -f "run_unified_bots.py" 2>/dev/null || true
+        # Also try with sudo if needed (for processes started by different user)
+        sudo pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        sudo pkill -9 -f "gunicorn" 2>/dev/null || true
+        # Wait for processes to die
+        sleep 3
+        # Check if port 8000 is still in use and kill the process
+        if command -v lsof &> /dev/null; then
+            lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+        elif command -v fuser &> /dev/null; then
+            fuser -k 8000/tcp 2>/dev/null || true
+        fi
         sleep 2
         
         # Ensure necessary directories exist
@@ -326,8 +383,7 @@ jobs:
         # Use the correct Python command (venv or system)
         # Add user-installed packages to PATH if using system Python
         
-        # Build environment variables
-        ENV_VARS=""
+        # Build environment variables for nohup
         if [ "$USE_VENV" != "true" ]; then
             # Find actual paths for user-installed packages
             USER_BIN="$HOME/.local/bin"
@@ -335,13 +391,18 @@ jobs:
             USER_SITE=$(python3 -c "import site; print(site.USER_SITE)" 2>/dev/null || echo "$HOME/.local/lib/python3.10/site-packages")
             ROOT_SITE="/root/.local/lib/python3.10/site-packages"
             
-            ENV_VARS="PATH=$ROOT_BIN:$USER_BIN:$PATH PYTHONPATH=$ROOT_SITE:$USER_SITE:\$PYTHONPATH"
-        fi
-        
-        # Start application
-        if [ -n "$ENV_VARS" ]; then
-            nohup env $ENV_VARS $PYTHON_CMD start_project.py --gunicorn --daemon --no-build > logs/start_project.log 2>&1 &
+            # Create a wrapper script with actual values
+            cat > /tmp/start_app.sh << START_SCRIPT
+#!/bin/bash
+export PATH="$ROOT_BIN:$USER_BIN:\$PATH"
+export PYTHONPATH="$ROOT_SITE:$USER_SITE:\$PYTHONPATH"
+cd ${{ env.PROJECT_DIR }}
+exec $PYTHON_CMD start_project.py --gunicorn --daemon --no-build
+START_SCRIPT
+            chmod +x /tmp/start_app.sh
+            nohup /tmp/start_app.sh > logs/start_project.log 2>&1 &
         else
+            # With venv, PATH is already set by activation
             nohup $PYTHON_CMD start_project.py --gunicorn --daemon --no-build > logs/start_project.log 2>&1 &
         fi
         
@@ -372,11 +433,13 @@ jobs:
         # Try health check with retries
         HEALTH_CHECK_PASSED=false
         for i in {1..10}; do
-          # Check if curl is available, if not try wget or python
-          HEALTH_CMD="curl -f -s http://localhost:8000/api/health > /dev/null 2>&1 || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" > /dev/null 2>&1"
-          
-          if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "$HEALTH_CMD"; then
+          # Try curl first, then python as fallback
+          if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
             echo "✅ Health check passed on attempt $i!"
+            HEALTH_CHECK_PASSED=true
+            break
+          elif ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} 'python3 -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/health\")" > /dev/null 2>&1'; then
+            echo "✅ Health check passed on attempt $i (using Python)!"
             HEALTH_CHECK_PASSED=true
             break
           else
