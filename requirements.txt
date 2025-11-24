@@ -7,7 +7,7 @@ python-binance==1.0.19
 # Upgrade aiohttp to a Python 3.13-compatible wheel to avoid local build toolchain requirements
 aiohttp>=3.11.0,<4.0
 scikit-learn>=1.7.2
-scipy>=1.16.2
+scipy>=1.10.0,<1.16.0
 requests==2.32.3
 # New operational dependencies
 prometheus_client>=0.20.0
