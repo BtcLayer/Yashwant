@@ -160,10 +160,19 @@ jobs:
         echo "🔧 Installing system dependencies (if needed)..."
         # Install Python 3.13 and required packages
         sudo apt-get update -qq
-        sudo apt-get install -y python3.13 python3.13-venv python3-pip build-essential git curl nodejs npm || {
+        sudo apt-get install -y python3.13 python3.13-venv python3-pip build-essential git curl || {
             echo "   Python 3.13 not available, installing Python 3.10+ and venv..."
-            sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
+            sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl
         }
+        
+        # Install Node.js 18 (required for frontend build)
+        echo "📦 Installing Node.js 18..."
+        if ! command -v node &> /dev/null || [ "$(node --version | cut -d'v' -f2 | cut -d'.' -f1)" -lt 14 ]; then
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get remove -y libnode-dev nodejs-doc libnode72 2>/dev/null || true
+            sudo apt-get install -y nodejs
+        fi
+        echo "✅ Node.js $(node --version) installed"
         
         echo "🔄 Setting up Python environment..."
         # Try to create venv, but use system Python if it fails
@@ -214,6 +223,17 @@ jobs:
             cd ..
         fi
         
+        # Build frontend if not exists or if source changed
+        echo "📦 Building frontend..."
+        if [ ! -d "frontend/build" ] || [ ! -f "frontend/build/index.html" ]; then
+            echo "   Frontend build missing, building now..."
+            cd frontend
+            npm run build || echo "⚠️  Frontend build failed, continuing with backend only"
+            cd ..
+        else
+            echo "✅ Frontend build already exists"
+        fi
+        
         echo "🛑 Stopping existing services..."
         pkill -f "python.*start_project.py" || true
         pkill -f gunicorn || true
@@ -230,14 +250,15 @@ jobs:
         # Use start_project.py with production flags:
         # --gunicorn: Use gunicorn with multiple workers for production
         # --daemon: Run in background mode
-        # Frontend will auto-rebuild if source files changed
+        # --no-build: Skip frontend build (already built above)
         # Use the correct Python command (venv or system)
         # Add user-installed packages to PATH if using system Python
         if [ "$USE_VENV" != "true" ]; then
             export PATH=/root/.local/bin:$HOME/.local/bin:$PATH
             export PYTHONPATH=/root/.local/lib/python3.10/site-packages:$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
         fi
-        nohup $PYTHON_CMD start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        # Ensure PATH and PYTHONPATH are exported for the nohup process
+        nohup env PATH="$PATH" PYTHONPATH="$PYTHONPATH" $PYTHON_CMD start_project.py --gunicorn --daemon --no-build > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
         EOF
