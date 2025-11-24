@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "metastackerbandit",
+  "private_key_id": "2de75282db1a6862f42d27320eeca4bafb31152a",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCg71tE0AKSvyOF\nBwn88TGWUI3nO4iz69Qevo2jx795mfmzbYMRCYyn/MKR2KVPhCBpa8Ck9CYn7eCp\nCPzFVehDY0oyATY+zL9kgj2qQzaIW5JS4mghZqYZODW8uh06fbnkI3+9lpMKWt4l\nF+zHQywURP5JdrMQOTBBzk5dJgYCWskGzr8BIww18lL8xdqBHt8Oj8ph018rmCim\nT2IBK6dNUYKqkH6dkFisrpcn/R3qdBYve5ObUhVM6OWXtTYQVH2hEyxoI5ltJeVO\n1O+5EyxGVozvOTxGZpA3hJ65zgCt0TUzU8Fm5Y6WYevJ2Y9cbidYjDSshIRhtE/y\nt8Wt0DZFAgMBAAECggEAJbYQ3/4SLErnyttMZt4p7Xww1FdqACcpzI6AaDl9T8RZ\n88acqNhhAlhDS6PFkO14HtvmB4FCk6a1N0bo3GD2DRxuHWuVR3/49VdjlcssMyWq\nEwwEtJb2IwC97tx5zuP5NFFxNH7dM9b5KR4DGOpPoOxN3e8XpJySB0mNqVwomlJG\nfI2+ZrBDWOd4nC3yPVifWzLaus7cDDBUG0fmxE1xe7zGcaWIPNe7Td6Qlhagwv7n\nb3xZYTEbp4yP0POgBVoc/2qzqySCsbhdYXvqCY5ySpfmFEIn/XnpIE/Fc/pAvXAM\n5owgn/vOjSZRw3Rcj10IdK5vQod1OD7pxZp352u4IQKBgQDVTsmy2FCr54vnwY7i\nguA9Akmx2TNvcLD1RQg+y3s7MCbNS2ThRKK9h4Vhx0nscETEc9DT7qeGWlPozTW4\na1KQlfmmJ3b9jYVQvmCh+BS2Oslb7ydrxcnNCBpk5SHMljczq5qZ2oH8BSqJ2eVL\nRiQ7zL3wAuTAvubl+BiHGuTX+QKBgQDBJSdjZxKnolHKI5WMACFy7NBsjkQasAtz\n7rSTJRUYdhRzfDWzrcdQEgrx65tbl38Cz6hmiAjHg6xizWhripmiEeOt3Osfsgi3\nNPcA/2ovR9ftmeVNN1mFyUNsGEHncvTNKPRL51U193A+wDnhGwvk8xgqvdDpTFmX\nUASfWDsbrQKBgG4dhjI1SS/1EFxLp593QJs+Gx0cq1jULAXx5RfFo5Aig2VnjmRc\nMkb1Nv4LCzZrnpRr1VoS0Zih+L8tcJYLkUvioEYOCXdLH49XODtk/gw0vM4g35Db\nQhn+HOIJBzG+OjEKXX0fOAsJ/7O6MIxzYTEduM+2LrDx2/DL6p2UXJ7BAoGAUN2s\naxrpnZQBaH+TimU3m/V4oirCauYQNX7Yzc610WMG1v9HQK5eh7C2MmmxxxxbyiKF\nYEBOZLJFh6x2rqf+APQ6fj3Dl6ajrYkYbauCmr8asdlAPx8QdUo511UkqrHfutIN\nzoXRkGHD9hHnac84IKiDEsocYMFdtVOES+7V+JUCgYBuDPWxS8gnmy364m3T3jdo\nXn28ynMxFqun+bB4bXWCBIIRLXTOV1sASp7r+IbqLMdHSZt3kQfv2anB9quanl1h\nE3YUVHU9TnzFr+9HmROe2VlXgk7gRtCz7zDMvTgzIpzkQEmEpc6G88r4KD21gpNM\n+N/Ye6aa0r7jsCSd2Y+RYQ==\n-----END PRIVATE KEY-----\n",
+  "client_email": "metastackerbandit@metastackerbandit.iam.gserviceaccount.com",
+  "client_id": "118151389431303361027",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/metastackerbandit%40metastackerbandit.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

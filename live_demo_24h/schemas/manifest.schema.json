@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MetaStackerBandit Artifacts Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "created_at", "artifacts"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version tag for this artifact bundle (e.g., v20251028_123045)"
+    },
+    "created_at": {
+      "type": "string",
+      "description": "UTC timestamp (ISO-8601) when artifacts were produced"
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["feature_schema", "meta_model"],
+      "properties": {
+        "feature_schema": {
+          "type": "string",
+          "description": "Path to feature schema JSON file (names, ordering, transforms), relative or absolute"
+        },
+        "meta_model": {
+          "type": "object",
+          "required": ["type", "path"],
+          "properties": {
+            "type": {"type": "string", "description": "Model type identifier (e.g., EnhancedMetaClassifier, LogisticRegression)"},
+            "path": {"type": "string", "description": "Path to serialized meta model (e.g., .joblib)"}
+          }
+        },
+        "calibrator": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "type": {"type": "string", "description": "Calibration type (e.g., Isotonic, Platt, CustomClassificationCalibrator)"},
+            "path": {"type": "string", "description": "Path to serialized calibrator (optional)"}
+          }
+        },
+        "base_models": {
+          "type": "array",
+          "description": "Optional list of base learner descriptors if exported separately (not required when meta model bundles them)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "path": {"type": "string"}
+            },
+            "required": ["name", "type", "path"],
+            "additionalProperties": false
+          }
+        },
+        "training_meta": {
+          "type": "string",
+          "description": "Optional path to training metadata JSON (cv scores, splits, params)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "calibration": {
+      "type": "object",
+      "description": "Calibration parameters used during evaluation; consumed read-only in live",
+      "properties": {
+        "a": {"type": "number", "default": 0.0},
+        "b": {"type": "number", "default": 1.0},
+        "band_bps": {"type": "number", "description": "Default no-trade band in bps", "default": 15}
+      },
+      "additionalProperties": false
+    },
+    "ensemble": {
+      "type": "object",
+      "description": "Ensemble settings for live selection/blending",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["base", "stacked", "bma"],
+          "description": "Preferred decision source; live config may override"
+        },
+        "bma": {
+          "type": "object",
+          "properties": {
+            "weights": {
+              "type": "array",
+              "items": {"type": "number"},
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "Initial weights for ['base','prob'] arms"
+            },
+            "kappa": {"type": "number", "default": 8.0},
+            "min_coverage_bars": {"type": "integer", "default": 600},
+            "freeze": {"type": "boolean", "default": false}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Optional decision thresholds used during validation; live config may override"
+    },
+    "checksums": {
+      "type": "object",
+      "description": "Optional SHA256 checksums for artifact files",
+      "additionalProperties": {"type": "string"}
+    },
+    "notes": {"type": "string"}
+  }
+}

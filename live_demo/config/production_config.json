@@ -1,0 +1,58 @@
+{
+  "emitter": {
+    "base_dir": "paper_trading_outputs/logs",
+    "max_file_size_mb": 100,
+    "max_files": 10,
+    "compression": true,
+    "sampling_rate": 1.0,
+    "retry_attempts": 3,
+    "retry_delay": 1.0,
+    "batch_size": 100,
+    "flush_interval": 5.0,
+    "enable_async": true
+  },
+  "alerts": {
+    "slack_webhook_url": null,
+    "slack_channel": "#trading-alerts",
+    "slack_username": "MetaStackerBot",
+    "smtp_server": null,
+    "smtp_port": 587,
+    "smtp_username": null,
+    "smtp_password": null,
+    "email_from": null,
+    "email_to": [],
+    "webhook_url": null,
+    "rate_limit_window": 3600,
+    "max_alerts_per_window": 100
+  },
+  "security": {
+    "salt": "change_this_salt_in_production",
+    "enable_audit_logging": true,
+    "audit_log_retention_days": 90,
+    "sensitive_fields": [
+      "password", "passwd", "pwd", "secret", "key", "token",
+      "api_key", "api_secret", "access_token", "refresh_token",
+      "private_key", "wallet_private_key", "mnemonic",
+      "ssn", "social_security", "credit_card", "card_number"
+    ]
+  },
+  "schemas": {
+    "validation_enabled": true,
+    "strict_mode": true,
+    "log_validation_errors": true
+  },
+  "monitoring": {
+    "health_check_interval": 60,
+    "metrics_retention_hours": 168,
+    "log_rotation_hours": 24,
+    "enable_performance_tracking": true
+  },
+  "production": {
+    "environment": "production",
+    "debug_mode": false,
+    "log_level": "INFO",
+    "enable_profiling": false,
+    "max_memory_usage_mb": 2048,
+    "max_cpu_usage_percent": 80
+  }
+}

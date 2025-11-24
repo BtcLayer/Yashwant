@@ -1,0 +1,33 @@
+{
+  "logging": {
+    "base_dir": "../paper_trading_outputs/logs",
+    "rotation": "daily",
+    "formats": {
+      "market": ["ts_ist", "asset", "bar_id", "mid", "bid1", "ask1", "spread_bps", "rv_1h"],
+      "signals": ["ts_ist", "asset", "bar_id", "S_top", "S_bot", "F_top_norm", "F_bot_norm"],
+      "ensemble": ["ts_ist", "asset", "bar_id", "pred_stack", "pred_bma", "bandit_arm", "ic_200"],
+      "health": ["ts_ist", "Sharpe_roll_1d", "max_dd_to_date", "ic_drift"]
+    }
+  },
+  "alerts": {
+    "ic_drift": {
+      "warning": -0.03,
+      "critical": -0.05
+    },
+    "drawdown": {
+      "warning": -0.02,
+      "critical": -0.03
+    },
+    "volatility": {
+      "max_deviation": 1.5
+    }
+  },
+  "timeframes": {
+    "base": "5min",
+    "overlays": ["15min", "1h"],
+    "alignment": {
+      "require_agreement": true,
+      "neutral_override": true
+    }
+  }
+}

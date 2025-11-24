@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HealthPayload",
+  "type": "object",
+  "required": ["symbol", "health", "ts_iso", "ts"],
+  "properties": {
+    "symbol": {"type": "string"},
+    "health": {
+      "type": "object",
+      "required": ["recent_bars"],
+      "properties": {
+        "recent_bars": {"type": "integer", "minimum": 0},
+        "mean_p_down": {"type": ["number", "null"]},
+        "mean_p_up": {"type": ["number", "null"]},
+        "mean_s_model": {"type": ["number", "null"]},
+        "exec_count_recent": {"type": "integer", "minimum": 0},
+        "funding_stale": {"type": "boolean"},
+        "equity": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "ts_iso": {"type": "string"},
+    "ts": {"type": ["integer", "number"]},
+    "sanitized": {"type": ["object", "null"]}
+  },
+  "additionalProperties": true
+}

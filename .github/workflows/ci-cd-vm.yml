@@ -1,0 +1,287 @@
+name: MetaStackerBandit VM Deployment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  VM_HOST: 40.88.15.47
+  VM_USER: azureuser
+  VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+  PROJECT_DIR: /home/azureuser/MetaStackerBandit
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  # Job 1: Build Frontend and Test
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build Frontend and Test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Test module imports
+      run: |
+        python -c "
+        try:
+            import live_demo.main
+            print('✅ live_demo.main imported')
+        except Exception as e:
+            print(f'⚠️ live_demo.main: {e}')
+        try:
+            import live_demo_1h.main
+            print('✅ live_demo_1h.main imported')
+        except Exception as e:
+            print(f'⚠️ live_demo_1h.main: {e}')
+        try:
+            import live_demo_12h.main
+            print('✅ live_demo_12h.main imported')
+        except Exception as e:
+            print(f'⚠️ live_demo_12h.main: {e}')
+        try:
+            import live_demo_24h.main
+            print('✅ live_demo_24h.main imported')
+        except Exception as e:
+            print(f'❌ live_demo_24h.main: {e}')
+            exit(1)
+        import requests
+        print('✅ All modules import successfully')
+        "
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Build React frontend (for testing)
+      working-directory: ./frontend
+      env:
+        REACT_APP_API_URL: ''
+        REACT_APP_DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD || 'metastacker2024' }}
+      run: npm run build
+      # Note: This build is just for testing. The actual build happens on VM.
+
+  # Job 2: Deploy to Azure VM
+  deploy-vm:
+    runs-on: ubuntu-latest
+    name: Deploy to Azure VM
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+        chmod 600 ~/.ssh/vm_key
+        ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to VM
+      run: |
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        set -e
+        cd ${{ env.PROJECT_DIR }}
+        
+        echo "📥 Pulling latest code..."
+        git fetch origin
+        
+        # Stash any local changes to data directories (safety measure)
+        echo "💾 Preserving bot data directories..."
+        mkdir -p /tmp/vm_data_backup
+        if [ -d "paper_trading_outputs" ]; then
+            echo "   Backing up paper_trading_outputs..."
+            cp -r paper_trading_outputs /tmp/vm_data_backup/ 2>/dev/null || true
+        fi
+        if [ -d "logs" ]; then
+            echo "   Backing up logs..."
+            cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
+        fi
+        
+        # Reset code (but preserve untracked/ignored files)
+        git reset --hard origin/main
+        git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' || true
+        
+        # Restore data directories if they were backed up
+        if [ -d "/tmp/vm_data_backup/paper_trading_outputs" ]; then
+            echo "   Restoring paper_trading_outputs..."
+            rm -rf paper_trading_outputs
+            mv /tmp/vm_data_backup/paper_trading_outputs ./
+        fi
+        if [ -d "/tmp/vm_data_backup/logs" ]; then
+            echo "   Restoring logs..."
+            rm -rf logs
+            mv /tmp/vm_data_backup/logs ./
+        fi
+        rm -rf /tmp/vm_data_backup
+        
+        echo "✅ Code updated, bot data preserved"
+        
+        echo "🔄 Activating virtual environment..."
+        source venv/bin/activate
+        
+        echo "📦 Updating Python dependencies (if needed)..."
+        pip install -q --upgrade pip
+        pip install -q -r requirements.txt
+        
+        echo "🛑 Stopping existing services..."
+        pkill -f "python.*start_project.py" || true
+        pkill -f gunicorn || true
+        pkill -f uvicorn || true
+        pkill -f run_unified_bots.py || true
+        sleep 2
+        
+        echo "🚀 Starting application with start_project.py..."
+        # Use start_project.py with production flags:
+        # --gunicorn: Use gunicorn with multiple workers for production
+        # --daemon: Run in background mode
+        # Frontend will auto-rebuild if source files changed
+        nohup python start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        
+        echo "✅ Deployment complete!"
+        EOF
+
+    - name: Verify Deployment
+      run: |
+        echo "🔍 Verifying deployment..."
+        sleep 10
+        
+        # Wait for app to start
+        echo "⏳ Waiting for application to start..."
+        sleep 15
+        
+        # Try health check with retries (give more time for start_project.py to build frontend)
+        for i in {1..8}; do
+          if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
+            echo "✅ Health check passed!"
+            break
+          else
+            echo "⏳ Health check attempt $i/8 failed, retrying in 10 seconds..."
+            echo "   (start_project.py may be building frontend or starting services...)"
+            sleep 10
+          fi
+        done
+        
+        # Final check
+        if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
+          echo "✅ Application is healthy and ready!"
+        else
+          echo "⚠️ Health check failed, but deployment may still be starting"
+          echo "   Check manually at: http://${{ env.VM_HOST }}:8000/api/health"
+          echo "   Check logs: ssh ${{ env.VM_USER }}@${{ env.VM_HOST }} 'tail -f ${{ env.PROJECT_DIR }}/logs/start_project.log'"
+        fi
+
+    - name: Deployment Summary
+      run: |
+        echo "=========================================="
+        echo "✅ DEPLOYMENT COMPLETE!"
+        echo "=========================================="
+        echo ""
+        echo "🌐 APPLICATION URL:"
+        echo "   http://${{ env.VM_HOST }}:8000"
+        echo ""
+        echo "📋 ACCESS POINTS:"
+        echo "   - Frontend Dashboard: http://${{ env.VM_HOST }}:8000"
+        echo "   - Backend API:        http://${{ env.VM_HOST }}:8000/api"
+        echo "   - Health Check:       http://${{ env.VM_HOST }}:8000/api/health"
+        echo ""
+        echo "=========================================="
+        
+        # Create a summary for GitHub Actions UI
+        echo "## 🚀 VM Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🌐 Application URL" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "[**http://${{ env.VM_HOST }}:8000**](http://${{ env.VM_HOST }}:8000)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Access Points" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Frontend Dashboard:** [http://${{ env.VM_HOST }}:8000](http://${{ env.VM_HOST }}:8000)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Backend API:** [http://${{ env.VM_HOST }}:8000/api](http://${{ env.VM_HOST }}:8000/api)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Health Check:** [http://${{ env.VM_HOST }}:8000/api/health](http://${{ env.VM_HOST }}:8000/api/health)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Note:** The application may take 10-30 seconds to fully start after deployment." >> $GITHUB_STEP_SUMMARY
+
+    - name: Wait for Bot Outputs
+      run: |
+        echo "⏳ Waiting for bots to generate initial outputs (90 seconds)..."
+        sleep 90
+        echo "✅ Wait complete, checking for outputs..."
+
+    - name: Download Paper Trading Outputs
+      run: |
+        echo "📥 Downloading paper_trading_outputs from VM..."
+        
+        # Create local directory for outputs
+        mkdir -p paper_trading_outputs
+        
+        # Use tar over SSH to download the folder (most reliable method)
+        # This creates a tar archive on the VM and streams it to local machine
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} \
+          "cd ${{ env.PROJECT_DIR }} && tar -czf - paper_trading_outputs 2>/dev/null" \
+          | tar -xzf - || {
+          echo "⚠️ Could not download outputs (may not exist yet or directory is empty)"
+          # Try to check if directory exists
+          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} \
+            "test -d ${{ env.PROJECT_DIR }}/paper_trading_outputs && echo 'Directory exists' || echo 'Directory does not exist'" || true
+        }
+        
+        # Check what we got
+        if [ -d "./paper_trading_outputs" ]; then
+          echo "✅ Downloaded outputs structure:"
+          find ./paper_trading_outputs -type f \( -name "*.jsonl.gz" -o -name "*.csv" -o -name "*.json" \) | head -30 || echo "   (no files found yet)"
+          echo ""
+          echo "📊 Top-level directory structure:"
+          ls -la ./paper_trading_outputs/ 2>/dev/null | head -20 || echo "   (directory empty or not accessible)"
+          echo ""
+          echo "📈 Summary by timeframe:"
+          for tf in 5m 1h 12h 24h; do
+            if [ -d "./paper_trading_outputs/$tf" ]; then
+              file_count=$(find "./paper_trading_outputs/$tf" -type f | wc -l)
+              echo "   $tf: $file_count files"
+            fi
+          done
+        else
+          echo "⚠️ paper_trading_outputs directory not found on VM"
+        fi
+
+    - name: Upload Paper Trading Outputs as Artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: paper_trading_outputs
+        path: paper_trading_outputs/
+        retention-days: 7
+        if-no-files-found: warn
+

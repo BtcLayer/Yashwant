@@ -1,0 +1,113 @@
+.executions-table-container {
+  width: 100%;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  justify-content: flex-end;
+}
+
+.export-button {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-button:hover {
+  background: hsl(var(--primary) / 0.2);
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.table-wrapper {
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid hsl(var(--dark-border));
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.executions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.executions-table th {
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.executions-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--dark-foreground));
+}
+
+.executions-table tr:hover {
+  background: hsl(var(--accent));
+}
+
+.timestamp-cell {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.numeric-cell {
+  font-family: 'Fira Code', monospace;
+  text-align: right;
+}
+
+.numeric-cell.positive {
+  color: hsl(142 76% 36%);
+}
+
+.numeric-cell.negative {
+  color: hsl(0 84% 60%);
+}
+
+.side-badge {
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  display: inline-block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.side-badge.buy, .side-badge.long {
+  background: hsl(142 76% 36% / 0.1);
+  color: hsl(142 76% 36%);
+  border: 1px solid hsl(142 76% 36% / 0.3);
+}
+
+.side-badge.sell, .side-badge.short {
+  background: hsl(0 84% 60% / 0.1);
+  color: hsl(0 84% 60%);
+  border: 1px solid hsl(0 84% 60% / 0.3);
+}
+
+.loading, .no-data {
+  text-align: center;
+  padding: 2rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}

@@ -1,0 +1,84 @@
+.bot-status {
+  margin-bottom: 1.5rem;
+}
+
+.bot-status h2 {
+  color: hsl(var(--dark-foreground));
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid hsl(var(--dark-border));
+  padding-bottom: 0.75rem;
+}
+
+.bot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bot-item {
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bot-item:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  background: hsl(var(--accent));
+}
+
+.bot-item.selected {
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary));
+}
+
+.bot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.bot-version {
+  color: hsl(var(--dark-foreground));
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: hsl(142 76% 36%);
+  box-shadow: 0 0 8px currentColor;
+}
+
+.bot-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bot-equity {
+  color: hsl(142 76% 36%);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Fira Code', monospace;
+}
+
+.bot-signals {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}

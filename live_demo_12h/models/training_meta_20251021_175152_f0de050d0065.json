@@ -1,0 +1,1 @@
+{"timeframe": "12h", "classification_target": "direction_confidence_12h", "train_rows": 218, "calib_rows": 54, "base_cv_scores": {"histgb": 0.6049382716049382, "randomforest": 0.6358024691358025, "extratrees": 0.6111111111111112, "logistic_scaled": 0.4506172839506173}, "meta_score_in_sample": 0.6284403669724771}
