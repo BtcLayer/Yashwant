@@ -184,7 +184,8 @@ jobs:
         # Install other dependencies (fix Node.js/npm conflict by removing old packages first)
         echo "   Installing build tools and Node.js..."
         echo "   Removing conflicting Node.js packages..."
-        sudo apt-get purge -y nodejs npm libnode-dev 2>/dev/null || true
+        sudo dpkg -r --force-all libnode72 2>/dev/null || true
+        sudo apt-get purge -y nodejs npm libnode-dev libnode72 'libnode*' 2>/dev/null || true
         sudo apt-get autoremove -y 2>/dev/null || true
         sudo rm -rf /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.list.save 2>/dev/null || true
         sudo apt-get update -qq
