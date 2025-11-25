@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.13'  # Latest Python 3.13 (2025)
+  PYTHON_VERSION: '3.12'  # Use 3.12 on GitHub runners (stable wheels); VM still installs 3.13 if available
 
 jobs:
   # Job 1: Build Frontend and Test
