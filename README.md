@@ -47,7 +47,7 @@ python start_project.py
 
 # Recommended production flags (matches CI/CD deployment)
 # Backend served by gunicorn, nginx reverse proxy, bots auto-start
-python start_project.py --gunicorn --daemon --nginx
+python start_project.py --gunicorn --daemon
 
 # Access everything on ONE port:
 # • Frontend: http://localhost:8000/
