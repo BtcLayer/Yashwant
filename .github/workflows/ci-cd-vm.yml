@@ -160,6 +160,7 @@ jobs:
         echo "✅ Code updated, bot data preserved"
         
         echo "🔧 Installing system dependencies (if needed)..."
+        export DEBIAN_FRONTEND=noninteractive
         sudo apt-get update -qq
         
         # Install Python 3.12 from deadsnakes PPA (Ubuntu 22.04 doesn't have 3.12 in default repos)
@@ -180,14 +181,17 @@ jobs:
             PYTHON_VER="3"
         fi
         
-        # Install other dependencies (fix Node.js/npm conflict by installing nodejs-legacy or using nodejs from NodeSource)
+        # Install other dependencies (fix Node.js/npm conflict by removing old packages first)
         echo "   Installing build tools and Node.js..."
-        # Remove conflicting npm/nodejs packages first
-        sudo apt-get remove -y nodejs npm 2>/dev/null || true
-        # Install Node.js 18.x from NodeSource (better compatibility)
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>/dev/null || {
-            echo "   NodeSource setup failed, using default nodejs..."
-            sudo apt-get install -y nodejs npm
+        echo "   Removing conflicting Node.js packages..."
+        sudo apt-get purge -y nodejs npm libnode-dev 2>/dev/null || true
+        sudo apt-get autoremove -y 2>/dev/null || true
+        sudo rm -rf /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.list.save 2>/dev/null || true
+        sudo apt-get update -qq
+        echo "   Installing Node.js 18.x from NodeSource..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - || {
+            echo "⚠️  NodeSource setup failed, falling back to Ubuntu nodejs..."
+            sudo apt-get update -qq
         }
         sudo apt-get install -y nodejs python3-pip build-essential git curl
         
