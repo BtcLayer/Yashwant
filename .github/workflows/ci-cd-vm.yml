@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.12'
 
 jobs:
   # Job 1: Build Frontend and Test
@@ -37,7 +37,9 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip setuptools wheel
+        # Install build dependencies first to ensure wheels can be built if needed
+        pip install --only-binary :all: numpy pandas || pip install numpy pandas
         pip install -r requirements.txt
 
     - name: Test module imports
@@ -158,19 +160,31 @@ jobs:
         echo "✅ Code updated, bot data preserved"
         
         echo "🔧 Installing system dependencies (if needed)..."
-        # Install Python 3.13 and required packages
+        # Install Python 3.12 and required packages (3.12 has better package wheel support than 3.13)
         sudo apt-get update -qq
-        sudo apt-get install -y python3.13 python3.13-venv python3-pip build-essential git curl nodejs npm || {
-            echo "   Python 3.13 not available, installing Python 3.10+ and venv..."
-            sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
+        sudo apt-get install -y python3.12 python3.12-venv python3-pip build-essential git curl nodejs npm || {
+            echo "   Python 3.12 not available, trying Python 3.11..."
+            sudo apt-get install -y python3.11 python3.11-venv python3-pip build-essential git curl nodejs npm || {
+                echo "   Python 3.11 not available, installing Python 3.10+ and venv..."
+                sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
+            }
         }
         
         echo "🔄 Setting up Python environment..."
         # Try to create venv, but use system Python if it fails
         USE_VENV=false
+        # Try python3.12 first, then python3.11, then python3
+        PYTHON_CMD_VENV="python3.12"
+        if ! command -v python3.12 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.11"
+            if ! command -v python3.11 &> /dev/null; then
+                PYTHON_CMD_VENV="python3"
+            fi
+        fi
+        
         if [ ! -d "venv" ]; then
-            echo "   Attempting to create virtual environment..."
-            if python3 -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
+            echo "   Attempting to create virtual environment with $PYTHON_CMD_VENV..."
+            if $PYTHON_CMD_VENV -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
                 echo "✅ Virtual environment created"
                 USE_VENV=true
             else
@@ -199,6 +213,11 @@ jobs:
         echo "📦 Updating Python dependencies..."
         # Upgrade pip (try with --user if permission denied)
         $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || echo "⚠️  pip upgrade failed, continuing..."
+        # Install numpy and pandas first (they may need to build from source on some systems)
+        echo "   Installing numpy and pandas (may take a few minutes)..."
+        $PIP_CMD install -q numpy pandas 2>/dev/null || $PIP_CMD install -q numpy pandas --user 2>/dev/null || {
+            echo "⚠️  numpy/pandas install had issues, continuing with full requirements..."
+        }
         # Install requirements (try with --user if permission denied)
         $PIP_CMD install -q -r requirements.txt 2>/dev/null || $PIP_CMD install -q -r requirements.txt --user 2>/dev/null || {
             echo "❌ Failed to install Python dependencies"
