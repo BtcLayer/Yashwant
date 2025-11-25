@@ -293,13 +293,16 @@ jobs:
             $PIP_CMD install -r requirements.txt --user || true
         }
         
-        # Install Node.js dependencies
+        # Install Node.js dependencies and rebuild frontend
         echo "📦 Installing/updating Node.js dependencies..."
         cd frontend
         # Clean install to avoid "nodepath" and other module issues
         rm -rf node_modules package-lock.json 2>/dev/null || true
         npm cache clean --force 2>/dev/null || true
         npm install
+        # Remove old build to ensure it's rebuilt with correct API URL
+        echo "🧹 Removing old frontend build to force rebuild with correct API URL..."
+        rm -rf build 2>/dev/null || true
         cd ..
         
         echo "🛑 Stopping existing services..."
