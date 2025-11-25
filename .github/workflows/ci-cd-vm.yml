@@ -117,19 +117,19 @@ jobs:
         ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
         set -e
         
+        # Always start in project directory
+        cd ${{ env.PROJECT_DIR }} || mkdir -p ${{ env.PROJECT_DIR }} && cd ${{ env.PROJECT_DIR }}
+        
         # Check if repository exists, clone if not
-        if [ ! -d "${{ env.PROJECT_DIR }}/.git" ]; then
+        if [ ! -d ".git" ]; then
             echo "📥 Repository not found, cloning..."
-            mkdir -p ${{ env.PROJECT_DIR }}
-        cd ${{ env.PROJECT_DIR }}
             # Use GitHub Actions token for private repo access
             git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
         else
-        echo "📥 Pulling latest code..."
-            cd ${{ env.PROJECT_DIR }}
+            echo "📥 Pulling latest code..."
             # Configure git to use token for private repo
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-        git fetch origin
+            git fetch origin
         fi
         
         # Stash any local changes to data directories (safety measure)
@@ -306,11 +306,41 @@ jobs:
         cd ..
         
         echo "🛑 Stopping existing services..."
-        pkill -f "python.*start_project.py" || true
-        pkill -f gunicorn || true
-        pkill -f uvicorn || true
-        pkill -f run_unified_bots.py || true
-        sleep 2
+        # Kill processes by name
+        pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        pkill -9 -f gunicorn 2>/dev/null || true
+        pkill -9 -f uvicorn 2>/dev/null || true
+        pkill -9 -f run_unified_bots.py 2>/dev/null || true
+        
+        # Kill processes using port 8000 directly
+        echo "   Freeing port 8000..."
+        if command -v fuser &> /dev/null; then
+            fuser -k 8000/tcp 2>/dev/null || true
+        elif command -v lsof &> /dev/null; then
+            lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+        else
+            # Fallback: find and kill processes on port 8000
+            for pid in $(ss -tlnp | grep :8000 | awk '{print $NF}' | cut -d',' -f2 | cut -d'=' -f2 | sort -u); do
+                kill -9 "$pid" 2>/dev/null || true
+            done
+        fi
+        
+        # Wait for port to be released
+        echo "   Waiting for port 8000 to be released..."
+        for i in {1..10}; do
+            if ! (ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null); then
+                echo "   ✅ Port 8000 is free"
+                break
+            fi
+            sleep 1
+        done
+        
+        # Final check - if port still in use, try one more aggressive kill
+        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+            echo "   ⚠️  Port 8000 still in use, attempting final cleanup..."
+            sudo fuser -k 8000/tcp 2>/dev/null || true
+            sleep 2
+        fi
         
         # Ensure necessary directories exist
         echo "📁 Creating necessary directories..."
@@ -318,6 +348,9 @@ jobs:
         mkdir -p paper_trading_outputs/sheets_fallback
         
         echo "🚀 Starting application with start_project.py..."
+        # Ensure we're in the project directory
+        cd ${{ env.PROJECT_DIR }}
+        
         # Use start_project.py with production flags:
         # --gunicorn: Use gunicorn with multiple workers for production
         # --daemon: Run in background mode
@@ -326,7 +359,47 @@ jobs:
         # Ensure PYTHON_CMD is set (safety check)
         PYTHON_CMD=${PYTHON_CMD:-python3}
         echo "🐍 Using Python command: $PYTHON_CMD"
+        echo "📁 Working directory: $(pwd)"
+        
+        # Ensure logs directory exists
+        mkdir -p logs
+        
+        # Verify port is free before starting
+        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+            echo "❌ ERROR: Port 8000 is still in use after cleanup!"
+            echo "   Attempting one more aggressive cleanup..."
+            sudo fuser -k 8000/tcp 2>/dev/null || true
+            sleep 3
+            if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+                echo "   ❌ Port 8000 still in use - deployment may fail"
+                echo "   You may need to manually kill processes on port 8000"
+            else
+                echo "   ✅ Port 8000 is now free"
+            fi
+        fi
+        
+        # Start the application
+        echo "   Starting application..."
         nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        START_PID=$!
+        echo "   Started with PID: $START_PID"
+        
+        # Wait a moment and check if it started successfully
+        sleep 5
+        if ps -p $START_PID > /dev/null 2>&1; then
+            echo "✅ Application process is running (PID: $START_PID)"
+        else
+            echo "⚠️  Process may have exited, checking logs..."
+            tail -30 logs/start_project.log 2>/dev/null || echo "   No log file found"
+        fi
+        
+        # Verify port is now in use (means app started)
+        sleep 2
+        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+            echo "✅ Port 8000 is now in use - application appears to be running"
+        else
+            echo "⚠️  Port 8000 is not in use - application may not have started"
+        fi
         
         echo "✅ Deployment complete!"
         EOF
