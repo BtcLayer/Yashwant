@@ -112,161 +112,92 @@ jobs:
         chmod 600 ~/.ssh/vm_key
         ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Deploy to VM
-      timeout-minutes: 15
+    - name: Update Code on VM
+      timeout-minutes: 5
       run: |
-        # Don't use set -e here - we want to capture the SSH exit code
-        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
-        # Don't use set -e - we want to continue even if some commands fail
-        # This allows the script to continue even if non-critical commands fail
-        set +e  # Explicitly disable exit on error
-        
-        # Always start in project directory
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'UPDATE_EOF'
+        set +e
         cd ${{ env.PROJECT_DIR }} || mkdir -p ${{ env.PROJECT_DIR }} && cd ${{ env.PROJECT_DIR }}
         
-        # Check if repository exists, clone if not
         if [ ! -d ".git" ]; then
             echo "📥 Repository not found, cloning..."
-            # Use GitHub Actions token for private repo access
             git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
         else
             echo "📥 Pulling latest code..."
-            # Configure git to use token for private repo
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            echo "   Fetching from origin (this may take a moment)..."
-            timeout 120 git fetch origin || {
-                echo "⚠️  Git fetch timed out or failed, trying to continue..."
-            }
+            timeout 120 git fetch origin || echo "⚠️  Git fetch timed out"
         fi
         
-        # Stash any local changes to data directories (safety measure)
         echo "💾 Preserving bot data directories..."
         mkdir -p /tmp/vm_data_backup
-        if [ -d "paper_trading_outputs" ]; then
-            echo "   Backing up paper_trading_outputs..."
-            cp -r paper_trading_outputs /tmp/vm_data_backup/ 2>/dev/null || true
-        fi
-        if [ -d "logs" ]; then
-            echo "   Backing up logs..."
-            cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
-        fi
+        [ -d "paper_trading_outputs" ] && cp -r paper_trading_outputs /tmp/vm_data_backup/ 2>/dev/null || true
+        [ -d "logs" ] && cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
         
-        # Clean up __pycache__ directories to avoid permission issues
-        echo "🧹 Cleaning up Python cache directories..."
+        echo "🧹 Cleaning up Python cache..."
         find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
         find . -type f -name "*.pyc" -delete 2>/dev/null || true
-        find . -type f -name "*.pyo" -delete 2>/dev/null || true
         
-        # Fix permissions on directories if needed
-        echo "🔧 Fixing directory permissions..."
+        echo "🔧 Fixing permissions..."
         chmod -R u+w . 2>/dev/null || true
         
-        # Reset code (but preserve untracked/ignored files)
         echo "🔄 Resetting to origin/main..."
-        echo "   (This may take a moment if there are many file changes)"
-        
-        # Use timeout to prevent hanging, and show progress
-        if timeout 120 git reset --hard origin/main 2>&1 | head -50; then
-            echo "✅ Git reset completed successfully"
-        else
-            RESET_EXIT_CODE=$?
-            if [ $RESET_EXIT_CODE -eq 124 ]; then
-                echo "⚠️  Git reset timed out after 120 seconds"
-                echo "   Trying to fix permissions and retry..."
-            else
-                echo "⚠️  Git reset had issues (exit code: $RESET_EXIT_CODE)"
-                echo "   Trying to fix permissions and retry..."
-            fi
-            
-            # Fix permissions and try again
+        timeout 120 git reset --hard origin/main 2>&1 | head -50 || {
             find . -type d -name "__pycache__" -exec sudo rm -rf {} + 2>/dev/null || true
             sudo chown -R ${{ env.VM_USER }}:${{ env.VM_USER }} . 2>/dev/null || true
-            
-            # Retry with timeout
-            if timeout 120 git reset --hard origin/main 2>&1 | head -50; then
-                echo "✅ Git reset completed on retry"
-            else
-                echo "❌ Git reset failed even after retry"
-                echo "   Continuing anyway - code may be partially updated"
-            fi
-        fi
-        
-        # Clean untracked files (with timeout)
-        echo "🧹 Cleaning untracked files..."
-        timeout 60 git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' 2>&1 | head -20 || {
-            echo "⚠️  Git clean had issues or timed out, continuing..."
+            timeout 120 git reset --hard origin/main 2>&1 | head -50 || echo "⚠️  Git reset failed"
         }
         
-        # Restore data directories if they were backed up
-        if [ -d "/tmp/vm_data_backup/paper_trading_outputs" ]; then
-            echo "   Restoring paper_trading_outputs..."
-            rm -rf paper_trading_outputs
-            mv /tmp/vm_data_backup/paper_trading_outputs ./
-        fi
-        if [ -d "/tmp/vm_data_backup/logs" ]; then
-            echo "   Restoring logs..."
-            rm -rf logs
-            mv /tmp/vm_data_backup/logs ./
-        fi
+        timeout 60 git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' 2>&1 | head -20 || true
+        
+        [ -d "/tmp/vm_data_backup/paper_trading_outputs" ] && rm -rf paper_trading_outputs && mv /tmp/vm_data_backup/paper_trading_outputs ./ || true
+        [ -d "/tmp/vm_data_backup/logs" ] && rm -rf logs && mv /tmp/vm_data_backup/logs ./ || true
         rm -rf /tmp/vm_data_backup
         
-        echo "✅ Code updated, bot data preserved"
+        echo "✅ Code updated"
+        UPDATE_EOF
+
+    - name: Install Dependencies on VM
+      timeout-minutes: 10
+      run: |
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'DEPS_EOF'
+        set +e
+        cd ${{ env.PROJECT_DIR }}
         
-        echo "🔧 Installing system dependencies (if needed)..."
+        echo "🔧 Installing system dependencies..."
         export DEBIAN_FRONTEND=noninteractive
         sudo apt-get update -qq
         
-        # Install Python 3.12 from deadsnakes PPA (Ubuntu 22.04 doesn't have 3.12 in default repos)
-        echo "   Adding deadsnakes PPA for Python 3.12..."
         sudo apt-get install -y software-properties-common
-        sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || {
-            echo "   PPA already added or failed, continuing..."
-        }
+        sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || true
         sudo apt-get update -qq
         
-        # Try to install Python 3.13 (latest 2025), fallback to 3.12, then 3.10
         if sudo apt-get install -y python3.13 python3.13-venv python3.13-distutils 2>/dev/null; then
-            echo "✅ Python 3.13 installed from deadsnakes PPA"
             PYTHON_VER="3.13"
         elif sudo apt-get install -y python3.12 python3.12-venv python3.12-distutils 2>/dev/null; then
-            echo "✅ Python 3.12 installed from deadsnakes PPA"
             PYTHON_VER="3.12"
         else
-            echo "⚠️  Python 3.13/3.12 not available, using system Python 3.10"
             sudo apt-get install -y python3 python3-venv
             PYTHON_VER="3"
         fi
-        PYTHON_BIN=$(command -v python3.13 || command -v python3.12 || command -v python3)
-        echo "🐍 Python version on VM: $($PYTHON_BIN --version 2>/dev/null || echo 'unknown')"
         
-        # Install other dependencies (fix Node.js/npm conflict by removing old packages first)
-        echo "   Installing build tools and Node.js..."
-        echo "   Removing conflicting Node.js packages..."
         sudo dpkg -r --force-all libnode72 2>/dev/null || true
         sudo apt-get purge -y nodejs npm libnode-dev libnode72 'libnode*' 2>/dev/null || true
         sudo apt-get autoremove -y 2>/dev/null || true
-        sudo rm -rf /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.list.save 2>/dev/null || true
+        sudo rm -rf /etc/apt/sources.list.d/nodesource.list* 2>/dev/null || true
         sudo apt-get update -qq
-        echo "   Installing Node.js 22.x LTS from NodeSource (latest 2025)..."
+        
         curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || {
-            echo "⚠️  Node.js 22 setup failed, trying Node.js 20..."
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - || {
-                echo "⚠️  NodeSource setup failed, falling back to Ubuntu nodejs..."
-                sudo apt-get update -qq
-            }
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - || true
         }
+        
         sudo apt-get install -y nodejs python3-pip build-essential git curl nginx
         sudo mkdir -p /var/log/nginx
         sudo chown ${{ env.VM_USER }}:${{ env.VM_USER }} /var/log/nginx
         mkdir -p logs
-        touch logs/nginx-error.log logs/nginx-access.log
         sudo systemctl stop nginx 2>/dev/null || true
         sudo systemctl disable nginx 2>/dev/null || true
-        echo "📦 Node.js version on VM: $(node --version)"
-        echo "📦 npm version on VM: $(npm --version)"
         
         echo "🔄 Setting up Python environment..."
-        # Determine which Python to use (try 3.13, 3.12, then 3.10)
         USE_VENV=false
         if [ "$PYTHON_VER" = "3.13" ] && command -v python3.13 &> /dev/null; then
             PYTHON_CMD_VENV="python3.13"
@@ -277,386 +208,145 @@ jobs:
         else
             PYTHON_CMD_VENV="python3"
         fi
-        echo "🐍 Using Python: $PYTHON_CMD_VENV ($($PYTHON_CMD_VENV --version 2>/dev/null || echo 'version check failed'))"
+        
         PYTHON_CMD="python3"
         PIP_CMD="pip3"
         
         if [ ! -d "venv" ]; then
-            echo "   Attempting to create virtual environment with $PYTHON_CMD_VENV..."
             if $PYTHON_CMD_VENV -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
-                echo "✅ Virtual environment created"
                 USE_VENV=true
-            else
-                echo "⚠️  Virtual environment creation failed, using system Python"
-                USE_VENV=false
             fi
         elif [ -f "venv/bin/activate" ]; then
-            echo "✅ Virtual environment already exists"
             USE_VENV=true
-        else
-            echo "⚠️  Existing venv directory invalid, using system Python"
-            USE_VENV=false
         fi
         
         if [ "$USE_VENV" = "true" ]; then
-            echo "   Activating virtual environment..."
             source venv/bin/activate
             PYTHON_CMD="python"
             PIP_CMD="pip"
-        else
-            echo "   Using system Python (python3/pip3)"
-            PYTHON_CMD="python3"
-            PIP_CMD="pip3"
         fi
-        # Safety guard in case activation failed
+        
         PYTHON_CMD=${PYTHON_CMD:-python3}
         PIP_CMD=${PIP_CMD:-pip3}
         
-        echo "📦 Updating Python dependencies..."
-        # Upgrade pip (try with --user if permission denied)
-        $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || echo "⚠️  pip upgrade failed, continuing..."
-        # Install numpy and pandas first (they may need to build from source on some systems)
-        echo "   Installing numpy and pandas (may take a few minutes)..."
-        $PIP_CMD install -q numpy pandas 2>/dev/null || $PIP_CMD install -q numpy pandas --user 2>/dev/null || {
-            echo "⚠️  numpy/pandas install had issues, continuing with full requirements..."
-        }
-        # Install requirements (try with --user if permission denied)
+        echo "📦 Installing Python dependencies..."
+        $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || true
+        $PIP_CMD install -q numpy pandas 2>/dev/null || $PIP_CMD install -q numpy pandas --user 2>/dev/null || true
         $PIP_CMD install -q -r requirements.txt 2>/dev/null || $PIP_CMD install -q -r requirements.txt --user 2>/dev/null || {
-            echo "❌ Failed to install Python dependencies"
-            echo "   Attempting with verbose output..."
             $PIP_CMD install -r requirements.txt --user || true
         }
         
-        # Install Node.js dependencies and rebuild frontend
-        echo "📦 Installing/updating Node.js dependencies..."
+        echo "📦 Installing Node.js dependencies..."
         cd frontend
-        # Clean install to avoid "nodepath" and other module issues
         rm -rf node_modules package-lock.json 2>/dev/null || true
         npm cache clean --force 2>/dev/null || true
         npm install
-        # Remove old build to ensure it's rebuilt with correct API URL
-        echo "🧹 Removing old frontend build to force rebuild with correct API URL..."
         rm -rf build 2>/dev/null || true
         cd ..
         
+        echo "✅ Dependencies installed"
+        DEPS_EOF
+
+    - name: Deploy and Start Application
+      timeout-minutes: 10
+      run: |
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'START_EOF'
+        # Don't use set -e - we want to continue even if some commands fail
+        # This allows the script to continue even if non-critical commands fail
+        set +e  # Explicitly disable exit on error
+        
+        set +e
+        cd ${{ env.PROJECT_DIR }}
+        
         echo "🛑 Stopping existing services..."
-        # Kill processes by name (try both regular and sudo)
-        echo "   Killing processes by name..."
         pkill -9 -f "python.*start_project.py" 2>/dev/null || true
         pkill -9 -f gunicorn 2>/dev/null || true
         pkill -9 -f uvicorn 2>/dev/null || true
         pkill -9 -f run_unified_bots.py 2>/dev/null || true
-        
-        # Also try with sudo in case processes are running as root
         sudo pkill -9 -f "python.*start_project.py" 2>/dev/null || true
         sudo pkill -9 -f gunicorn 2>/dev/null || true
-        sudo pkill -9 -f uvicorn 2>/dev/null || true
-        sudo pkill -9 -f run_unified_bots.py 2>/dev/null || true
         
-        # Kill processes using port 8000 and 8001 directly
-        echo "   Freeing ports 8000 and 8001..."
         for port in 8000 8001; do
-            if command -v fuser &> /dev/null; then
-                sudo fuser -k ${port}/tcp 2>/dev/null || fuser -k ${port}/tcp 2>/dev/null || true
-            elif command -v lsof &> /dev/null; then
-                sudo lsof -ti:${port} | xargs sudo kill -9 2>/dev/null || lsof -ti:${port} | xargs kill -9 2>/dev/null || true
-            else
-                # Fallback: find and kill processes on the port
-                # Skip header line and extract PIDs safely
-                ss -tlnp 2>/dev/null | tail -n +2 | grep ":${port}" | awk '{print $NF}' | grep -oE 'pid=[0-9]+' | cut -d'=' -f2 | sort -u | while read pid; do
-                    if [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null; then
-                        sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
-                    fi
-                done || true
-            fi
+            sudo fuser -k ${port}/tcp 2>/dev/null || fuser -k ${port}/tcp 2>/dev/null || true
+            sudo lsof -ti:${port} | xargs sudo kill -9 2>/dev/null || lsof -ti:${port} | xargs kill -9 2>/dev/null || true
+            ss -tlnp 2>/dev/null | tail -n +2 | grep ":${port}" | awk '{print $NF}' | grep -oE 'pid=[0-9]+' | cut -d'=' -f2 | sort -u | while read pid; do
+                [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null && (sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true)
+            done || true
         done
         
-        # Wait for ports to be released
-        echo "   Waiting for ports 8000 and 8001 to be released..."
         for port in 8000 8001; do
             for i in {1..10}; do
                 if ! (ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null); then
-                    echo "   ✅ Port ${port} is free"
                     break
                 fi
                 sleep 1
             done
         done
         
-        # Final check - if ports still in use, try one more aggressive kill
-        for port in 8000 8001; do
-            if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
-                echo "   ⚠️  Port ${port} still in use, attempting final cleanup..."
-                sudo fuser -k ${port}/tcp 2>/dev/null || true
-                # Also kill any gunicorn processes that might be holding the port
-                sudo pkill -9 -f "gunicorn.*${port}" 2>/dev/null || true
-                sleep 2
-            fi
-        done
+        mkdir -p logs paper_trading_outputs/sheets_fallback
         
-        # Ensure necessary directories exist
-        echo "📁 Creating necessary directories..."
-        mkdir -p logs
-        mkdir -p paper_trading_outputs/sheets_fallback
-        
-        echo "🚀 Starting application with start_project.py..."
-        # Ensure we're in the project directory
-        cd ${{ env.PROJECT_DIR }}
-        
-        # Use start_project.py with production flags:
-        # --gunicorn: Use gunicorn with multiple workers for production
-        # --daemon: Run in background mode
-        # Frontend will auto-rebuild if source files changed
-        # Use the correct Python command (venv or system)
-        # Ensure PYTHON_CMD is set (safety check)
-        PYTHON_CMD=${PYTHON_CMD:-python3}
-        echo "🐍 Using Python command: $PYTHON_CMD"
-        echo "📁 Working directory: $(pwd)"
-        
-        # Ensure logs directory exists
-        mkdir -p logs
-        
-        # Verify ports are free before starting
-        for port in 8000 8001; do
-            if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
-                echo "❌ ERROR: Port ${port} is still in use after cleanup!"
-                echo "   Attempting one more aggressive cleanup..."
-                sudo fuser -k ${port}/tcp 2>/dev/null || true
-                sudo pkill -9 -f "gunicorn.*${port}" 2>/dev/null || true
-                sleep 3
-                if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
-                    echo "   ❌ Port ${port} still in use - deployment may fail"
-                    echo "   You may need to manually kill processes on port ${port}"
-                else
-                    echo "   ✅ Port ${port} is now free"
-                fi
-            fi
-        done
-        
-        # Start the application - properly daemonize to survive SSH session closure
-        echo "   Starting application..."
-        
-        # Ensure we're in the right directory and get absolute paths
+        PYTHON_CMD=$(command -v python || command -v python3 || echo "python3")
         cd ${{ env.PROJECT_DIR }}
         PROJECT_ABS=$(pwd)
         LOG_FILE="$PROJECT_ABS/logs/start_project.log"
         mkdir -p "$PROJECT_ABS/logs"
-        
-        # Get absolute path to Python
         PYTHON_ABS=$(which "$PYTHON_CMD" || command -v "$PYTHON_CMD" || echo "$PYTHON_CMD")
         
-        echo "   Project directory: $PROJECT_ABS"
-        echo "   Python: $PYTHON_ABS"
-        echo "   Log file: $LOG_FILE"
-        
-        # Use nohup with proper redirection and ensure complete detachment
-        # The key is: nohup + redirect stdin + background + disown + setsid if available
-        echo "   Starting with nohup (fully detached from SSH session)..."
-        
-        # Try to use setsid if available for complete session detachment
-        # Use absolute path to Python and ensure we're in the right directory
-        # CRITICAL: Must be in project directory when starting
-        cd "$PROJECT_ABS" || {
-            echo "❌ ERROR: Could not cd to $PROJECT_ABS"
-            exit 1
-        }
+        cd "$PROJECT_ABS" || exit 1
         
         if command -v setsid &> /dev/null; then
-            echo "   Using setsid for complete process detachment..."
             setsid nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
             APP_PID=$!
         else
-            # Fallback to just nohup
             nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
             APP_PID=$!
         fi
         
-        echo "   Started with PID: $APP_PID"
+        disown $APP_PID 2>/dev/null || true
+        sleep 5
         
-        # Immediately disown the process so it survives SSH session closure
-        # This is critical - without disown, the process will be killed when SSH closes
-        disown $APP_PID 2>/dev/null || {
-            echo "   ⚠️  Could not disown process $APP_PID"
-        }
-        
-        # Verify the process is still running after a moment
-        sleep 3
-        if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "   ✅ Process $APP_PID is running and disowned"
-        else
-            echo "   ⚠️  Process $APP_PID exited quickly (may have started gunicorn and exited - this is normal)"
-        fi
-        
-        # Check if log file is being created and has content
-        sleep 2
-        if [ -f "$LOG_FILE" ]; then
-            LOG_SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo "0")
-            if [ "$LOG_SIZE" -gt 0 ]; then
-                echo "   ✅ Log file is being written (size: $LOG_SIZE bytes)"
-                echo "   First 20 lines of log:"
-                head -20 "$LOG_FILE" || echo "   Could not read log file"
-            else
-                echo "   ⚠️  Log file exists but is empty"
-            fi
-        else
-            echo "   ⚠️  Log file not created yet: $LOG_FILE"
-        fi
-        
-        echo "   Process started and will survive SSH session closure"
-        
-        # Give it time to start up - start_project.py --daemon returns immediately
-        # but gunicorn workers take a few seconds to start
-        echo "   Waiting for application to initialize..."
-        echo "   (This may take 20-30 seconds for frontend build and gunicorn startup)"
-        
-        # Wait and check multiple times to ensure process stays alive
         STABLE_COUNT=0
         for wait_iter in {1..15}; do
             sleep 2
-            # Check if gunicorn is running
             if pgrep -f "gunicorn.*main:app" > /dev/null 2>&1; then
                 STABLE_COUNT=$((STABLE_COUNT + 1))
-                if [ $STABLE_COUNT -ge 3 ]; then
-                    echo "   ✅ Gunicorn has been stable for $((STABLE_COUNT * 2)) seconds"
-                    break
-                fi
+                [ $STABLE_COUNT -ge 3 ] && break
             else
                 STABLE_COUNT=0
-                if [ $wait_iter -lt 10 ]; then
-                    echo "   ⏳ Still waiting for gunicorn to start... ($((wait_iter * 2))s)"
-                fi
             fi
         done
         
-        # Final wait to ensure everything is ready
         sleep 5
         
-        # Check for the actual running processes (gunicorn workers are what matter)
-        echo "   Checking for running processes..."
-        
-        # Check if our PID is still running
-        if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "✅ Parent process (PID: $APP_PID) is still running"
-        else
-            echo "⚠️  Parent process (PID: $APP_PID) has exited (this is normal in daemon mode)"
-        fi
-        
-        # Check for gunicorn master process
-        GUNICORN_MASTER=$(pgrep -f "gunicorn.*main:app" | head -1 || echo "")
-        GUNICORN_WORKERS=$(pgrep -f "gunicorn.*main:app" | wc -l || echo "0")
-        
-        # Check for start_project.py (should exit quickly in daemon mode)
-        START_PROJECT_PIDS=$(pgrep -f "start_project.py" || echo "")
-        
-        if [ -n "$GUNICORN_MASTER" ]; then
-            echo "✅ Found gunicorn master process: $GUNICORN_MASTER"
-            echo "✅ Found $GUNICORN_WORKERS gunicorn worker process(es)"
-        elif [ -n "$START_PROJECT_PIDS" ]; then
-            echo "⚠️  start_project.py is still running (may be starting gunicorn)..."
-            echo "   PIDs: $START_PROJECT_PIDS"
-        else
-            echo "❌ No gunicorn processes found!"
-            echo "   Checking logs for errors..."
-            # Use the LOG_FILE variable we set earlier (absolute path)
-            if [ -f "$LOG_FILE" ]; then
-                echo "   Last 100 lines of log:"
-                tail -100 "$LOG_FILE"
-            else
-                echo "   ❌ No log file found at $LOG_FILE - process definitely didn't start"
-                echo "   Checking if log directory exists:"
-                ls -la "$PROJECT_ABS/logs/" 2>/dev/null || echo "   Log directory doesn't exist!"
-            fi
-            echo "   Checking for any Python processes:"
-            ps aux | grep -E "(python|gunicorn)" | grep -v grep || echo "   None found"
-        fi
-        
-        # Verify port is now in use (means app started)
-        echo "   Verifying port 8000 is listening..."
-        sleep 5
         PORT_IN_USE=false
-        PORT_CHECK_COUNT=0
         for i in {1..10}; do
             if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
                 PORT_IN_USE=true
-                PORT_CHECK_COUNT=$i
                 break
             fi
             sleep 2
         done
         
         DEPLOYMENT_SUCCESS=false
-        
         if [ "$PORT_IN_USE" = "true" ]; then
-            echo "✅ Port 8000 is listening - application is running!"
-            echo "   Verified after $PORT_CHECK_COUNT check(s)"
-            
-            # Try to actually hit the health endpoint
-            echo "   Testing health endpoint..."
             if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
-                echo "✅ Health check passed - application is fully operational!"
                 DEPLOYMENT_SUCCESS=true
             else
-                echo "⚠️  Health check failed, but port is listening (may still be starting)"
-                # Give it one more chance
                 sleep 5
-                if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
-                    echo "✅ Health check passed on retry!"
-                    DEPLOYMENT_SUCCESS=true
-                else
-                    echo "❌ Health check failed even after retry"
-                fi
+                curl -f -s http://localhost:8000/api/health > /dev/null 2>&1 && DEPLOYMENT_SUCCESS=true
             fi
-        else
-            echo "❌ Port 8000 is NOT in use - application failed to start!"
         fi
         
         if [ "$DEPLOYMENT_SUCCESS" != "true" ]; then
-            echo ""
-            echo "   =========================================="
-            echo "   ❌ DEPLOYMENT FAILED - Debugging Info"
-            echo "   =========================================="
-            echo ""
-            echo "   Recent log output (last 100 lines):"
-            # Use the LOG_FILE variable we set earlier (absolute path)
-            if [ -f "$LOG_FILE" ]; then
-                tail -100 "$LOG_FILE"
-            else
-                echo "   ❌ No log file found at $LOG_FILE"
-                echo "   Checking if log directory exists:"
-                ls -la "$PROJECT_ABS/logs/" 2>/dev/null || echo "   Log directory doesn't exist!"
-            fi
-            echo ""
-            echo "   Running processes:"
-            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "   None found"
-            echo ""
-            echo "   Port 8000 status:"
-            ss -tlnp 2>/dev/null | grep :8000 || echo "   Not listening"
-            echo ""
-            echo "   Gunicorn processes:"
-            pgrep -af gunicorn || echo "   None found"
-            echo ""
-            echo "   =========================================="
-            echo "   ❌ EXITING WITH ERROR - Deployment failed!"
-            echo "   =========================================="
+            echo "❌ DEPLOYMENT FAILED"
+            [ -f "$LOG_FILE" ] && tail -100 "$LOG_FILE" || echo "No log file"
+            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "No processes"
+            ss -tlnp 2>/dev/null | grep :8000 || echo "Port 8000 not listening"
             exit 1
         fi
         
-        echo ""
-        echo "✅ Deployment script complete - Application is running!"
-        
-        # Always exit with success code to prevent SSH from failing
-        # Individual failures are handled above with exit 1, but if we reach here, we succeeded
-        EXIT_CODE=0
-        exit $EXIT_CODE
-        EOF
-        
-        # Capture SSH exit code
-        SSH_EXIT_CODE=$?
-        if [ $SSH_EXIT_CODE -ne 0 ]; then
-          echo "❌ SSH deployment failed with exit code: $SSH_EXIT_CODE"
-          exit $SSH_EXIT_CODE
-        fi
-        echo "✅ SSH deployment completed successfully"
+        echo "✅ Deployment complete - Application is running!"
+        START_EOF
 
     - name: Verify Deployment
       run: |
