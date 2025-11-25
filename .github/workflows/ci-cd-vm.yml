@@ -455,6 +455,12 @@ jobs:
         
         # Try to use setsid if available for complete session detachment
         # Use absolute path to Python and ensure we're in the right directory
+        # CRITICAL: Must be in project directory when starting
+        cd "$PROJECT_ABS" || {
+            echo "❌ ERROR: Could not cd to $PROJECT_ABS"
+            exit 1
+        }
+        
         if command -v setsid &> /dev/null; then
             echo "   Using setsid for complete process detachment..."
             setsid nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
@@ -474,11 +480,26 @@ jobs:
         }
         
         # Verify the process is still running after a moment
-        sleep 2
+        sleep 3
         if ps -p $APP_PID > /dev/null 2>&1; then
             echo "   ✅ Process $APP_PID is running and disowned"
         else
             echo "   ⚠️  Process $APP_PID exited quickly (may have started gunicorn and exited - this is normal)"
+        fi
+        
+        # Check if log file is being created and has content
+        sleep 2
+        if [ -f "$LOG_FILE" ]; then
+            LOG_SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo "0")
+            if [ "$LOG_SIZE" -gt 0 ]; then
+                echo "   ✅ Log file is being written (size: $LOG_SIZE bytes)"
+                echo "   First 20 lines of log:"
+                head -20 "$LOG_FILE" || echo "   Could not read log file"
+            else
+                echo "   ⚠️  Log file exists but is empty"
+            fi
+        else
+            echo "   ⚠️  Log file not created yet: $LOG_FILE"
         fi
         
         echo "   Process started and will survive SSH session closure"
@@ -536,12 +557,14 @@ jobs:
         else
             echo "❌ No gunicorn processes found!"
             echo "   Checking logs for errors..."
-            LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
+            # Use the LOG_FILE variable we set earlier (absolute path)
             if [ -f "$LOG_FILE" ]; then
                 echo "   Last 100 lines of log:"
                 tail -100 "$LOG_FILE"
             else
-                echo "   No log file found at $LOG_FILE - process definitely didn't start"
+                echo "   ❌ No log file found at $LOG_FILE - process definitely didn't start"
+                echo "   Checking if log directory exists:"
+                ls -la "$PROJECT_ABS/logs/" 2>/dev/null || echo "   Log directory doesn't exist!"
             fi
             echo "   Checking for any Python processes:"
             ps aux | grep -E "(python|gunicorn)" | grep -v grep || echo "   None found"
@@ -594,11 +617,13 @@ jobs:
             echo "   =========================================="
             echo ""
             echo "   Recent log output (last 100 lines):"
-            LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
+            # Use the LOG_FILE variable we set earlier (absolute path)
             if [ -f "$LOG_FILE" ]; then
                 tail -100 "$LOG_FILE"
             else
                 echo "   ❌ No log file found at $LOG_FILE"
+                echo "   Checking if log directory exists:"
+                ls -la "$PROJECT_ABS/logs/" 2>/dev/null || echo "   Log directory doesn't exist!"
             fi
             echo ""
             echo "   Running processes:"
