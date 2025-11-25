@@ -207,6 +207,10 @@ jobs:
             }
         }
         sudo apt-get install -y nodejs python3-pip build-essential git curl nginx
+        sudo mkdir -p /var/log/nginx
+        sudo chown ${{ env.VM_USER }}:${{ env.VM_USER }} /var/log/nginx
+        mkdir -p logs
+        touch logs/nginx-error.log logs/nginx-access.log
         sudo systemctl stop nginx 2>/dev/null || true
         sudo systemctl disable nginx 2>/dev/null || true
         echo "📦 Node.js version on VM: $(node --version)"
