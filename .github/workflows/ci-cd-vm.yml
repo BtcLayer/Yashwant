@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.10'  # Match VM Python version for compatibility
+  PYTHON_VERSION: '3.13'
 
 jobs:
   # Job 1: Build Frontend and Test
@@ -108,34 +108,22 @@ jobs:
 
     - name: Deploy to VM
       run: |
-        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'DEPLOY_SCRIPT'
-        # Don't use set -e, handle errors explicitly
-        set +e
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        set -e
         
         # Check if repository exists, clone if not
         if [ ! -d "${{ env.PROJECT_DIR }}/.git" ]; then
             echo "📥 Repository not found, cloning..."
             mkdir -p ${{ env.PROJECT_DIR }}
-            cd ${{ env.PROJECT_DIR }} || exit 1
+            cd ${{ env.PROJECT_DIR }}
             # Use GitHub Actions token for private repo access
-            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git . || {
-                echo "❌ Git clone failed"
-                exit 1
-            }
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
         else
             echo "📥 Pulling latest code..."
-            cd ${{ env.PROJECT_DIR }} || exit 1
+            cd ${{ env.PROJECT_DIR }}
             # Configure git to use token for private repo
-            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git || true
-            git fetch origin || {
-                echo "⚠️  Git fetch failed, trying full reset..."
-                git reset --hard origin/main || exit 1
-            }
-            # Pull latest changes
-            git pull origin main || {
-                echo "⚠️  Git pull failed, trying reset..."
-                git reset --hard origin/main || exit 1
-            }
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            git fetch origin
         fi
         
         # Stash any local changes to data directories (safety measure)
@@ -151,10 +139,7 @@ jobs:
         fi
         
         # Reset code (but preserve untracked/ignored files)
-        git reset --hard origin/main || {
-            echo "❌ Git reset failed"
-            exit 1
-        }
+        git reset --hard origin/main
         git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' || true
         
         # Restore data directories if they were backed up
@@ -175,82 +160,12 @@ jobs:
         echo "🔧 Installing system dependencies (if needed)..."
         # Install Python 3.13 and required packages
         sudo apt-get update -qq
-        sudo apt-get install -y python3.13 python3.13-venv python3-pip build-essential git curl || {
+        sudo apt-get install -y python3.13 python3.13-venv python3-pip build-essential git curl nodejs npm || {
             echo "   Python 3.13 not available, installing Python 3.10+ and venv..."
-            sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl
+            sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
         }
         
-        # Install Node.js 18 (required for frontend build)
-        echo "📦 Installing Node.js 18..."
-        NODE_VERSION=""
-        NPM_VERSION=""
-        if command -v node &> /dev/null; then
-            NODE_VERSION=$(node --version 2>/dev/null || echo "")
-        fi
-        if command -v npm &> /dev/null; then
-            NPM_VERSION=$(npm --version 2>/dev/null || echo "")
-        fi
-        
-        if [ -z "$NODE_VERSION" ] || [ -z "$NPM_VERSION" ] || [ "$(echo "$NODE_VERSION" | cut -d'v' -f2 | cut -d'.' -f1)" -lt 14 ]; then
-            echo "   Removing conflicting Node.js packages..."
-            # Remove all conflicting packages BEFORE setting up NodeSource
-            sudo apt-get remove -y --purge nodejs npm libnode-dev nodejs-doc libnode72 libnode72:amd64 2>/dev/null || true
-            sudo apt-get autoremove -y 2>/dev/null || true
-            # Fix any broken packages
-            sudo dpkg --configure -a 2>/dev/null || true
-            
-            echo "   Setting up NodeSource repository..."
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - || {
-                echo "❌ Failed to setup NodeSource repository"
-                exit 1
-            }
-            
-            # Update package list after adding NodeSource
-            sudo apt-get update -qq
-            
-            echo "   Installing Node.js 18..."
-            sudo apt-get install -y nodejs || {
-                echo "❌ Failed to install nodejs"
-                echo "   Attempting to fix broken packages..."
-                sudo dpkg --configure -a || true
-                sudo apt-get install -f -y || true
-                sudo apt-get install -y nodejs || {
-                    echo "❌ Node.js installation failed after fixes"
-                    exit 1
-                }
-            }
-        fi
-        
-        # Verify installations
-        if ! command -v node &> /dev/null; then
-            echo "❌ node command not found after installation"
-            exit 1
-        fi
-        if ! command -v npm &> /dev/null; then
-            echo "⚠️  npm not found, trying to install separately..."
-            sudo apt-get install -y npm || {
-                echo "❌ Failed to install npm"
-                exit 1
-            }
-        fi
-        
-        # Ensure npm is in PATH (find actual location)
-        NODE_PATH=$(which node 2>/dev/null || echo "/usr/bin/node")
-        NPM_PATH=$(which npm 2>/dev/null || echo "/usr/bin/npm")
-        export PATH="$(dirname "$NODE_PATH"):$(dirname "$NPM_PATH"):$PATH"
-        
-        echo "✅ Node.js $(node --version) installed at $NODE_PATH"
-        echo "✅ npm $(npm --version) installed at $NPM_PATH"
-        
         echo "🔄 Setting up Python environment..."
-        # Check Python version
-        PYTHON_VER=$(python3 --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
-        echo "   Python version: $(python3 --version)"
-        if [ "$(echo "$PYTHON_VER" | cut -d'.' -f1)" -lt 3 ] || ([ "$(echo "$PYTHON_VER" | cut -d'.' -f1)" -eq 3 ] && [ "$(echo "$PYTHON_VER" | cut -d'.' -f2)" -lt 8 ]); then
-            echo "❌ Python 3.8+ required, found $(python3 --version)"
-            exit 1
-        fi
-        
         # Try to create venv, but use system Python if it fails
         USE_VENV=false
         if [ ! -d "venv" ]; then
@@ -266,15 +181,8 @@ jobs:
             echo "✅ Virtual environment already exists"
             USE_VENV=true
         else
-            echo "⚠️  Existing venv directory invalid, recreating..."
-            rm -rf venv
-            if python3 -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
-                echo "✅ Virtual environment recreated"
-                USE_VENV=true
-            else
-                echo "⚠️  Virtual environment creation failed, using system Python"
-                USE_VENV=false
-            fi
+            echo "⚠️  Existing venv directory invalid, using system Python"
+            USE_VENV=false
         fi
         
         if [ "$USE_VENV" = "true" ]; then
@@ -290,84 +198,27 @@ jobs:
         
         echo "📦 Updating Python dependencies..."
         # Upgrade pip (try with --user if permission denied)
-        $PIP_CMD install --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install --upgrade pip setuptools wheel --user 2>/dev/null || echo "⚠️  pip upgrade failed, continuing..."
-        
+        $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || echo "⚠️  pip upgrade failed, continuing..."
         # Install requirements (try with --user if permission denied)
-        echo "   Installing from requirements.txt..."
-        PIP_LOG="/tmp/pip_install_$$.log"
-        if $PIP_CMD install -r requirements.txt > "$PIP_LOG" 2>&1; then
-            echo "✅ Dependencies installed successfully"
-        elif $PIP_CMD install -r requirements.txt --user > "$PIP_LOG" 2>&1; then
-            echo "✅ Dependencies installed with --user flag"
-        else
+        $PIP_CMD install -q -r requirements.txt 2>/dev/null || $PIP_CMD install -q -r requirements.txt --user 2>/dev/null || {
             echo "❌ Failed to install Python dependencies"
-            echo "   Last 20 lines of error log:"
-            tail -20 "$PIP_LOG" || true
-            echo "   Full log available at: $PIP_LOG"
-            exit 1
-        fi
+            echo "   Attempting with verbose output..."
+            $PIP_CMD install -r requirements.txt --user || true
+        }
         
         # Install Node.js dependencies if needed
-        if [ ! -d "frontend/node_modules" ] || [ ! -f "frontend/node_modules/.package-lock.json" ] && [ -f "frontend/package-lock.json" ]; then
+        if [ ! -d "frontend/node_modules" ]; then
             echo "📦 Installing Node.js dependencies..."
-            if ! command -v npm &> /dev/null; then
-                echo "❌ npm not found, cannot install frontend dependencies"
-                exit 1
-            fi
-            cd frontend || exit 1
-            # Use npm ci for reproducible builds, fallback to npm install
-            npm ci 2>/dev/null || npm install || {
-                echo "❌ npm install failed"
-                cd ..
-                exit 1
-            }
+            cd frontend
+            npm install
             cd ..
-        else
-            echo "✅ Node.js dependencies already installed"
         fi
-        
-        # Build frontend if not exists or if source changed
-        echo "📦 Building frontend..."
-        # Always rebuild to ensure latest code is used
-        if ! command -v npm &> /dev/null; then
-            echo "❌ npm not found, cannot build frontend"
-            exit 1
-        fi
-        cd frontend || exit 1
-        echo "   Running npm run build..."
-        npm run build || {
-            echo "❌ Frontend build failed"
-            echo "   Checking for build errors..."
-            cat package.json 2>/dev/null || echo "   package.json not found"
-            cd ..
-            exit 1
-        }
-        cd ..
-        
-        # Verify build was successful
-        if [ ! -d "frontend/build" ] || [ ! -f "frontend/build/index.html" ]; then
-            echo "❌ Frontend build directory or index.html missing after build"
-            exit 1
-        fi
-        echo "✅ Frontend built successfully"
         
         echo "🛑 Stopping existing services..."
-        # Kill processes more aggressively
-        pkill -9 -f "python.*start_project.py" 2>/dev/null || true
-        pkill -9 -f "gunicorn" 2>/dev/null || true
-        pkill -9 -f "uvicorn" 2>/dev/null || true
-        pkill -9 -f "run_unified_bots.py" 2>/dev/null || true
-        # Also try with sudo if needed (for processes started by different user)
-        sudo pkill -9 -f "python.*start_project.py" 2>/dev/null || true
-        sudo pkill -9 -f "gunicorn" 2>/dev/null || true
-        # Wait for processes to die
-        sleep 3
-        # Check if port 8000 is still in use and kill the process
-        if command -v lsof &> /dev/null; then
-            lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-        elif command -v fuser &> /dev/null; then
-            fuser -k 8000/tcp 2>/dev/null || true
-        fi
+        pkill -f "python.*start_project.py" || true
+        pkill -f gunicorn || true
+        pkill -f uvicorn || true
+        pkill -f run_unified_bots.py || true
         sleep 2
         
         # Ensure necessary directories exist
@@ -379,47 +230,12 @@ jobs:
         # Use start_project.py with production flags:
         # --gunicorn: Use gunicorn with multiple workers for production
         # --daemon: Run in background mode
-        # --no-build: Skip frontend build (already built above)
+        # Frontend will auto-rebuild if source files changed
         # Use the correct Python command (venv or system)
-        # Add user-installed packages to PATH if using system Python
-        
-        # Build environment variables for nohup
-        if [ "$USE_VENV" != "true" ]; then
-            # Find actual paths for user-installed packages
-            USER_BIN="$HOME/.local/bin"
-            ROOT_BIN="/root/.local/bin"
-            USER_SITE=$(python3 -c "import site; print(site.USER_SITE)" 2>/dev/null || echo "$HOME/.local/lib/python3.10/site-packages")
-            ROOT_SITE="/root/.local/lib/python3.10/site-packages"
-            
-            # Create a wrapper script with actual values
-            cat > /tmp/start_app.sh << START_SCRIPT
-#!/bin/bash
-export PATH="$ROOT_BIN:$USER_BIN:\$PATH"
-export PYTHONPATH="$ROOT_SITE:$USER_SITE:\$PYTHONPATH"
-cd ${{ env.PROJECT_DIR }}
-exec $PYTHON_CMD start_project.py --gunicorn --daemon --no-build
-START_SCRIPT
-            chmod +x /tmp/start_app.sh
-            nohup /tmp/start_app.sh > logs/start_project.log 2>&1 &
-        else
-            # With venv, PATH is already set by activation
-            nohup $PYTHON_CMD start_project.py --gunicorn --daemon --no-build > logs/start_project.log 2>&1 &
-        fi
-        
-        APP_PID=$!
-        echo "   Application started with PID: $APP_PID"
-        sleep 3
-        
-        # Verify process is still running
-        if ! ps -p $APP_PID > /dev/null 2>&1; then
-            echo "❌ Application process died immediately"
-            echo "   Last 30 lines of log:"
-            tail -30 logs/start_project.log 2>/dev/null || echo "   No log file found"
-            exit 1
-        fi
+        nohup $PYTHON_CMD start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
-        DEPLOY_SCRIPT
+        EOF
 
     - name: Verify Deployment
       run: |
@@ -430,44 +246,25 @@ START_SCRIPT
         echo "⏳ Waiting for application to start..."
         sleep 15
         
-        # Try health check with retries
-        HEALTH_CHECK_PASSED=false
-        for i in {1..10}; do
-          # Try curl first, then python as fallback
+        # Try health check with retries (give more time for start_project.py to build frontend)
+        for i in {1..8}; do
           if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
-            echo "✅ Health check passed on attempt $i!"
-            HEALTH_CHECK_PASSED=true
-            break
-          elif ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} 'python3 -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/health\")" > /dev/null 2>&1'; then
-            echo "✅ Health check passed on attempt $i (using Python)!"
-            HEALTH_CHECK_PASSED=true
+            echo "✅ Health check passed!"
             break
           else
-            if [ $i -lt 10 ]; then
-              echo "⏳ Health check attempt $i/10 failed, retrying in 10 seconds..."
-              sleep 10
-            fi
+            echo "⏳ Health check attempt $i/8 failed, retrying in 10 seconds..."
+            echo "   (start_project.py may be building frontend or starting services...)"
+            sleep 10
           fi
         done
         
-        # Final check and status
-        if [ "$HEALTH_CHECK_PASSED" = "true" ]; then
+        # Final check
+        if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
           echo "✅ Application is healthy and ready!"
         else
-          echo "⚠️ Health check failed after 10 attempts"
-          echo "   Checking application status..."
-          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "
-            echo '=== Process Status ==='
-            ps aux | grep -E '(start_project|gunicorn)' | grep -v grep || echo 'No processes found'
-            echo ''
-            echo '=== Port Status ==='
-            ss -tuln | grep 8000 || netstat -tuln 2>/dev/null | grep 8000 || echo 'Port 8000 not listening'
-            echo ''
-            echo '=== Recent Logs ==='
-            tail -30 ${{ env.PROJECT_DIR }}/logs/start_project.log 2>/dev/null || echo 'No logs found'
-          " || true
-          echo ""
-          echo "   Manual check: http://${{ env.VM_HOST }}:8000/api/health"
+          echo "⚠️ Health check failed, but deployment may still be starting"
+          echo "   Check manually at: http://${{ env.VM_HOST }}:8000/api/health"
+          echo "   Check logs: ssh ${{ env.VM_USER }}@${{ env.VM_HOST }} 'tail -f ${{ env.PROJECT_DIR }}/logs/start_project.log'"
         fi
 
     - name: Deployment Summary

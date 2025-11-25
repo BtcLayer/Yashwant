@@ -86,7 +86,7 @@ FRONTEND_BUILD_DIR = BASE_DIR / "frontend" / "build"
 
 # Mount static files if frontend build exists (but register API routes first)
 # Static files mount (doesn't interfere with API routes)
-if FRONTEND_BUILD_DIR.exists() and (FRONTEND_BUILD_DIR / "static").exists():
+if FRONTEND_BUILD_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_BUILD_DIR / "static")), name="static")
 
 # Base directory for trading outputs
