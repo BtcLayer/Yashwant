@@ -206,13 +206,14 @@ jobs:
             $PIP_CMD install -r requirements.txt --user || true
         }
         
-        # Install Node.js dependencies if needed
-        if [ ! -d "frontend/node_modules" ]; then
-            echo "📦 Installing Node.js dependencies..."
-            cd frontend
-            npm install
-            cd ..
-        fi
+        # Install Node.js dependencies
+        echo "📦 Installing/updating Node.js dependencies..."
+        cd frontend
+        # Clean install to avoid "nodepath" and other module issues
+        rm -rf node_modules package-lock.json 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
+        npm install
+        cd ..
         
         echo "🛑 Stopping existing services..."
         pkill -f "python.*start_project.py" || true
