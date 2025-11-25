@@ -115,7 +115,7 @@ jobs:
     - name: Deploy to VM
       timeout-minutes: 15
       run: |
-        set -e  # Exit on error for the GitHub Actions step itself
+        # Don't use set -e here - we want to capture the SSH exit code
         ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
         # Don't use set -e - we want to continue even if some commands fail
         # This allows the script to continue even if non-critical commands fail
@@ -621,8 +621,17 @@ jobs:
         
         # Always exit with success code to prevent SSH from failing
         # Individual failures are handled above with exit 1, but if we reach here, we succeeded
-        exit 0
+        EXIT_CODE=0
+        exit $EXIT_CODE
         EOF
+        
+        # Capture SSH exit code
+        SSH_EXIT_CODE=$?
+        if [ $SSH_EXIT_CODE -ne 0 ]; then
+          echo "❌ SSH deployment failed with exit code: $SSH_EXIT_CODE"
+          exit $SSH_EXIT_CODE
+        fi
+        echo "✅ SSH deployment completed successfully"
 
     - name: Verify Deployment
       run: |
