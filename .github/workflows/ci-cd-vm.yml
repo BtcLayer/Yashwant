@@ -305,6 +305,9 @@ jobs:
         # --daemon: Run in background mode
         # Frontend will auto-rebuild if source files changed
         # Use the correct Python command (venv or system)
+        # Ensure PYTHON_CMD is set (safety check)
+        PYTHON_CMD=${PYTHON_CMD:-python3}
+        echo "🐍 Using Python command: $PYTHON_CMD"
         nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon --nginx > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
