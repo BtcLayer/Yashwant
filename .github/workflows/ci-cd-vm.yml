@@ -379,78 +379,124 @@ jobs:
             fi
         fi
         
-        # Start the application - use setsid to detach from SSH session
+        # Start the application - properly daemonize to survive SSH session closure
         echo "   Starting application..."
         
-        # Ensure we're in the right directory
+        # Ensure we're in the right directory and log file path is absolute
         cd ${{ env.PROJECT_DIR }}
+        LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
+        mkdir -p "${{ env.PROJECT_DIR }}/logs"
         pwd
+        echo "   Log file: $LOG_FILE"
         
-        # Use setsid to ensure process survives SSH session closure
-        # This creates a new session, detaching from the SSH session
-        # Redirect all output to log file and run in background
-        if command -v setsid &> /dev/null; then
-            echo "   Using setsid to detach process..."
-            setsid bash -c "cd ${{ env.PROJECT_DIR }} && $PYTHON_CMD start_project.py --gunicorn --daemon" > logs/start_project.log 2>&1 &
+        # Use nohup with proper redirection
+        # Redirect stdin to /dev/null, stdout/stderr to log file, run in background
+        echo "   Starting with nohup (fully detached from SSH session)..."
+        nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
+        APP_PID=$!
+        echo "   Started with PID: $APP_PID"
+        
+        # Immediately disown the process so it survives SSH session closure
+        # This is critical - without disown, the process will be killed when SSH closes
+        disown $APP_PID 2>/dev/null || {
+            echo "   ⚠️  Could not disown process, trying alternative method..."
+            # Alternative: use nohup's built-in behavior (should work, but disown is safer)
+        }
+        
+        echo "   Process started and disowned (PID: $APP_PID)"
+        echo "   Process will survive SSH session closure"
+        
+        # Give it time to start up - start_project.py --daemon returns immediately
+        # but gunicorn workers take a few seconds to start
+        echo "   Waiting for application to initialize (20 seconds)..."
+        sleep 20
+        
+        # Check for the actual running processes (gunicorn workers are what matter)
+        echo "   Checking for running processes..."
+        
+        # Check if our PID is still running
+        if ps -p $APP_PID > /dev/null 2>&1; then
+            echo "✅ Parent process (PID: $APP_PID) is still running"
         else
-            # Fallback: use nohup with proper redirection
-            echo "   Using nohup (setsid not available)..."
-            nohup bash -c "cd ${{ env.PROJECT_DIR }} && $PYTHON_CMD start_project.py --gunicorn --daemon" > logs/start_project.log 2>&1 &
-            # Disown the process so it's not killed when SSH session closes
-            disown $! 2>/dev/null || true
+            echo "⚠️  Parent process (PID: $APP_PID) has exited (this is normal in daemon mode)"
         fi
         
-        # Note: We can't reliably get the PID because setsid/bash creates a new process
-        # Instead, we'll check for the actual gunicorn processes
-        echo "   Process started in background (detached from SSH session)"
+        # Check for gunicorn master process
+        GUNICORN_MASTER=$(pgrep -f "gunicorn.*main:app" | head -1 || echo "")
+        GUNICORN_WORKERS=$(pgrep -f "gunicorn.*main:app" | wc -l || echo "0")
         
-        # Give it time to start up
-        echo "   Waiting for application to initialize (15 seconds)..."
-        sleep 15
-        
-        # Check for the actual running processes (gunicorn workers)
-        echo "   Checking for running processes..."
+        # Check for start_project.py (should exit quickly in daemon mode)
         START_PROJECT_PIDS=$(pgrep -f "start_project.py" || echo "")
-        GUNICORN_PIDS=$(pgrep -f "gunicorn.*main:app" || echo "")
-        PYTHON_PIDS=$(pgrep -f "python.*start_project" || echo "")
         
-        if [ -n "$GUNICORN_PIDS" ]; then
-            echo "✅ Found gunicorn worker processes: $GUNICORN_PIDS"
-        elif [ -n "$START_PROJECT_PIDS" ] || [ -n "$PYTHON_PIDS" ]; then
-            echo "✅ Found start_project.py processes: $START_PROJECT_PIDS $PYTHON_PIDS"
-            echo "   (Gunicorn workers may still be starting...)"
+        if [ -n "$GUNICORN_MASTER" ]; then
+            echo "✅ Found gunicorn master process: $GUNICORN_MASTER"
+            echo "✅ Found $GUNICORN_WORKERS gunicorn worker process(es)"
+        elif [ -n "$START_PROJECT_PIDS" ]; then
+            echo "⚠️  start_project.py is still running (may be starting gunicorn)..."
+            echo "   PIDs: $START_PROJECT_PIDS"
         else
-            echo "⚠️  No processes found yet, checking logs..."
-            if [ -f "logs/start_project.log" ]; then
-                echo "   Last 50 lines of log:"
-                tail -50 logs/start_project.log
+            echo "❌ No gunicorn processes found!"
+            echo "   Checking logs for errors..."
+            LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
+            if [ -f "$LOG_FILE" ]; then
+                echo "   Last 100 lines of log:"
+                tail -100 "$LOG_FILE"
             else
-                echo "   No log file found - process may not have started"
+                echo "   No log file found at $LOG_FILE - process definitely didn't start"
             fi
+            echo "   Checking for any Python processes:"
+            ps aux | grep -E "(python|gunicorn)" | grep -v grep || echo "   None found"
         fi
         
         # Verify port is now in use (means app started)
-        echo "   Verifying port 8000..."
-        sleep 3
+        echo "   Verifying port 8000 is listening..."
+        sleep 5
         PORT_IN_USE=false
-        for i in {1..5}; do
+        PORT_CHECK_COUNT=0
+        for i in {1..10}; do
             if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
                 PORT_IN_USE=true
+                PORT_CHECK_COUNT=$i
                 break
             fi
             sleep 2
         done
         
         if [ "$PORT_IN_USE" = "true" ]; then
-            echo "✅ Port 8000 is in use - application is running!"
+            echo "✅ Port 8000 is listening - application is running!"
+            echo "   Verified after $PORT_CHECK_COUNT check(s)"
+            
+            # Try to actually hit the health endpoint
+            echo "   Testing health endpoint..."
+            if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
+                echo "✅ Health check passed - application is fully operational!"
+            else
+                echo "⚠️  Health check failed, but port is listening (may still be starting)"
+            fi
         else
-            echo "⚠️  Port 8000 is not in use - checking what happened..."
-            echo "   Recent log output:"
-            tail -50 logs/start_project.log 2>/dev/null || echo "   No log file found"
-            echo "   Running Python processes:"
+            echo "❌ Port 8000 is NOT in use - application failed to start!"
+            echo ""
+            echo "   Debugging information:"
+            echo "   ====================="
+            echo "   Recent log output (last 100 lines):"
+            LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
+            if [ -f "$LOG_FILE" ]; then
+                tail -100 "$LOG_FILE"
+            else
+                echo "   ❌ No log file found at $LOG_FILE"
+            fi
+            echo ""
+            echo "   Running processes:"
             ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "   None found"
+            echo ""
+            echo "   Port 8000 status:"
+            ss -tlnp 2>/dev/null | grep :8000 || echo "   Not listening"
+            echo ""
+            echo "   ⚠️  DEPLOYMENT FAILED - Application did not start!"
+            echo "   You may need to manually SSH in and check logs/start_project.log"
         fi
         
+        echo ""
         echo "✅ Deployment script complete!"
         EOF
 
