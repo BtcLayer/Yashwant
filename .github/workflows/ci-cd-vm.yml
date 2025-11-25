@@ -340,41 +340,56 @@ jobs:
         cd ..
         
         echo "🛑 Stopping existing services..."
-        # Kill processes by name
+        # Kill processes by name (try both regular and sudo)
+        echo "   Killing processes by name..."
         pkill -9 -f "python.*start_project.py" 2>/dev/null || true
         pkill -9 -f gunicorn 2>/dev/null || true
         pkill -9 -f uvicorn 2>/dev/null || true
         pkill -9 -f run_unified_bots.py 2>/dev/null || true
         
-        # Kill processes using port 8000 directly
-        echo "   Freeing port 8000..."
-        if command -v fuser &> /dev/null; then
-            fuser -k 8000/tcp 2>/dev/null || true
-        elif command -v lsof &> /dev/null; then
-            lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-        else
-            # Fallback: find and kill processes on port 8000
-            for pid in $(ss -tlnp | grep :8000 | awk '{print $NF}' | cut -d',' -f2 | cut -d'=' -f2 | sort -u); do
-                kill -9 "$pid" 2>/dev/null || true
-            done
-        fi
+        # Also try with sudo in case processes are running as root
+        sudo pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        sudo pkill -9 -f gunicorn 2>/dev/null || true
+        sudo pkill -9 -f uvicorn 2>/dev/null || true
+        sudo pkill -9 -f run_unified_bots.py 2>/dev/null || true
         
-        # Wait for port to be released
-        echo "   Waiting for port 8000 to be released..."
-        for i in {1..10}; do
-            if ! (ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null); then
-                echo "   ✅ Port 8000 is free"
-                break
+        # Kill processes using port 8000 and 8001 directly
+        echo "   Freeing ports 8000 and 8001..."
+        for port in 8000 8001; do
+            if command -v fuser &> /dev/null; then
+                sudo fuser -k ${port}/tcp 2>/dev/null || fuser -k ${port}/tcp 2>/dev/null || true
+            elif command -v lsof &> /dev/null; then
+                sudo lsof -ti:${port} | xargs sudo kill -9 2>/dev/null || lsof -ti:${port} | xargs kill -9 2>/dev/null || true
+            else
+                # Fallback: find and kill processes on the port
+                for pid in $(ss -tlnp 2>/dev/null | grep :${port} | awk '{print $NF}' | cut -d',' -f2 | cut -d'=' -f2 | sort -u); do
+                    sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+                done
             fi
-            sleep 1
         done
         
-        # Final check - if port still in use, try one more aggressive kill
-        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
-            echo "   ⚠️  Port 8000 still in use, attempting final cleanup..."
-            sudo fuser -k 8000/tcp 2>/dev/null || true
-            sleep 2
-        fi
+        # Wait for ports to be released
+        echo "   Waiting for ports 8000 and 8001 to be released..."
+        for port in 8000 8001; do
+            for i in {1..10}; do
+                if ! (ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null); then
+                    echo "   ✅ Port ${port} is free"
+                    break
+                fi
+                sleep 1
+            done
+        done
+        
+        # Final check - if ports still in use, try one more aggressive kill
+        for port in 8000 8001; do
+            if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
+                echo "   ⚠️  Port ${port} still in use, attempting final cleanup..."
+                sudo fuser -k ${port}/tcp 2>/dev/null || true
+                # Also kill any gunicorn processes that might be holding the port
+                sudo pkill -9 -f "gunicorn.*${port}" 2>/dev/null || true
+                sleep 2
+            fi
+        done
         
         # Ensure necessary directories exist
         echo "📁 Creating necessary directories..."
@@ -398,19 +413,22 @@ jobs:
         # Ensure logs directory exists
         mkdir -p logs
         
-        # Verify port is free before starting
-        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
-            echo "❌ ERROR: Port 8000 is still in use after cleanup!"
-            echo "   Attempting one more aggressive cleanup..."
-            sudo fuser -k 8000/tcp 2>/dev/null || true
-            sleep 3
-            if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
-                echo "   ❌ Port 8000 still in use - deployment may fail"
-                echo "   You may need to manually kill processes on port 8000"
-            else
-                echo "   ✅ Port 8000 is now free"
+        # Verify ports are free before starting
+        for port in 8000 8001; do
+            if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
+                echo "❌ ERROR: Port ${port} is still in use after cleanup!"
+                echo "   Attempting one more aggressive cleanup..."
+                sudo fuser -k ${port}/tcp 2>/dev/null || true
+                sudo pkill -9 -f "gunicorn.*${port}" 2>/dev/null || true
+                sleep 3
+                if ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null; then
+                    echo "   ❌ Port ${port} still in use - deployment may fail"
+                    echo "   You may need to manually kill processes on port ${port}"
+                else
+                    echo "   ✅ Port ${port} is now free"
+                fi
             fi
-        fi
+        done
         
         # Start the application - properly daemonize to survive SSH session closure
         echo "   Starting application..."
