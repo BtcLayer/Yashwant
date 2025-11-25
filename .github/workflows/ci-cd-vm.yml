@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: '3.10'  # Ubuntu 22.04 default, or 3.12 via deadsnakes PPA on VM
 
 jobs:
   # Job 1: Build Frontend and Test
@@ -160,26 +160,46 @@ jobs:
         echo "✅ Code updated, bot data preserved"
         
         echo "🔧 Installing system dependencies (if needed)..."
-        # Install Python 3.12 and required packages (3.12 has better package wheel support than 3.13)
         sudo apt-get update -qq
-        sudo apt-get install -y python3.12 python3.12-venv python3-pip build-essential git curl nodejs npm || {
-            echo "   Python 3.12 not available, trying Python 3.11..."
-            sudo apt-get install -y python3.11 python3.11-venv python3-pip build-essential git curl nodejs npm || {
-                echo "   Python 3.11 not available, installing Python 3.10+ and venv..."
-                sudo apt-get install -y python3 python3-venv python3-pip build-essential git curl nodejs npm
-            }
+        
+        # Install Python 3.12 from deadsnakes PPA (Ubuntu 22.04 doesn't have 3.12 in default repos)
+        echo "   Adding deadsnakes PPA for Python 3.12..."
+        sudo apt-get install -y software-properties-common
+        sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || {
+            echo "   PPA already added or failed, continuing..."
         }
+        sudo apt-get update -qq
+        
+        # Try to install Python 3.12, fallback to system Python 3.10
+        if sudo apt-get install -y python3.12 python3.12-venv python3.12-distutils 2>/dev/null; then
+            echo "✅ Python 3.12 installed from deadsnakes PPA"
+            PYTHON_VER="3.12"
+        else
+            echo "⚠️  Python 3.12 not available, using system Python 3.10"
+            sudo apt-get install -y python3 python3-venv
+            PYTHON_VER="3"
+        fi
+        
+        # Install other dependencies (fix Node.js/npm conflict by installing nodejs-legacy or using nodejs from NodeSource)
+        echo "   Installing build tools and Node.js..."
+        # Remove conflicting npm/nodejs packages first
+        sudo apt-get remove -y nodejs npm 2>/dev/null || true
+        # Install Node.js 18.x from NodeSource (better compatibility)
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>/dev/null || {
+            echo "   NodeSource setup failed, using default nodejs..."
+            sudo apt-get install -y nodejs npm
+        }
+        sudo apt-get install -y nodejs python3-pip build-essential git curl
         
         echo "🔄 Setting up Python environment..."
-        # Try to create venv, but use system Python if it fails
+        # Determine which Python to use
         USE_VENV=false
-        # Try python3.12 first, then python3.11, then python3
-        PYTHON_CMD_VENV="python3.12"
-        if ! command -v python3.12 &> /dev/null; then
+        if [ "$PYTHON_VER" = "3.12" ] && command -v python3.12 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.12"
+        elif command -v python3.11 &> /dev/null; then
             PYTHON_CMD_VENV="python3.11"
-            if ! command -v python3.11 &> /dev/null; then
-                PYTHON_CMD_VENV="python3"
-            fi
+        else
+            PYTHON_CMD_VENV="python3"
         fi
         
         if [ ! -d "venv" ]; then
