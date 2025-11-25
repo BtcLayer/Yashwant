@@ -595,16 +595,7 @@ jobs:
           echo ""
           echo "   Debugging information:"
           echo "   ====================="
-          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'DEBUG_EOF'
-            echo "   Checking processes:"
-            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "   None found"
-            echo ""
-            echo "   Port 8000 status:"
-            ss -tlnp 2>/dev/null | grep :8000 || echo "   Not listening"
-            echo ""
-            echo "   Recent logs:"
-            tail -50 ${{ env.PROJECT_DIR }}/logs/start_project.log 2>/dev/null || echo "   No log file"
-DEBUG_EOF
+          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "echo '   Checking processes:'; ps aux | grep -E '(python|gunicorn|start_project)' | grep -v grep || echo '   None found'; echo ''; echo '   Port 8000 status:'; ss -tlnp 2>/dev/null | grep :8000 || echo '   Not listening'; echo ''; echo '   Recent logs:'; tail -50 ${{ env.PROJECT_DIR }}/logs/start_project.log 2>/dev/null || echo '   No log file'"
           echo ""
           echo "   Check manually at: http://${{ env.VM_HOST }}:8000/api/health"
           echo "   Check logs: ssh ${{ env.VM_USER }}@${{ env.VM_HOST }} 'tail -f ${{ env.PROJECT_DIR }}/logs/start_project.log'"
