@@ -144,8 +144,23 @@ jobs:
             cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
         fi
         
+        # Clean up __pycache__ directories to avoid permission issues
+        echo "🧹 Cleaning up Python cache directories..."
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -delete 2>/dev/null || true
+        find . -type f -name "*.pyo" -delete 2>/dev/null || true
+        
+        # Fix permissions on directories if needed
+        echo "🔧 Fixing directory permissions..."
+        chmod -R u+w . 2>/dev/null || true
+        
         # Reset code (but preserve untracked/ignored files)
-        git reset --hard origin/main
+        git reset --hard origin/main || {
+            echo "⚠️  git reset had issues, trying to fix permissions and retry..."
+            find . -type d -name "__pycache__" -exec sudo rm -rf {} + 2>/dev/null || true
+            sudo chown -R ${{ env.VM_USER }}:${{ env.VM_USER }} . 2>/dev/null || true
+            git reset --hard origin/main
+        }
         git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' || true
         
         # Restore data directories if they were backed up
