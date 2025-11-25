@@ -1,0 +1,351 @@
+
+===== Uncaught exception in task: 12h =====
+Type: WSServerHandshakeError
+Message: 429, message='Invalid response status', url='wss://api.hyperliquid.xyz/ws'
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 601, in run_live
+    async with local_HL(hl_ws, addresses=addresses, coin='BTC', mode='public_trades') as hl:
+               ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\hyperliquid_listener.py", line 26, in __aenter__
+    self._ws = await self._session.ws_connect(self.ws_url)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\aiohttp\client.py", line 1093, in _ws_connect
+    raise WSServerHandshakeError(
+    ...<5 lines>...
+    )
+aiohttp.client_exceptions.WSServerHandshakeError: 429, message='Invalid response status', url='wss://api.hyperliquid.xyz/ws'
+
+
+===== Uncaught exception in task: 12h =====
+Type: RuntimeError
+Message: Local OHLC CSV not found
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 174, in run_live
+    kl = md.get_klines(limit=warmup_bars)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 53, in get_klines
+    raise last_err
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 44, in get_klines
+    k = self.client.klines(
+        symbol=self.symbol, interval=self.interval, limit=limit
+    )
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 151, in klines
+    return self._c.futures_klines(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        symbol=symbol, interval=interval, limit=limit
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 6202, in futures_klines
+    return self._request_futures_api('get', 'klines', data=params)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 383, in _request_futures_api
+    return self._request(method, uri, signed, True, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 359, in _request
+    return self._handle_response(self.response)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 368, in _handle_response
+    raise BinanceAPIException(response, response.status_code, response.text)
+binance.exceptions.BinanceAPIException: APIError(code=-1003): Too many requests; current limit of IP(152.58.180.107) is 2400 requests per minute. Please use the websocket for live updates to avoid polling the API.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 192, in run_live
+    raise e
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 189, in run_live
+    raise RuntimeError("Local OHLC CSV not found")
+RuntimeError: Local OHLC CSV not found
+
+
+===== Uncaught exception in task: 12h =====
+Type: MemoryError
+Message: 
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 280, in run_live
+    mr = ModelRuntime(manifest)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\model_runtime.py", line 91, in __init__
+    joblib.load(self.calibrator_path) if self.calibrator_path else None
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 749, in load
+    obj = _unpickle(
+        fobj,
+    ...<2 lines>...
+        mmap_mode=validated_mmap_mode,
+    )
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 626, in _unpickle
+    obj = unpickler.load()
+  File "C:\Python313\Lib\pickle.py", line 1256, in load
+    dispatch[key[0]](self)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 462, in load_build
+    _array_payload = array_wrapper.read(self, self.ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 284, in read
+    array = self.read_array(unpickler, ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 197, in read_array
+    data = _read_bytes(unpickler.file_handle, read_size, "array data")
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle_utils.py", line 266, in _read_bytes
+    r = fp.read(size - len(data))
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 466, in readinto
+    return io.BufferedIOBase.readinto(self, b)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 458, in read
+    return self._read_block(size)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 443, in _read_block
+    return b"".join(blocks)
+           ~~~~~~~~^^^^^^^^
+MemoryError
+
+
+===== Uncaught exception in task: 12h =====
+Type: RuntimeError
+Message: Local OHLC CSV not found
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 174, in run_live
+    kl = md.get_klines(limit=warmup_bars)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 53, in get_klines
+    raise last_err
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 44, in get_klines
+    k = self.client.klines(
+        symbol=self.symbol, interval=self.interval, limit=limit
+    )
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 151, in klines
+    return self._c.futures_klines(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        symbol=symbol, interval=interval, limit=limit
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 6202, in futures_klines
+    return self._request_futures_api('get', 'klines', data=params)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 383, in _request_futures_api
+    return self._request(method, uri, signed, True, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 359, in _request
+    return self._handle_response(self.response)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\binance\client.py", line 368, in _handle_response
+    raise BinanceAPIException(response, response.status_code, response.text)
+binance.exceptions.BinanceAPIException: APIError(code=-1003): Too many requests; current limit of IP(152.58.180.107) is 2400 requests per minute. Please use the websocket for live updates to avoid polling the API.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 192, in run_live
+    raise e
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 189, in run_live
+    raise RuntimeError("Local OHLC CSV not found")
+RuntimeError: Local OHLC CSV not found
+
+
+===== Uncaught exception in task: 12h =====
+Type: MemoryError
+Message: 
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 280, in run_live
+    mr = ModelRuntime(manifest)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\model_runtime.py", line 91, in __init__
+    joblib.load(self.calibrator_path) if self.calibrator_path else None
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 749, in load
+    obj = _unpickle(
+        fobj,
+    ...<2 lines>...
+        mmap_mode=validated_mmap_mode,
+    )
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 626, in _unpickle
+    obj = unpickler.load()
+  File "C:\Python313\Lib\pickle.py", line 1256, in load
+    dispatch[key[0]](self)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 462, in load_build
+    _array_payload = array_wrapper.read(self, self.ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 284, in read
+    array = self.read_array(unpickler, ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 197, in read_array
+    data = _read_bytes(unpickler.file_handle, read_size, "array data")
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle_utils.py", line 266, in _read_bytes
+    r = fp.read(size - len(data))
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 466, in readinto
+    return io.BufferedIOBase.readinto(self, b)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 458, in read
+    return self._read_block(size)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 443, in _read_block
+    return b"".join(blocks)
+           ~~~~~~~~^^^^^^^^
+MemoryError
+
+
+===== Uncaught exception in task: 12h =====
+Type: MemoryError
+Message: 
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 280, in run_live
+    mr = ModelRuntime(manifest)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\model_runtime.py", line 82, in __init__
+    self.model = joblib.load(self.model_path)
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 749, in load
+    obj = _unpickle(
+        fobj,
+    ...<2 lines>...
+        mmap_mode=validated_mmap_mode,
+    )
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 626, in _unpickle
+    obj = unpickler.load()
+  File "C:\Python313\Lib\pickle.py", line 1256, in load
+    dispatch[key[0]](self)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 462, in load_build
+    _array_payload = array_wrapper.read(self, self.ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 284, in read
+    array = self.read_array(unpickler, ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 197, in read_array
+    data = _read_bytes(unpickler.file_handle, read_size, "array data")
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle_utils.py", line 266, in _read_bytes
+    r = fp.read(size - len(data))
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 466, in readinto
+    return io.BufferedIOBase.readinto(self, b)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 458, in read
+    return self._read_block(size)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 443, in _read_block
+    return b"".join(blocks)
+           ~~~~~~~~^^^^^^^^
+MemoryError
+
+
+===== Uncaught exception in task: 12h =====
+Type: MemoryError
+Message: 
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 280, in run_live
+    mr = ModelRuntime(manifest)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\model_runtime.py", line 82, in __init__
+    self.model = joblib.load(self.model_path)
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 749, in load
+    obj = _unpickle(
+        fobj,
+    ...<2 lines>...
+        mmap_mode=validated_mmap_mode,
+    )
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 626, in _unpickle
+    obj = unpickler.load()
+  File "C:\Python313\Lib\pickle.py", line 1256, in load
+    dispatch[key[0]](self)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 462, in load_build
+    _array_payload = array_wrapper.read(self, self.ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 284, in read
+    array = self.read_array(unpickler, ensure_native_byte_order)
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle.py", line 197, in read_array
+    data = _read_bytes(unpickler.file_handle, read_size, "array data")
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\numpy_pickle_utils.py", line 266, in _read_bytes
+    r = fp.read(size - len(data))
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 466, in readinto
+    return io.BufferedIOBase.readinto(self, b)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 458, in read
+    return self._read_block(size)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\joblib\compressor.py", line 443, in _read_block
+    return b"".join(blocks)
+           ~~~~~~~~^^^^^^^^
+MemoryError
+
+
+===== Uncaught exception in task: 12h =====
+Type: RuntimeError
+Message: Local OHLC CSV not found
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 175, in klines
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 422 Client Error: Unprocessable Entity for url: https://api.hyperliquid.xyz/info
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 265, in run_live
+    kl = md.get_klines(limit=warmup_bars)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 53, in get_klines
+    raise last_err
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 44, in get_klines
+    k = self.client.klines(
+        symbol=self.symbol, interval=self.interval, limit=limit
+    )
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 205, in klines
+    raise RuntimeError(f"Hyperliquid API error: {e}") from e
+RuntimeError: Hyperliquid API error: 422 Client Error: Unprocessable Entity for url: https://api.hyperliquid.xyz/info
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 283, in run_live
+    raise e
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 280, in run_live
+    raise RuntimeError("Local OHLC CSV not found")
+RuntimeError: Local OHLC CSV not found
+
+
+===== Uncaught exception in task: 12h =====
+Type: RuntimeError
+Message: Local OHLC CSV not found
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 177, in klines
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\jdbis\AppData\Roaming\Python\Python313\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://api.hyperliquid.xyz/info
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 268, in run_live
+    kl = md.get_klines(limit=warmup_bars)
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 53, in get_klines
+    raise last_err
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo\market_data.py", line 44, in get_klines
+    k = self.client.klines(
+        symbol=self.symbol, interval=self.interval, limit=limit
+    )
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 208, in klines
+    raise RuntimeError(f"Hyperliquid API error: {e}") from e
+RuntimeError: Hyperliquid API error: 429 Client Error: Too Many Requests for url: https://api.hyperliquid.xyz/info
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\run_unified_bots.py", line 44, in _run_with_guard
+    await coro
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 286, in run_live
+    raise e
+  File "D:\Codespace\vyshnav code\MetaStackerBandit\live_demo_12h\main.py", line 283, in run_live
+    raise RuntimeError("Local OHLC CSV not found")
+RuntimeError: Local OHLC CSV not found
+

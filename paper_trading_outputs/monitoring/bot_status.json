@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-11-18T09:41:05.044235",
+  "start_time": "2025-11-18T09:41:05.044243",
+  "total_checks": 1,
+  "successful_checks": 1,
+  "versions": {
+    "trading-bot-5m": {
+      "running": true,
+      "recent_logs": false,
+      "log_size": 0,
+      "docker_status": "Not in Docker",
+      "local_status": "Running"
+    },
+    "trading-bot-1h": {
+      "running": true,
+      "recent_logs": false,
+      "log_size": 0,
+      "docker_status": "Not in Docker",
+      "local_status": "Running"
+    },
+    "trading-bot-12h": {
+      "running": true,
+      "recent_logs": false,
+      "log_size": 0,
+      "docker_status": "Not in Docker",
+      "local_status": "Running"
+    }
+  }
+}
