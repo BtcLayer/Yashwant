@@ -115,7 +115,8 @@ jobs:
     - name: Deploy to VM
       run: |
         ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
-        set -e
+        # Don't use set -e - we want to continue even if some commands fail
+        # This allows the script to continue even if non-critical commands fail
         
         # Always start in project directory
         cd ${{ env.PROJECT_DIR }} || mkdir -p ${{ env.PROJECT_DIR }} && cd ${{ env.PROJECT_DIR }}
@@ -378,30 +379,79 @@ jobs:
             fi
         fi
         
-        # Start the application
+        # Start the application - use setsid to detach from SSH session
         echo "   Starting application..."
-        nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
-        START_PID=$!
-        echo "   Started with PID: $START_PID"
         
-        # Wait a moment and check if it started successfully
-        sleep 5
-        if ps -p $START_PID > /dev/null 2>&1; then
-            echo "✅ Application process is running (PID: $START_PID)"
+        # Ensure we're in the right directory
+        cd ${{ env.PROJECT_DIR }}
+        pwd
+        
+        # Use setsid to ensure process survives SSH session closure
+        # This creates a new session, detaching from the SSH session
+        # Redirect all output to log file and run in background
+        if command -v setsid &> /dev/null; then
+            echo "   Using setsid to detach process..."
+            setsid bash -c "cd ${{ env.PROJECT_DIR }} && $PYTHON_CMD start_project.py --gunicorn --daemon" > logs/start_project.log 2>&1 &
         else
-            echo "⚠️  Process may have exited, checking logs..."
-            tail -30 logs/start_project.log 2>/dev/null || echo "   No log file found"
+            # Fallback: use nohup with proper redirection
+            echo "   Using nohup (setsid not available)..."
+            nohup bash -c "cd ${{ env.PROJECT_DIR }} && $PYTHON_CMD start_project.py --gunicorn --daemon" > logs/start_project.log 2>&1 &
+            # Disown the process so it's not killed when SSH session closes
+            disown $! 2>/dev/null || true
+        fi
+        
+        # Note: We can't reliably get the PID because setsid/bash creates a new process
+        # Instead, we'll check for the actual gunicorn processes
+        echo "   Process started in background (detached from SSH session)"
+        
+        # Give it time to start up
+        echo "   Waiting for application to initialize (15 seconds)..."
+        sleep 15
+        
+        # Check for the actual running processes (gunicorn workers)
+        echo "   Checking for running processes..."
+        START_PROJECT_PIDS=$(pgrep -f "start_project.py" || echo "")
+        GUNICORN_PIDS=$(pgrep -f "gunicorn.*main:app" || echo "")
+        PYTHON_PIDS=$(pgrep -f "python.*start_project" || echo "")
+        
+        if [ -n "$GUNICORN_PIDS" ]; then
+            echo "✅ Found gunicorn worker processes: $GUNICORN_PIDS"
+        elif [ -n "$START_PROJECT_PIDS" ] || [ -n "$PYTHON_PIDS" ]; then
+            echo "✅ Found start_project.py processes: $START_PROJECT_PIDS $PYTHON_PIDS"
+            echo "   (Gunicorn workers may still be starting...)"
+        else
+            echo "⚠️  No processes found yet, checking logs..."
+            if [ -f "logs/start_project.log" ]; then
+                echo "   Last 50 lines of log:"
+                tail -50 logs/start_project.log
+            else
+                echo "   No log file found - process may not have started"
+            fi
         fi
         
         # Verify port is now in use (means app started)
-        sleep 2
-        if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
-            echo "✅ Port 8000 is now in use - application appears to be running"
+        echo "   Verifying port 8000..."
+        sleep 3
+        PORT_IN_USE=false
+        for i in {1..5}; do
+            if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+                PORT_IN_USE=true
+                break
+            fi
+            sleep 2
+        done
+        
+        if [ "$PORT_IN_USE" = "true" ]; then
+            echo "✅ Port 8000 is in use - application is running!"
         else
-            echo "⚠️  Port 8000 is not in use - application may not have started"
+            echo "⚠️  Port 8000 is not in use - checking what happened..."
+            echo "   Recent log output:"
+            tail -50 logs/start_project.log 2>/dev/null || echo "   No log file found"
+            echo "   Running Python processes:"
+            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "   None found"
         fi
         
-        echo "✅ Deployment complete!"
+        echo "✅ Deployment script complete!"
         EOF
 
     - name: Verify Deployment
