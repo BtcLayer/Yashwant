@@ -362,9 +362,12 @@ jobs:
                 sudo lsof -ti:${port} | xargs sudo kill -9 2>/dev/null || lsof -ti:${port} | xargs kill -9 2>/dev/null || true
             else
                 # Fallback: find and kill processes on the port
-                for pid in $(ss -tlnp 2>/dev/null | grep :${port} | awk '{print $NF}' | cut -d',' -f2 | cut -d'=' -f2 | sort -u); do
-                    sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
-                done
+                # Skip header line and extract PIDs safely
+                ss -tlnp 2>/dev/null | tail -n +2 | grep ":${port}" | awk '{print $NF}' | grep -oE 'pid=[0-9]+' | cut -d'=' -f2 | sort -u | while read pid; do
+                    if [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null; then
+                        sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+                    fi
+                done || true
             fi
         done
         
