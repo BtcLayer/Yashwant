@@ -10,7 +10,7 @@ env:
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.10'  # Ubuntu 22.04 default, or 3.12 via deadsnakes PPA on VM
+  PYTHON_VERSION: '3.13'  # Latest Python 3.13 (2025)
 
 jobs:
   # Job 1: Build Frontend and Test
@@ -37,6 +37,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
+        echo "🐍 Python version: $(python --version)"
         python -m pip install --upgrade pip setuptools wheel
         # Install build dependencies first to ensure wheels can be built if needed
         pip install --only-binary :all: numpy pandas || pip install numpy pandas
@@ -73,13 +74,16 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'  # Latest Node.js 22 LTS (2025)
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
     - name: Install frontend dependencies
       working-directory: ./frontend
-      run: npm ci
+      run: |
+        echo "📦 Node.js version: $(node --version)"
+        echo "📦 npm version: $(npm --version)"
+        npm ci
 
     - name: Build React frontend (for testing)
       working-directory: ./frontend
@@ -117,15 +121,15 @@ jobs:
         if [ ! -d "${{ env.PROJECT_DIR }}/.git" ]; then
             echo "📥 Repository not found, cloning..."
             mkdir -p ${{ env.PROJECT_DIR }}
-            cd ${{ env.PROJECT_DIR }}
+        cd ${{ env.PROJECT_DIR }}
             # Use GitHub Actions token for private repo access
             git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
         else
-            echo "📥 Pulling latest code..."
+        echo "📥 Pulling latest code..."
             cd ${{ env.PROJECT_DIR }}
             # Configure git to use token for private repo
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            git fetch origin
+        git fetch origin
         fi
         
         # Stash any local changes to data directories (safety measure)
@@ -171,15 +175,20 @@ jobs:
         }
         sudo apt-get update -qq
         
-        # Try to install Python 3.12, fallback to system Python 3.10
-        if sudo apt-get install -y python3.12 python3.12-venv python3.12-distutils 2>/dev/null; then
+        # Try to install Python 3.13 (latest 2025), fallback to 3.12, then 3.10
+        if sudo apt-get install -y python3.13 python3.13-venv python3.13-distutils 2>/dev/null; then
+            echo "✅ Python 3.13 installed from deadsnakes PPA"
+            PYTHON_VER="3.13"
+        elif sudo apt-get install -y python3.12 python3.12-venv python3.12-distutils 2>/dev/null; then
             echo "✅ Python 3.12 installed from deadsnakes PPA"
             PYTHON_VER="3.12"
         else
-            echo "⚠️  Python 3.12 not available, using system Python 3.10"
+            echo "⚠️  Python 3.13/3.12 not available, using system Python 3.10"
             sudo apt-get install -y python3 python3-venv
             PYTHON_VER="3"
         fi
+        PYTHON_BIN=$(command -v python3.13 || command -v python3.12 || command -v python3)
+        echo "🐍 Python version on VM: $($PYTHON_BIN --version 2>/dev/null || echo 'unknown')"
         
         # Install other dependencies (fix Node.js/npm conflict by removing old packages first)
         echo "   Installing build tools and Node.js..."
@@ -189,23 +198,35 @@ jobs:
         sudo apt-get autoremove -y 2>/dev/null || true
         sudo rm -rf /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.list.save 2>/dev/null || true
         sudo apt-get update -qq
-        echo "   Installing Node.js 18.x from NodeSource..."
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - || {
-            echo "⚠️  NodeSource setup failed, falling back to Ubuntu nodejs..."
-            sudo apt-get update -qq
+        echo "   Installing Node.js 22.x LTS from NodeSource (latest 2025)..."
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || {
+            echo "⚠️  Node.js 22 setup failed, trying Node.js 20..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - || {
+                echo "⚠️  NodeSource setup failed, falling back to Ubuntu nodejs..."
+                sudo apt-get update -qq
+            }
         }
-        sudo apt-get install -y nodejs python3-pip build-essential git curl
+        sudo apt-get install -y nodejs python3-pip build-essential git curl nginx
+        sudo systemctl stop nginx 2>/dev/null || true
+        sudo systemctl disable nginx 2>/dev/null || true
+        echo "📦 Node.js version on VM: $(node --version)"
+        echo "📦 npm version on VM: $(npm --version)"
         
         echo "🔄 Setting up Python environment..."
-        # Determine which Python to use
+        # Determine which Python to use (try 3.13, 3.12, then 3.10)
         USE_VENV=false
-        if [ "$PYTHON_VER" = "3.12" ] && command -v python3.12 &> /dev/null; then
+        if [ "$PYTHON_VER" = "3.13" ] && command -v python3.13 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.13"
+        elif [ "$PYTHON_VER" = "3.12" ] && command -v python3.12 &> /dev/null; then
             PYTHON_CMD_VENV="python3.12"
         elif command -v python3.11 &> /dev/null; then
             PYTHON_CMD_VENV="python3.11"
         else
             PYTHON_CMD_VENV="python3"
         fi
+        echo "🐍 Using Python: $PYTHON_CMD_VENV ($($PYTHON_CMD_VENV --version 2>/dev/null || echo 'version check failed'))"
+        PYTHON_CMD="python3"
+        PIP_CMD="pip3"
         
         if [ ! -d "venv" ]; then
             echo "   Attempting to create virtual environment with $PYTHON_CMD_VENV..."
@@ -277,7 +298,7 @@ jobs:
         # --daemon: Run in background mode
         # Frontend will auto-rebuild if source files changed
         # Use the correct Python command (venv or system)
-        nohup $PYTHON_CMD start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        nohup $PYTHON_CMD start_project.py --gunicorn --daemon --nginx > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
         EOF
