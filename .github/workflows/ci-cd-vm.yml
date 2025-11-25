@@ -255,6 +255,9 @@ jobs:
             PYTHON_CMD="python3"
             PIP_CMD="pip3"
         fi
+        # Safety guard in case activation failed
+        PYTHON_CMD=${PYTHON_CMD:-python3}
+        PIP_CMD=${PIP_CMD:-pip3}
         
         echo "📦 Updating Python dependencies..."
         # Upgrade pip (try with --user if permission denied)
@@ -298,7 +301,7 @@ jobs:
         # --daemon: Run in background mode
         # Frontend will auto-rebuild if source files changed
         # Use the correct Python command (venv or system)
-        nohup $PYTHON_CMD start_project.py --gunicorn --daemon --nginx > logs/start_project.log 2>&1 &
+        nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon --nginx > logs/start_project.log 2>&1 &
         
         echo "✅ Deployment complete!"
         EOF
