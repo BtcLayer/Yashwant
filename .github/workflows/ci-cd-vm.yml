@@ -382,34 +382,79 @@ jobs:
         # Start the application - properly daemonize to survive SSH session closure
         echo "   Starting application..."
         
-        # Ensure we're in the right directory and log file path is absolute
+        # Ensure we're in the right directory and get absolute paths
         cd ${{ env.PROJECT_DIR }}
-        LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
-        mkdir -p "${{ env.PROJECT_DIR }}/logs"
-        pwd
+        PROJECT_ABS=$(pwd)
+        LOG_FILE="$PROJECT_ABS/logs/start_project.log"
+        mkdir -p "$PROJECT_ABS/logs"
+        
+        # Get absolute path to Python
+        PYTHON_ABS=$(which "$PYTHON_CMD" || command -v "$PYTHON_CMD" || echo "$PYTHON_CMD")
+        
+        echo "   Project directory: $PROJECT_ABS"
+        echo "   Python: $PYTHON_ABS"
         echo "   Log file: $LOG_FILE"
         
-        # Use nohup with proper redirection
-        # Redirect stdin to /dev/null, stdout/stderr to log file, run in background
+        # Use nohup with proper redirection and ensure complete detachment
+        # The key is: nohup + redirect stdin + background + disown + setsid if available
         echo "   Starting with nohup (fully detached from SSH session)..."
-        nohup "$PYTHON_CMD" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
-        APP_PID=$!
+        
+        # Try to use setsid if available for complete session detachment
+        # Use absolute path to Python and ensure we're in the right directory
+        if command -v setsid &> /dev/null; then
+            echo "   Using setsid for complete process detachment..."
+            setsid nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
+            APP_PID=$!
+        else
+            # Fallback to just nohup
+            nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
+            APP_PID=$!
+        fi
+        
         echo "   Started with PID: $APP_PID"
         
         # Immediately disown the process so it survives SSH session closure
         # This is critical - without disown, the process will be killed when SSH closes
         disown $APP_PID 2>/dev/null || {
-            echo "   ⚠️  Could not disown process, trying alternative method..."
-            # Alternative: use nohup's built-in behavior (should work, but disown is safer)
+            echo "   ⚠️  Could not disown process $APP_PID"
         }
         
-        echo "   Process started and disowned (PID: $APP_PID)"
-        echo "   Process will survive SSH session closure"
+        # Verify the process is still running after a moment
+        sleep 2
+        if ps -p $APP_PID > /dev/null 2>&1; then
+            echo "   ✅ Process $APP_PID is running and disowned"
+        else
+            echo "   ⚠️  Process $APP_PID exited quickly (may have started gunicorn and exited - this is normal)"
+        fi
+        
+        echo "   Process started and will survive SSH session closure"
         
         # Give it time to start up - start_project.py --daemon returns immediately
         # but gunicorn workers take a few seconds to start
-        echo "   Waiting for application to initialize (20 seconds)..."
-        sleep 20
+        echo "   Waiting for application to initialize..."
+        echo "   (This may take 20-30 seconds for frontend build and gunicorn startup)"
+        
+        # Wait and check multiple times to ensure process stays alive
+        STABLE_COUNT=0
+        for wait_iter in {1..15}; do
+            sleep 2
+            # Check if gunicorn is running
+            if pgrep -f "gunicorn.*main:app" > /dev/null 2>&1; then
+                STABLE_COUNT=$((STABLE_COUNT + 1))
+                if [ $STABLE_COUNT -ge 3 ]; then
+                    echo "   ✅ Gunicorn has been stable for $((STABLE_COUNT * 2)) seconds"
+                    break
+                fi
+            else
+                STABLE_COUNT=0
+                if [ $wait_iter -lt 10 ]; then
+                    echo "   ⏳ Still waiting for gunicorn to start... ($((wait_iter * 2))s)"
+                fi
+            fi
+        done
+        
+        # Final wait to ensure everything is ready
+        sleep 5
         
         # Check for the actual running processes (gunicorn workers are what matter)
         echo "   Checking for running processes..."
@@ -462,6 +507,8 @@ jobs:
             sleep 2
         done
         
+        DEPLOYMENT_SUCCESS=false
+        
         if [ "$PORT_IN_USE" = "true" ]; then
             echo "✅ Port 8000 is listening - application is running!"
             echo "   Verified after $PORT_CHECK_COUNT check(s)"
@@ -470,14 +517,28 @@ jobs:
             echo "   Testing health endpoint..."
             if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
                 echo "✅ Health check passed - application is fully operational!"
+                DEPLOYMENT_SUCCESS=true
             else
                 echo "⚠️  Health check failed, but port is listening (may still be starting)"
+                # Give it one more chance
+                sleep 5
+                if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
+                    echo "✅ Health check passed on retry!"
+                    DEPLOYMENT_SUCCESS=true
+                else
+                    echo "❌ Health check failed even after retry"
+                fi
             fi
         else
             echo "❌ Port 8000 is NOT in use - application failed to start!"
+        fi
+        
+        if [ "$DEPLOYMENT_SUCCESS" != "true" ]; then
             echo ""
-            echo "   Debugging information:"
-            echo "   ====================="
+            echo "   =========================================="
+            echo "   ❌ DEPLOYMENT FAILED - Debugging Info"
+            echo "   =========================================="
+            echo ""
             echo "   Recent log output (last 100 lines):"
             LOG_FILE="${{ env.PROJECT_DIR }}/logs/start_project.log"
             if [ -f "$LOG_FILE" ]; then
@@ -492,12 +553,17 @@ jobs:
             echo "   Port 8000 status:"
             ss -tlnp 2>/dev/null | grep :8000 || echo "   Not listening"
             echo ""
-            echo "   ⚠️  DEPLOYMENT FAILED - Application did not start!"
-            echo "   You may need to manually SSH in and check logs/start_project.log"
+            echo "   Gunicorn processes:"
+            pgrep -af gunicorn || echo "   None found"
+            echo ""
+            echo "   =========================================="
+            echo "   ❌ EXITING WITH ERROR - Deployment failed!"
+            echo "   =========================================="
+            exit 1
         fi
         
         echo ""
-        echo "✅ Deployment script complete!"
+        echo "✅ Deployment script complete - Application is running!"
         EOF
 
     - name: Verify Deployment
@@ -521,13 +587,28 @@ jobs:
           fi
         done
         
-        # Final check
+        # Final check - this must pass or workflow fails
         if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
           echo "✅ Application is healthy and ready!"
         else
-          echo "⚠️ Health check failed, but deployment may still be starting"
+          echo "❌ FINAL HEALTH CHECK FAILED!"
+          echo ""
+          echo "   Debugging information:"
+          echo "   ====================="
+          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'DEBUG_EOF'
+            echo "   Checking processes:"
+            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "   None found"
+            echo ""
+            echo "   Port 8000 status:"
+            ss -tlnp 2>/dev/null | grep :8000 || echo "   Not listening"
+            echo ""
+            echo "   Recent logs:"
+            tail -50 ${{ env.PROJECT_DIR }}/logs/start_project.log 2>/dev/null || echo "   No log file"
+DEBUG_EOF
+          echo ""
           echo "   Check manually at: http://${{ env.VM_HOST }}:8000/api/health"
           echo "   Check logs: ssh ${{ env.VM_USER }}@${{ env.VM_HOST }} 'tail -f ${{ env.PROJECT_DIR }}/logs/start_project.log'"
+          exit 1
         fi
 
     - name: Deployment Summary
