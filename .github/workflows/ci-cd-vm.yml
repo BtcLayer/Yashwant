@@ -113,8 +113,9 @@ jobs:
         ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
 
     - name: Deploy to VM
+      timeout-minutes: 15
       run: |
-        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
         # Don't use set -e - we want to continue even if some commands fail
         # This allows the script to continue even if non-critical commands fail
         
@@ -130,7 +131,10 @@ jobs:
             echo "📥 Pulling latest code..."
             # Configure git to use token for private repo
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            git fetch origin
+            echo "   Fetching from origin (this may take a moment)..."
+            timeout 120 git fetch origin || {
+                echo "⚠️  Git fetch timed out or failed, trying to continue..."
+            }
         fi
         
         # Stash any local changes to data directories (safety measure)
@@ -156,13 +160,40 @@ jobs:
         chmod -R u+w . 2>/dev/null || true
         
         # Reset code (but preserve untracked/ignored files)
-        git reset --hard origin/main || {
-            echo "⚠️  git reset had issues, trying to fix permissions and retry..."
+        echo "🔄 Resetting to origin/main..."
+        echo "   (This may take a moment if there are many file changes)"
+        
+        # Use timeout to prevent hanging, and show progress
+        if timeout 120 git reset --hard origin/main 2>&1 | head -50; then
+            echo "✅ Git reset completed successfully"
+        else
+            RESET_EXIT_CODE=$?
+            if [ $RESET_EXIT_CODE -eq 124 ]; then
+                echo "⚠️  Git reset timed out after 120 seconds"
+                echo "   Trying to fix permissions and retry..."
+            else
+                echo "⚠️  Git reset had issues (exit code: $RESET_EXIT_CODE)"
+                echo "   Trying to fix permissions and retry..."
+            fi
+            
+            # Fix permissions and try again
             find . -type d -name "__pycache__" -exec sudo rm -rf {} + 2>/dev/null || true
             sudo chown -R ${{ env.VM_USER }}:${{ env.VM_USER }} . 2>/dev/null || true
-            git reset --hard origin/main
+            
+            # Retry with timeout
+            if timeout 120 git reset --hard origin/main 2>&1 | head -50; then
+                echo "✅ Git reset completed on retry"
+            else
+                echo "❌ Git reset failed even after retry"
+                echo "   Continuing anyway - code may be partially updated"
+            fi
+        fi
+        
+        # Clean untracked files (with timeout)
+        echo "🧹 Cleaning untracked files..."
+        timeout 60 git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' 2>&1 | head -20 || {
+            echo "⚠️  Git clean had issues or timed out, continuing..."
         }
-        git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' || true
         
         # Restore data directories if they were backed up
         if [ -d "/tmp/vm_data_backup/paper_trading_outputs" ]; then
