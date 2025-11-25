@@ -13726,3 +13726,11 @@ Message: Hyperliquid API error: 429 Client Error: Too Many Requests for url: htt
 === poll_last_closed_kline error ===
 Type: RuntimeError
 Message: Hyperliquid API error: 429 Client Error: Too Many Requests for url: https://api.hyperliquid.xyz/info
+
+=== poll_last_closed_kline error ===
+Type: RuntimeError
+Message: Hyperliquid API error: 429 Client Error: Too Many Requests for url: https://api.hyperliquid.xyz/info
+
+=== poll_last_closed_kline error ===
+Type: RuntimeError
+Message: Hyperliquid API error: 429 Client Error: Too Many Requests for url: https://api.hyperliquid.xyz/info
