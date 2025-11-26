@@ -6,11 +6,11 @@ on:
   workflow_dispatch:  # Allow manual triggers
 
 env:
-  VM_HOST: 40.88.15.47
+  VM_HOST: 172.191.90.145
   VM_USER: azureuser
   VM_SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
   PROJECT_DIR: /home/azureuser/MetaStackerBandit
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.12'  # Use 3.12 on GitHub runners (stable wheels); VM still installs 3.13 if available
 
 jobs:
   # Job 1: Build Frontend and Test
@@ -37,7 +37,10 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
+        echo "🐍 Python version: $(python --version)"
+        python -m pip install --upgrade pip setuptools wheel
+        # Install build dependencies first to ensure wheels can be built if needed
+        pip install --only-binary :all: numpy pandas || pip install numpy pandas
         pip install -r requirements.txt
 
     - name: Test module imports
@@ -71,13 +74,16 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'  # Latest Node.js 22 LTS (2025)
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
     - name: Install frontend dependencies
       working-directory: ./frontend
-      run: npm ci
+      run: |
+        echo "📦 Node.js version: $(node --version)"
+        echo "📦 npm version: $(npm --version)"
+        npm ci
 
     - name: Build React frontend (for testing)
       working-directory: ./frontend
@@ -106,69 +112,241 @@ jobs:
         chmod 600 ~/.ssh/vm_key
         ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Deploy to VM
+    - name: Update Code on VM
+      timeout-minutes: 5
       run: |
-        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << EOF
-        set -e
-        cd ${{ env.PROJECT_DIR }}
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'UPDATE_EOF'
+        set +e
+        cd ${{ env.PROJECT_DIR }} || mkdir -p ${{ env.PROJECT_DIR }} && cd ${{ env.PROJECT_DIR }}
         
-        echo "📥 Pulling latest code..."
-        git fetch origin
+        if [ ! -d ".git" ]; then
+            echo "📥 Repository not found, cloning..."
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
+        else
+            echo "📥 Pulling latest code..."
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            timeout 120 git fetch origin || echo "⚠️  Git fetch timed out"
+        fi
         
-        # Stash any local changes to data directories (safety measure)
         echo "💾 Preserving bot data directories..."
         mkdir -p /tmp/vm_data_backup
-        if [ -d "paper_trading_outputs" ]; then
-            echo "   Backing up paper_trading_outputs..."
-            cp -r paper_trading_outputs /tmp/vm_data_backup/ 2>/dev/null || true
-        fi
-        if [ -d "logs" ]; then
-            echo "   Backing up logs..."
-            cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
-        fi
+        [ -d "paper_trading_outputs" ] && cp -r paper_trading_outputs /tmp/vm_data_backup/ 2>/dev/null || true
+        [ -d "logs" ] && cp -r logs /tmp/vm_data_backup/ 2>/dev/null || true
         
-        # Reset code (but preserve untracked/ignored files)
-        git reset --hard origin/main
-        git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' || true
+        echo "🧹 Cleaning up Python cache..."
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -delete 2>/dev/null || true
         
-        # Restore data directories if they were backed up
-        if [ -d "/tmp/vm_data_backup/paper_trading_outputs" ]; then
-            echo "   Restoring paper_trading_outputs..."
-            rm -rf paper_trading_outputs
-            mv /tmp/vm_data_backup/paper_trading_outputs ./
-        fi
-        if [ -d "/tmp/vm_data_backup/logs" ]; then
-            echo "   Restoring logs..."
-            rm -rf logs
-            mv /tmp/vm_data_backup/logs ./
-        fi
+        echo "🔧 Fixing permissions..."
+        chmod -R u+w . 2>/dev/null || true
+        
+        echo "🔄 Resetting to origin/main..."
+        timeout 120 git reset --hard origin/main 2>&1 | head -50 || {
+            find . -type d -name "__pycache__" -exec sudo rm -rf {} + 2>/dev/null || true
+            sudo chown -R ${{ env.VM_USER }}:${{ env.VM_USER }} . 2>/dev/null || true
+            timeout 120 git reset --hard origin/main 2>&1 | head -50 || echo "⚠️  Git reset failed"
+        }
+        
+        timeout 60 git clean -fd --exclude='paper_trading_outputs' --exclude='logs' --exclude='.env' 2>&1 | head -20 || true
+        
+        [ -d "/tmp/vm_data_backup/paper_trading_outputs" ] && rm -rf paper_trading_outputs && mv /tmp/vm_data_backup/paper_trading_outputs ./ || true
+        [ -d "/tmp/vm_data_backup/logs" ] && rm -rf logs && mv /tmp/vm_data_backup/logs ./ || true
         rm -rf /tmp/vm_data_backup
         
-        echo "✅ Code updated, bot data preserved"
+        echo "✅ Code updated"
+        UPDATE_EOF
+
+    - name: Install Dependencies on VM
+      timeout-minutes: 10
+      run: |
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'DEPS_EOF'
+        set +e
+        cd ${{ env.PROJECT_DIR }}
         
-        echo "🔄 Activating virtual environment..."
-        source venv/bin/activate
+        echo "🔧 Installing system dependencies..."
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get update -qq
         
-        echo "📦 Updating Python dependencies (if needed)..."
-        pip install -q --upgrade pip
-        pip install -q -r requirements.txt
+        sudo apt-get install -y software-properties-common
+        sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || true
+        sudo apt-get update -qq
+        
+        if sudo apt-get install -y python3.13 python3.13-venv python3.13-distutils 2>/dev/null; then
+            PYTHON_VER="3.13"
+        elif sudo apt-get install -y python3.12 python3.12-venv python3.12-distutils 2>/dev/null; then
+            PYTHON_VER="3.12"
+        else
+            sudo apt-get install -y python3 python3-venv
+            PYTHON_VER="3"
+        fi
+        
+        sudo dpkg -r --force-all libnode72 2>/dev/null || true
+        sudo apt-get purge -y nodejs npm libnode-dev libnode72 'libnode*' 2>/dev/null || true
+        sudo apt-get autoremove -y 2>/dev/null || true
+        sudo rm -rf /etc/apt/sources.list.d/nodesource.list* 2>/dev/null || true
+        sudo apt-get update -qq
+        
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || {
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - || true
+        }
+        
+        sudo apt-get install -y nodejs python3-pip build-essential git curl nginx
+        sudo mkdir -p /var/log/nginx
+        sudo chown ${{ env.VM_USER }}:${{ env.VM_USER }} /var/log/nginx
+        mkdir -p logs
+        sudo systemctl stop nginx 2>/dev/null || true
+        sudo systemctl disable nginx 2>/dev/null || true
+        
+        echo "🔄 Setting up Python environment..."
+        USE_VENV=false
+        if [ "$PYTHON_VER" = "3.13" ] && command -v python3.13 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.13"
+        elif [ "$PYTHON_VER" = "3.12" ] && command -v python3.12 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.12"
+        elif command -v python3.11 &> /dev/null; then
+            PYTHON_CMD_VENV="python3.11"
+        else
+            PYTHON_CMD_VENV="python3"
+        fi
+        
+        PYTHON_CMD="python3"
+        PIP_CMD="pip3"
+        
+        if [ ! -d "venv" ]; then
+            if $PYTHON_CMD_VENV -m venv venv 2>/dev/null && [ -f "venv/bin/activate" ]; then
+                USE_VENV=true
+            fi
+        elif [ -f "venv/bin/activate" ]; then
+            USE_VENV=true
+        fi
+        
+        if [ "$USE_VENV" = "true" ]; then
+            source venv/bin/activate
+            PYTHON_CMD="python"
+            PIP_CMD="pip"
+        fi
+        
+        PYTHON_CMD=${PYTHON_CMD:-python3}
+        PIP_CMD=${PIP_CMD:-pip3}
+        
+        echo "📦 Installing Python dependencies..."
+        $PIP_CMD install -q --upgrade pip setuptools wheel 2>/dev/null || $PIP_CMD install -q --upgrade pip setuptools wheel --user 2>/dev/null || true
+        $PIP_CMD install -q numpy pandas 2>/dev/null || $PIP_CMD install -q numpy pandas --user 2>/dev/null || true
+        $PIP_CMD install -q -r requirements.txt 2>/dev/null || $PIP_CMD install -q -r requirements.txt --user 2>/dev/null || {
+            $PIP_CMD install -r requirements.txt --user || true
+        }
+        
+        echo "📦 Installing Node.js dependencies..."
+        cd frontend
+        rm -rf node_modules package-lock.json 2>/dev/null || true
+        npm cache clean --force 2>/dev/null || true
+        npm install
+        rm -rf build 2>/dev/null || true
+        cd ..
+        
+        echo "✅ Dependencies installed"
+        DEPS_EOF
+
+    - name: Deploy and Start Application
+      timeout-minutes: 10
+      run: |
+        ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ${{ env.VM_USER }}@${{ env.VM_HOST }} bash << 'START_EOF'
+        # Don't use set -e - we want to continue even if some commands fail
+        # This allows the script to continue even if non-critical commands fail
+        set +e  # Explicitly disable exit on error
+        
+        set +e
+        cd ${{ env.PROJECT_DIR }}
         
         echo "🛑 Stopping existing services..."
-        pkill -f "python.*start_project.py" || true
-        pkill -f gunicorn || true
-        pkill -f uvicorn || true
-        pkill -f run_unified_bots.py || true
-        sleep 2
+        pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        pkill -9 -f gunicorn 2>/dev/null || true
+        pkill -9 -f uvicorn 2>/dev/null || true
+        pkill -9 -f run_unified_bots.py 2>/dev/null || true
+        sudo pkill -9 -f "python.*start_project.py" 2>/dev/null || true
+        sudo pkill -9 -f gunicorn 2>/dev/null || true
         
-        echo "🚀 Starting application with start_project.py..."
-        # Use start_project.py with production flags:
-        # --gunicorn: Use gunicorn with multiple workers for production
-        # --daemon: Run in background mode
-        # Frontend will auto-rebuild if source files changed
-        nohup python start_project.py --gunicorn --daemon > logs/start_project.log 2>&1 &
+        for port in 8000 8001; do
+            sudo fuser -k ${port}/tcp 2>/dev/null || fuser -k ${port}/tcp 2>/dev/null || true
+            sudo lsof -ti:${port} | xargs sudo kill -9 2>/dev/null || lsof -ti:${port} | xargs kill -9 2>/dev/null || true
+            ss -tlnp 2>/dev/null | tail -n +2 | grep ":${port}" | awk '{print $NF}' | grep -oE 'pid=[0-9]+' | cut -d'=' -f2 | sort -u | while read pid; do
+                [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null && (sudo kill -9 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true)
+            done || true
+        done
         
-        echo "✅ Deployment complete!"
-        EOF
+        for port in 8000 8001; do
+            for i in {1..10}; do
+                if ! (ss -tlnp 2>/dev/null | grep -q :${port} || lsof -ti:${port} 2>/dev/null); then
+                    break
+                fi
+                sleep 1
+            done
+        done
+        
+        mkdir -p logs paper_trading_outputs/sheets_fallback
+        
+        PYTHON_CMD=$(command -v python || command -v python3 || echo "python3")
+        cd ${{ env.PROJECT_DIR }}
+        PROJECT_ABS=$(pwd)
+        LOG_FILE="$PROJECT_ABS/logs/start_project.log"
+        mkdir -p "$PROJECT_ABS/logs"
+        PYTHON_ABS=$(which "$PYTHON_CMD" || command -v "$PYTHON_CMD" || echo "$PYTHON_CMD")
+        
+        cd "$PROJECT_ABS" || exit 1
+        
+        if command -v setsid &> /dev/null; then
+            setsid nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
+            APP_PID=$!
+        else
+            nohup env PYTHONPATH="$PROJECT_ABS" "$PYTHON_ABS" start_project.py --gunicorn --daemon < /dev/null > "$LOG_FILE" 2>&1 &
+            APP_PID=$!
+        fi
+        
+        disown $APP_PID 2>/dev/null || true
+        sleep 5
+        
+        STABLE_COUNT=0
+        for wait_iter in {1..15}; do
+            sleep 2
+            if pgrep -f "gunicorn.*main:app" > /dev/null 2>&1; then
+                STABLE_COUNT=$((STABLE_COUNT + 1))
+                [ $STABLE_COUNT -ge 3 ] && break
+            else
+                STABLE_COUNT=0
+            fi
+        done
+        
+        sleep 5
+        
+        PORT_IN_USE=false
+        for i in {1..10}; do
+            if ss -tlnp 2>/dev/null | grep -q :8000 || lsof -ti:8000 2>/dev/null; then
+                PORT_IN_USE=true
+                break
+            fi
+            sleep 2
+        done
+        
+        DEPLOYMENT_SUCCESS=false
+        if [ "$PORT_IN_USE" = "true" ]; then
+            if curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
+                DEPLOYMENT_SUCCESS=true
+            else
+                sleep 5
+                curl -f -s http://localhost:8000/api/health > /dev/null 2>&1 && DEPLOYMENT_SUCCESS=true
+            fi
+        fi
+        
+        if [ "$DEPLOYMENT_SUCCESS" != "true" ]; then
+            echo "❌ DEPLOYMENT FAILED"
+            [ -f "$LOG_FILE" ] && tail -100 "$LOG_FILE" || echo "No log file"
+            ps aux | grep -E "(python|gunicorn|start_project)" | grep -v grep || echo "No processes"
+            ss -tlnp 2>/dev/null | grep :8000 || echo "Port 8000 not listening"
+            exit 1
+        fi
+        
+        echo "✅ Deployment complete - Application is running!"
+        START_EOF
 
     - name: Verify Deployment
       run: |
@@ -191,13 +369,19 @@ jobs:
           fi
         done
         
-        # Final check
+        # Final check - this must pass or workflow fails
         if ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "curl -f -s http://localhost:8000/api/health > /dev/null 2>&1"; then
           echo "✅ Application is healthy and ready!"
         else
-          echo "⚠️ Health check failed, but deployment may still be starting"
+          echo "❌ FINAL HEALTH CHECK FAILED!"
+          echo ""
+          echo "   Debugging information:"
+          echo "   ====================="
+          ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "echo '   Checking processes:'; ps aux | grep -E '(python|gunicorn|start_project)' | grep -v grep || echo '   None found'; echo ''; echo '   Port 8000 status:'; ss -tlnp 2>/dev/null | grep :8000 || echo '   Not listening'; echo ''; echo '   Recent logs:'; tail -50 ${{ env.PROJECT_DIR }}/logs/start_project.log 2>/dev/null || echo '   No log file'"
+          echo ""
           echo "   Check manually at: http://${{ env.VM_HOST }}:8000/api/health"
           echo "   Check logs: ssh ${{ env.VM_USER }}@${{ env.VM_HOST }} 'tail -f ${{ env.PROJECT_DIR }}/logs/start_project.log'"
+          exit 1
         fi
 
     - name: Deployment Summary

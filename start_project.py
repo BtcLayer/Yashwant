@@ -179,9 +179,16 @@ def build_frontend(base_dir: Path, force: bool = False) -> bool:
         print_colored("   Building React app...", Colors.YELLOW)
         # Use shell=True on Windows for npm commands
         use_shell = os.name == 'nt'
+        
+        # Set environment variables for production build (use relative URLs)
+        build_env = os.environ.copy()
+        build_env["REACT_APP_API_URL"] = ""  # Empty string = relative URLs (works for any domain)
+        build_env.setdefault("REACT_APP_DASHBOARD_PASSWORD", "metastacker2024")
+        
         build_result = subprocess.run(
             ["npm", "run", "build"] if not use_shell else "npm run build",
             cwd=str(frontend_dir),
+            env=build_env,
             capture_output=True,
             text=True,
             timeout=600,  # 10 minutes
