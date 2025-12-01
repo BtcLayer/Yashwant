@@ -1,0 +1,12 @@
+{
+  "1h": {
+    "rows_in": 26,
+    "rows_out": 9,
+    "out_file": "paper_trading_outputs\\1h\\sheets_fallback\\executions_from_5m_agg.csv"
+  },
+  "12h": {
+    "rows_in": 26,
+    "rows_out": 4,
+    "out_file": "paper_trading_outputs\\12h\\sheets_fallback\\executions_from_5m_agg.csv"
+  }
+}

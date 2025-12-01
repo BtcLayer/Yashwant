@@ -1,0 +1,3 @@
+{"ts": 1764565695615, "symbol": "BTCUSDT", "features": {"close": 100.0}, "model_out": {"pred_bps": 50.0}, "decision": {"dir": 1, "alpha": 100.0}, "cohort": "A", "ts_ist": "2025-12-01T10:38:15.746359+05:30"}
+{"ts": 1764566046833, "symbol": "BTCUSDT", "features": {"close": 100.0}, "model_out": {"pred_bps": 50.0}, "decision": {"dir": 1, "alpha": 100.0}, "cohort": "A", "ts_ist": "2025-12-01T10:44:07.010716+05:30"}
+{"ts": 1764566046833, "symbol": "BTCUSDT", "features": {"close": 999.0}, "model_out": {"pred_bps": 123.0}, "decision": {"dir": 1, "alpha": 5.0}, "cohort": "A", "ts_ist": "2025-12-01T10:44:07.036661+05:30"}

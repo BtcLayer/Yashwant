@@ -1,0 +1,47 @@
+{
+  "summary_pass": false,
+  "frames": {
+    "5m": {
+      "bars": 58,
+      "trades": 26,
+      "adv_status": "ok",
+      "oof_status": "ok",
+      "pass_bars": false,
+      "pass_trades": false,
+      "pass_oof": true,
+      "frame_pass": false
+    },
+    "1h": {
+      "bars": 10,
+      "trades": 9,
+      "adv_status": "ok",
+      "oof_status": "too_few_bars",
+      "pass_bars": false,
+      "pass_trades": false,
+      "pass_oof": false,
+      "frame_pass": false
+    },
+    "12h": {
+      "bars": 6,
+      "trades": 4,
+      "adv_status": "ok",
+      "oof_status": "too_few_bars",
+      "pass_bars": false,
+      "pass_trades": false,
+      "pass_oof": false,
+      "frame_pass": false
+    },
+    "24h": {
+      "bars": 4,
+      "trades": 9,
+      "adv_status": "ok",
+      "oof_status": "too_few_bars",
+      "pass_bars": false,
+      "pass_trades": false,
+      "pass_oof": false,
+      "frame_pass": false
+    }
+  },
+  "min_bars": 600,
+  "min_trades": 30
+}

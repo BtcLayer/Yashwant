@@ -1,0 +1,26 @@
+{
+  "5m": {
+    "status": "ok",
+    "exec_rows": 26,
+    "adv20_file": "paper_trading_outputs\\5m\\sheets_fallback\\adv20_by_date.csv",
+    "out_exec": "paper_trading_outputs\\5m\\sheets_fallback\\executions_with_adv20.csv"
+  },
+  "1h": {
+    "status": "ok",
+    "exec_rows": 9,
+    "adv20_file": "paper_trading_outputs\\1h\\sheets_fallback\\adv20_by_date.csv",
+    "out_exec": "paper_trading_outputs\\1h\\sheets_fallback\\executions_with_adv20.csv"
+  },
+  "12h": {
+    "status": "ok",
+    "exec_rows": 4,
+    "adv20_file": "paper_trading_outputs\\12h\\sheets_fallback\\adv20_by_date.csv",
+    "out_exec": "paper_trading_outputs\\12h\\sheets_fallback\\executions_with_adv20.csv"
+  },
+  "24h": {
+    "status": "ok",
+    "exec_rows": 9,
+    "adv20_file": "paper_trading_outputs\\24h\\sheets_fallback\\adv20_by_date.csv",
+    "out_exec": "paper_trading_outputs\\24h\\sheets_fallback\\executions_with_adv20.csv"
+  }
+}

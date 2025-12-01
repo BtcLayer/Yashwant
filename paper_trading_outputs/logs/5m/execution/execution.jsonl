@@ -1,0 +1,2 @@
+{"ts": 1764565695615, "symbol": "BTCUSDT", "execution": {"side": "BUY", "qty": 1.23, "fill_price": 100.1, "notional_usd": 123.5}, "risk_state": {"realized_pnl": -1.0}, "ts_ist": "2025-12-01T10:38:15.748126+05:30"}
+{"ts": 1764566046833, "symbol": "BTCUSDT", "execution": {"side": "BUY", "qty": 1.23, "fill_price": 100.1, "notional_usd": 123.5}, "risk_state": {"realized_pnl": -1.0}, "ts_ist": "2025-12-01T10:44:07.025024+05:30"}

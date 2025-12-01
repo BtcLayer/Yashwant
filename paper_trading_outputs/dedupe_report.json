@@ -1,0 +1,58 @@
+{
+  "5m": {
+    "signals": {
+      "file": "paper_trading_outputs\\5m\\sheets_fallback\\signals.csv",
+      "rows": 496,
+      "dup_full_rows": 7,
+      "dup_by_dt": 438,
+      "out_file": "paper_trading_outputs\\5m\\sheets_fallback\\signals_dedup.csv",
+      "out_rows": 58
+    },
+    "executions": {
+      "file": "paper_trading_outputs\\5m\\sheets_fallback\\executions_paper.csv",
+      "rows": 46,
+      "dup_full_rows": 20,
+      "out_file": "paper_trading_outputs\\5m\\sheets_fallback\\executions_dedup.csv",
+      "out_rows": 26
+    }
+  },
+  "1h": {
+    "signals": {
+      "file": "paper_trading_outputs\\1h\\sheets_fallback\\signals_1h.csv",
+      "rows": 80,
+      "dup_full_rows": 2,
+      "dup_by_dt": 70,
+      "out_file": "paper_trading_outputs\\1h\\sheets_fallback\\signals_dedup.csv",
+      "out_rows": 10
+    },
+    "executions": "missing"
+  },
+  "12h": {
+    "signals": {
+      "file": "paper_trading_outputs\\12h\\sheets_fallback\\signals_12h.csv",
+      "rows": 50,
+      "dup_full_rows": 4,
+      "dup_by_dt": 44,
+      "out_file": "paper_trading_outputs\\12h\\sheets_fallback\\signals_dedup.csv",
+      "out_rows": 6
+    },
+    "executions": "missing"
+  },
+  "24h": {
+    "signals": {
+      "file": "paper_trading_outputs\\24h\\sheets_fallback\\signals.csv",
+      "rows": 34,
+      "dup_full_rows": 1,
+      "dup_by_dt": 30,
+      "out_file": "paper_trading_outputs\\24h\\sheets_fallback\\signals_dedup.csv",
+      "out_rows": 4
+    },
+    "executions": {
+      "file": "paper_trading_outputs\\24h\\sheets_fallback\\executions_paper.csv",
+      "rows": 34,
+      "dup_full_rows": 25,
+      "out_file": "paper_trading_outputs\\24h\\sheets_fallback\\executions_dedup.csv",
+      "out_rows": 9
+    }
+  }
+}

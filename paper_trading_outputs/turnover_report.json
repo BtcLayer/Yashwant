@@ -1,0 +1,22 @@
+{
+  "5m": {
+    "exec_rows": 26,
+    "mean_abs_notional": 1411.89242048636,
+    "mean_equity": 9994.708893206549,
+    "turnover_bps_day_approx": 406840.28063734464,
+    "turnover_net_signed_method_bps_day": 263269.45843084913
+  },
+  "1h": {
+    "status": "no_execs"
+  },
+  "12h": {
+    "status": "no_execs"
+  },
+  "24h": {
+    "exec_rows": 9,
+    "mean_abs_notional": 1920.693281718975,
+    "mean_equity": 9994.819715041485,
+    "turnover_bps_day_approx": 1921.688771262647,
+    "turnover_net_signed_method_bps_day": 1583.939221654629
+  }
+}
