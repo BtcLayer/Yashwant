@@ -686,6 +686,16 @@ def main():
     
     # Wait for backend to be ready
     wait_for_backend(port=backend_port)
+
+    # Write an initial heartbeat for monitoring tools (non-blocking, non-fatal)
+    try:
+        from ops.heartbeat import write_heartbeat
+
+        logs_root = str(base_dir / "paper_trading_outputs" / "logs")
+        write_heartbeat(logs_root, bot_version="default", last_bar_id=None, last_trade_ts=None)
+    except Exception:
+        # Do not block startup if heartbeat cannot be written
+        pass
     
     # Wait for nginx if used
     if use_nginx and nginx_process:

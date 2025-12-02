@@ -46,6 +46,18 @@ class LogEmitter:
         if "ts_ist" not in record:
             record["ts_ist"] = datetime.now(IST).isoformat()
 
+        # Inject minimal strategy metadata if not present (non-destructive)
+        try:
+            from core.config import get_strategy_id, get_schema_version
+
+            if "strategy_id" not in record:
+                record["strategy_id"] = get_strategy_id()
+            if "schema_version" not in record:
+                record["schema_version"] = get_schema_version()
+        except Exception:
+            # Keep write non-failing if core.config is not available
+            pass
+
         # Write record
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
@@ -107,11 +119,23 @@ class LogEmitter:
 
 _emitters = {}
 
+
+def _cache_key(bot_version: str, base_dir: str | None) -> str:
+    # Use bot_version + normalized base_dir for uniqueness; base_dir may be None
+    bd = str(base_dir) if base_dir else ""
+    return f"{bot_version}::{bd}"
+
+
 def get_emitter(bot_version=None, base_dir: str | None = None):
-    """Get emitter for specific bot version or default"""
+    """Get emitter for specific bot version or default.
+
+    Caches emitters by (bot_version, base_dir) so tests and different runtime
+    locations don't collide. This is additive and safe for 1.1.
+    """
     if bot_version is None:
         bot_version = "default"
 
-    if bot_version not in _emitters:
-        _emitters[bot_version] = LogEmitter(bot_version, base_dir=base_dir)
-    return _emitters[bot_version]
+    key = _cache_key(bot_version, base_dir)
+    if key not in _emitters:
+        _emitters[key] = LogEmitter(bot_version, base_dir=base_dir)
+    return _emitters[key]

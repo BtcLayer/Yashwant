@@ -239,3 +239,22 @@
 [SheetsLogger] APIError caught for tab equity; using CSV fallback. APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
 [SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
 [SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] Google Sheets client initialized via file credentials. service_account=metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] APIError while appending rows to tab hyperliquid_sheet: APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] APIError caught for tab hyperliquid_sheet; using CSV fallback. APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] APIError while appending rows to tab bandit: APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] APIError caught for tab bandit; using CSV fallback. APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] APIError while appending rows to tab equity: APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
+[SheetsLogger] APIError caught for tab equity; using CSV fallback. APIError({'code': 400, 'message': 'This action would increase the number of cells in the workbook above the limit of 10000000 cells.', 'status': 'INVALID_ARGUMENT'})
+[SheetsLogger] Ensure the sheet is shared with service account: metastackerbandit@metastackerbandit.iam.gserviceaccount.com
+[SheetsLogger] Sheet URL: https://docs.google.com/spreadsheets/d/1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls
