@@ -1,4 +1,4 @@
-name: ensemble1.1 - smoke tests
+﻿name: ensemble1.1 - smoke tests
 
 on:
   push:
@@ -22,6 +22,47 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest
+
+      - name: Start short-lived heartbeat writer (background)
+        run: |
+          # Start a small background process that writes a couple of heartbeats so the smoke check can verify they exist.
+          nohup bash -lc "python - <<'PY'
+          import time, os
+          from ops.heartbeat import write_heartbeat
+          os.makedirs('paper_trading_outputs/logs', exist_ok=True)
+          for i in range(3):
+              write_heartbeat('paper_trading_outputs/logs', bot_version='ci-bot', last_bar_id=i)
+              time.sleep(1)
+          PY" > heartbeat.log 2>&1 &
+
+      - name: Wait for background writer
+        run: sleep 2
+
+      - name: Run heartbeat check script
+        run: |
+          python scripts/check_heartbeat.py paper_trading_outputs/logs
+
+      - name: Verify emitter metadata in JSONL (CI smoke)
+        run: |
+          python - <<'PY'
+          import os, json
+          from ops.log_emitter import get_emitter
+
+          # Use a temporary directory inside the workspace so it's hermetic
+          base = 'tmp_ci_logs'
+          os.environ['STRATEGY_ID'] = 'ci_test'
+          os.environ['SCHEMA_VERSION'] = 'v1-ci'
+          em = get_emitter(bot_version='testbot', base_dir=os.path.join(base, 'testbot'))
+          em.emit_signals(1, 'BTCUSDT', {'close': 100}, {'pred': 1.0}, {'dir': 1}, {'pros': 0})
+          p = os.path.join(base, 'testbot', 'signals', 'signals.jsonl')
+          assert os.path.exists(p), 'signals.jsonl missing'
+          with open(p, 'r', encoding='utf-8') as fh:
+              lines = [l.strip() for l in fh if l.strip()]
+          rec = json.loads(lines[-1])
+          if rec.get('strategy_id') != 'ci_test' or rec.get('schema_version') != 'v1-ci':
+              raise SystemExit('emitter metadata not present')
+          print('emitter metadata check succeeded')
+          PY
 
       - name: Run emitter + heartbeat smoke tests
         run: |
