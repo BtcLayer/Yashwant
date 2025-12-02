@@ -389,3 +389,27 @@ curl http://40.88.15.47:8000/api/dashboard/summary
 **GitHub:** <https://github.com/anythingai/MetaStackerBandit.git>
 
 **Ready for production deployment!**
+
+## Ensemble 1.1 observability (heartbeat & emitter smoke checks)
+
+For the Ensemble 1.1 release we added lightweight observability helpers and small CI smoke checks:
+
+- A `heartbeat.json` file is written under paper_trading_outputs/logs/<bot>/heartbeat/heartbeat.json — used for simple liveness checks.
+- Small unit tests for heartbeat and emitter metadata are in `tests/test_heartbeat_and_emitters.py`.
+- A hermetic smoke helper is available at `scripts/check_heartbeat.py` which returns 0 if it finds heartbeat.json files under a logs root.
+
+How to run locally (quick):
+
+1) Run the local tests for these features:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/test_heartbeat_and_emitters.py tests/test_check_heartbeat_script.py
+```
+
+2) Run the smoke helper against your logs root:
+
+```powershell
+.venv\Scripts\python.exe scripts/check_heartbeat.py paper_trading_outputs/logs
+```
+
+See `docs/ENHANCEMENTS-ensemble1.1.md` for more details on the minimal, low-risk changes included in v1.1.
