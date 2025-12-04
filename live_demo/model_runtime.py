@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import joblib
 import numpy as np
 import pandas as pd
@@ -35,9 +35,15 @@ except ImportError:
     EnhancedMetaClassifier = None  # type: ignore
     CustomClassificationCalibrator = None  # type: ignore
 
+try:
+    from live_demo.features import FeaturePipeline  # type: ignore
+except ImportError:  # pragma: no cover
+    from .features import FeaturePipeline  # type: ignore
+
 
 class ModelRuntime:
     def __init__(self, manifest_path: str):
+        manifest_meta: Dict[str, Any]
         # Support both legacy and versioned manifests via loader
         try:
             try:
@@ -45,6 +51,7 @@ class ModelRuntime:
             except ImportError:  # pragma: no cover
                 from .models.manifest_loader import normalize_manifest  # type: ignore
             nm = normalize_manifest(manifest_path)
+            manifest_meta = dict(nm)
             self.feature_schema_path = nm.get('feature_schema_path')
             self.model_path = nm.get('model_path')
             self.calibrator_path = nm.get('calibrator_path')
@@ -55,6 +62,7 @@ class ModelRuntime:
             # Fallback to direct JSON with legacy keys
             with open(manifest_path, 'r', encoding='utf-8') as f:
                 m = json.load(f)
+            manifest_meta = dict(m)
             base_dir = os.path.dirname(os.path.abspath(manifest_path))
             def abs_path(p: str) -> str:
                 return p if os.path.isabs(p) else os.path.join(base_dir, p)
@@ -63,6 +71,7 @@ class ModelRuntime:
             self.feature_schema_path = abs_path(m['feature_columns'])
             self.cal_a = 0.0
             self.cal_b = 1.0
+        self.feature_pipeline_config: Optional[Dict[str, Any]] = manifest_meta.get("feature_pipeline")
         # Load feature column names for inference-time DataFrame construction
         try:
             with open(self.feature_schema_path, "r", encoding="utf-8") as f:
@@ -97,15 +106,19 @@ class ModelRuntime:
             )
         # class order {down:0, neutral:1, up:2}
         self.class_order = [0, 1, 2]
+        self.feature_pipeline = FeaturePipeline(self.columns, self.feature_pipeline_config)
 
     def infer(self, x: List[float]) -> Dict:
+        features = list(x)
+        if self.feature_pipeline is not None:
+            features = self.feature_pipeline.transform(features)
         # Build DataFrame with proper feature names to avoid sklearn warnings
-        if self.columns and len(x) == len(self.columns):
-            X_df = pd.DataFrame([x], columns=self.columns)
+        if self.columns and len(features) == len(self.columns):
+            X_df = pd.DataFrame([features], columns=self.columns)
         else:
             # Fallback to numpy array if schema missing/mismatch
             X_df = None
-        X = np.array(x, dtype=float).reshape(1, -1)
+        X = np.array(features, dtype=float).reshape(1, -1)
         if self.model is None:
             # Neutral, no model available
             proba = np.array([[0.33, 0.34, 0.33]], dtype=float)

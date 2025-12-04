@@ -9,6 +9,8 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/live_demo"
     steps:
       - uses: actions/checkout@v4
 

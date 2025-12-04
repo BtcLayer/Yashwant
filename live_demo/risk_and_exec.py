@@ -21,6 +21,10 @@ class RiskConfig:
     # Optional: when realized_vol is not yet available (startup/one-shot), use this floor
     # so we can compute a non-zero target. If <= 0, we fall back to returning 0.
     vol_floor: float = 0.0
+    # Optional realized-volatility guard to shrink signals when realized sigma is elevated
+    vol_guard_enable: bool = False
+    vol_guard_sigma: float = 0.80
+    vol_guard_min_scale: float = 0.25
     # Guardrails
     adv_cap_pct: float = 0.0  # % of ADV20 USD per trade cap
     rebalance_min_pos_delta: float = (
@@ -58,6 +62,7 @@ class RiskAndExec:
         self._hour_execs = deque(maxlen=10_000)  # (ts_ms, notional_usd)
         self._flip_last_sign = 0
         self._flip_last_ts_ms = 0
+        self._last_vol_guard = 1.0
 
     def update_returns(self, prev_close: float, new_close: float):
         if prev_close and new_close:
@@ -82,7 +87,16 @@ class RiskAndExec:
                 rv = float(self.cfg.vol_floor)
             else:
                 return 0.0
-        pos = (self.cfg.sigma_target / rv) * alpha
+        guard_alpha = alpha
+        self._last_vol_guard = 1.0
+        if self.cfg.vol_guard_enable:
+            sigma_cap = max(1e-9, float(self.cfg.vol_guard_sigma or 0.0))
+            if rv > sigma_cap:
+                min_scale = min(1.0, max(0.0, float(self.cfg.vol_guard_min_scale or 0.0)))
+                scale = max(min_scale, sigma_cap / rv)
+                guard_alpha *= scale
+                self._last_vol_guard = scale
+        pos = (self.cfg.sigma_target / rv) * guard_alpha
         pos = max(-self.cfg.pos_max, min(self.cfg.pos_max, pos))
         return float(direction) * pos
 
