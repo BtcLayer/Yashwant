@@ -67,3 +67,7 @@ jobs:
       - name: Run emitter + heartbeat smoke tests
         run: |
           pytest -q tests/test_heartbeat_and_emitters.py -q
+
+      - name: Run multi-timeframe runtime smoke
+        run: |
+          python scripts/run_timeframe_smoke.py --timeframes 1h 12h 24h
