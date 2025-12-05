@@ -36,6 +36,10 @@ What was implemented (and why it helps)
   - What: CI workflow that runs the small unit tests on pushes and PRs for the ensemble1.1 branch.
   - Why: Enables automated verification of the new observability features without running the entire test suite.
 
+- scripts/validate_emitted_records.py (added)
+  - What: CLI that scans emitted JSONL logs and enforces required telemetry fields such as `strategy_id`/`schema_version`.
+  - Why: Running it in `--strict` mode inside CI ensures telemetry regressions fail fast; developers can point it at freshly generated logs to reproduce locally.
+
 Remaining (recommended) items for 1.1
 -------------------------------------
 

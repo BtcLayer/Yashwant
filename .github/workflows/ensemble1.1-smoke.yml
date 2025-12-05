@@ -72,4 +72,8 @@ jobs:
 
       - name: Run multi-timeframe runtime smoke
         run: |
-          python scripts/run_timeframe_smoke.py --timeframes 1h 12h 24h
+          python scripts/run_timeframe_smoke.py --timeframes 1h 12h 24h --logs-root paper_trading_outputs/ci_smoke
+
+      - name: Validate emitted records (strict)
+        run: |
+          python scripts/validate_emitted_records.py --logs-root paper_trading_outputs/ci_smoke --strict
