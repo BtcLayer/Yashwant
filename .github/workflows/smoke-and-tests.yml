@@ -1,0 +1,39 @@
+name: Smoke & Tests
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/live_demo:${{ github.workspace }}/live_core"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt || true; fi
+          python -m pip install pytest
+
+      - name: Run focused unit tests
+        run: |
+          PYTHONPATH=live_demo python -m pytest live_demo/tests tests/test_validate_emitted_records.py
+
+      - name: Run multi-timeframe smoke harness
+        run: |
+          python scripts/run_timeframe_smoke.py --logs-root paper_trading_outputs/ci_smoke --timeframes 1h 12h 24h
+
+      - name: Validate emitted records (strict)
+        run: |
+          python scripts/validate_emitted_records.py --logs-root paper_trading_outputs/ci_smoke --strict
