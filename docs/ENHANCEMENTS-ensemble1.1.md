@@ -39,6 +39,10 @@ What was implemented (and why it helps)
 - scripts/validate_emitted_records.py (added)
   - What: CLI that scans emitted JSONL logs and enforces required telemetry fields such as `strategy_id`/`schema_version`.
   - Why: Running it in `--strict` mode inside CI ensures telemetry regressions fail fast; developers can point it at freshly generated logs to reproduce locally.
+- live_demo/emitters/health_snapshot_emitter.py (added)
+  - What: Deterministic writer that emits one compact JSONL snapshot per hour and per day with equity, drawdown, PnL, turnover, and risk tallies.
+  - Why: Feeds LLM-scale monitoring workflows with stable, flat records while keeping hourly (`logs/1h/health_snapshot/`) and daily (`logs/24h/health_snapshot/`) histories separate.
+  - Usage: Instantiate `HealthSnapshotEmitter` once (it auto-resolves `PAPER_TRADING_ROOT`), then call `maybe_emit(...)` every bar; the emitter de-dupes timestamps so you can schedule it from existing health-monitor ticks without extra cron logic.
 
 Remaining (recommended) items for 1.1
 -------------------------------------
