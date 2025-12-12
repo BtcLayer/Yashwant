@@ -1,4 +1,12 @@
-# Python
+# Python artifacts
 __pycache__/
+*.pyc
+
+# Generated trading logs and archives
+paper_trading_outputs/
+paper_trading_outputs/**
+*.jsonl
+*.jsonl.gz
+*.log
 
 
