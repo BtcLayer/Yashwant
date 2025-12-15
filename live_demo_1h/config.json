@@ -137,8 +137,8 @@
     "min_book_qty": 0.0
   },
   "sheets": {
-    "sheet_id": "1OVf6JurwGQ4MNvb-oGJVJVPb2c9j_dXmiDMcse5fGik",
-    "creds_json": "live_demo/hyperliquid-473106-b11ba8ae73b4.json",
+    "sheet_id": "1Fk9HGfUKaEOcN3DIqZOBQkTYuMzDFdAqE9eUOijKPLs",
+    "creds_json": "live_demo_1h/metastackerbandit1-478b6face97d.json",
     "tabs": {
       "hyperliquid": "hyperliquid_sheet_1h",
       "signals": "signals_1h",

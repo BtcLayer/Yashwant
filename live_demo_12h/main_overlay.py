@@ -428,16 +428,16 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
                     err_log_fh.write('Message: ' + str(e) + '\n')
             except OSError:
                 pass
-            await asyncio.sleep(2)
+            await asyncio.sleep(60)
             continue
-            
+
         if row is None:
-            await asyncio.sleep(2)
+            await asyncio.sleep(60)
             continue
-            
+
         ts, o, h, l, c, v = row
         if last_ts is not None and ts <= last_ts:
-            await asyncio.sleep(1)
+            await asyncio.sleep(60)
             continue
 
         # Update returns and last_close

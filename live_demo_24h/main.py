@@ -989,6 +989,17 @@ async def run_live(config_path: str, dry_run: bool = False):
 
             # 5) Model inference
             model_out = mr.infer(x)
+            if not isinstance(model_out, dict):
+                # Guard against unexpected runtime returns to avoid crashing ensemble logic
+                print("[24h] Warning: model_out invalid, falling back to neutral prediction")
+                model_out = {
+                    'p_down': 0.33,
+                    'p_neutral': 0.34,
+                    'p_up': 0.33,
+                    's_model': 0.0,
+                    'a': float(getattr(mr, 'cal_a', 0.0)),
+                    'b': float(getattr(mr, 'cal_b', 1.0)),
+                }
             # Compute BMA blend across ['base','prob'] arms using current weights and honor ensemble.source
             try:
                 ens_cfg = cfg.get('ensemble', {}) or {}

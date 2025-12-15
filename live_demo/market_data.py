@@ -152,7 +152,7 @@ class MarketData:
                 break
             except Exception as e:
                 last_err = e
-                time.sleep(1.0 * (attempt + 1))
+                time.sleep(_rate_limit_delay(e, attempt))
         else:
             # Surface last error so caller can decide what to do
             raise last_err

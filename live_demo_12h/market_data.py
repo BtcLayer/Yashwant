@@ -14,6 +14,7 @@ try:
 except Exception:
     pass
 _IN_MEMORY_CACHE = {}
+_IN_MEMORY_CACHE_MAX = 100  # Limit in-memory cache to 100 entries
 
 
 def _cache_key(symbol: str, interval: str, limit: int) -> str:
@@ -27,6 +28,11 @@ def _cache_path(key: str) -> Path:
 
 
 def _store_cache(key: str, df: pd.DataFrame) -> None:
+    # Enforce cache size limit: evict oldest if over limit
+    if key not in _IN_MEMORY_CACHE and len(_IN_MEMORY_CACHE) >= _IN_MEMORY_CACHE_MAX:
+        # Remove the oldest entry by timestamp
+        oldest_key = min(_IN_MEMORY_CACHE, key=lambda k: _IN_MEMORY_CACHE[k]["ts"])
+        _IN_MEMORY_CACHE.pop(oldest_key, None)
     _IN_MEMORY_CACHE[key] = {"ts": time.time(), "df": df.copy()}
     try:
         df.to_csv(_cache_path(key), index=False)
@@ -152,7 +158,7 @@ class MarketData:
                 break
             except Exception as e:
                 last_err = e
-                time.sleep(1.0 * (attempt + 1))
+                time.sleep(_rate_limit_delay(e, attempt))
         else:
             # Surface last error so caller can decide what to do
             raise last_err

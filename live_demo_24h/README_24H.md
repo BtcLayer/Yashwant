@@ -160,7 +160,8 @@ python run_unified_bots.py
 
 ### ⚠️ Prerequisites
 Before running, ensure these exist:
-- [ ] `live_demo_24h/hyperliquid-473106-b11ba8ae73b4.json` (credentials)
+// Removed: [ ] `live_demo_24h/hyperliquid-473106-b11ba8ae73b4.json` (credentials)
+// Updated: [ ] `live_demo_24h/metastackerbandit1-844a613581b3.json` (credentials)
 - [ ] `live_demo_24h/assets/top_cohort.csv` (cohort addresses)
 - [ ] `live_demo_24h/assets/bottom_cohort.csv` (cohort addresses)
 - [ ] `live_demo_24h/models/LATEST.json` (model manifest)
@@ -209,7 +210,7 @@ If you see dual import warnings:
 ### Missing Credentials
 Copy from existing bot:
 ```powershell
-Copy-Item live_demo\hyperliquid-*.json live_demo_24h\
+Copy-Item live_demo\metastackerbandit1-844a613581b3.json live_demo_24h\
 ```
 
 ### Missing Cohorts
@@ -247,7 +248,7 @@ The 4-bot setup is production-ready:
 
 1. **Copy Prerequisites**:
    ```powershell
-   Copy-Item live_demo\hyperliquid-*.json live_demo_24h\
+  Copy-Item live_demo\metastackerbandit1-844a613581b3.json live_demo_24h\
    Copy-Item live_demo\assets\*.csv live_demo_24h\assets\
    ```
 

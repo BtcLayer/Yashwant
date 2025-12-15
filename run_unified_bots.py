@@ -67,19 +67,20 @@ async def run_all_bots():
     offline = bool(os.environ.get('LIVE_DEMO_OFFLINE'))
     one_shot = bool(os.environ.get('LIVE_DEMO_ONE_SHOT'))
 
-    # 5-minute version
+
+    # Staggered startup: 15 seconds between each bot
     task_5min = asyncio.create_task(_run_with_guard('5m', run_5min(cfg_5m, dry_run=dry_run)))
     tasks.append(('5m', task_5min))
+    await asyncio.sleep(15)
 
-    # 1-hour version
     task_1h = asyncio.create_task(_run_with_guard('1h', run_1h(cfg_1h, dry_run=dry_run)))
     tasks.append(('1h', task_1h))
+    await asyncio.sleep(15)
 
-    # 12-hour version
     task_12h = asyncio.create_task(_run_with_guard('12h', run_12h(cfg_12h, dry_run=dry_run)))
     tasks.append(('12h', task_12h))
+    await asyncio.sleep(15)
 
-    # 24-hour version
     task_24h = asyncio.create_task(_run_with_guard('24h', run_24h(cfg_24h, dry_run=dry_run)))
     tasks.append(('24h', task_24h))
 
