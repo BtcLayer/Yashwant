@@ -19,7 +19,9 @@ from live_demo.risk_and_exec import RiskConfig, RiskAndExec
 from live_demo.sheets_logger import SheetsLogger
 from live_demo.state import JSONState
 from ops.log_emitter import get_emitter
+from ops.heartbeat import write_heartbeat
 from live_demo.health_monitor import HealthMonitor
+from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
 from live_demo.repro_tracker import ReproTracker
 from live_demo.execution_tracker import ExecutionTracker
 from live_demo.pnl_attribution import PnLAttributionTracker
@@ -449,6 +451,7 @@ async def run_live(config_path: str, dry_run: bool = False):
     _ = JSONState(os.path.join(paper_root(), 'runtime_state.json'))
     # Initialize tracking systems
     health_monitor = HealthMonitor()
+    health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
     repro_tracker = ReproTracker()
     execution_tracker = ExecutionTracker()
     pnl_attribution = PnLAttributionTracker()
@@ -838,6 +841,12 @@ async def run_live(config_path: str, dry_run: bool = False):
                 risk.update_returns(last_close, c)
             last_close = c
             last_ts = ts
+
+            # Write heartbeat
+            try:
+                write_heartbeat(paper_root(), bot_version='12h', last_bar_id=ts, last_trade_ts=last_ts)
+            except Exception:
+                pass
 
             # Update BMA histories with previous bar's aligned data (prev preds vs last realized)
             try:
@@ -1668,6 +1677,18 @@ async def run_live(config_path: str, dry_run: bool = False):
                         # Fallback to direct emitter to avoid losing health logs if router misconfigured
                         try:
                             emitter.emit_health(ts=ts, symbol=sym, health=health)
+                            # Emit periodic health snapshot
+                            try:
+                                snapshot = HealthSnapshot(\n                                    equity_value=health.get('equity'),
+                                    drawdown_current=health.get('drawdown'),
+                                    daily_pnl=health.get('daily_pnl'),
+                                    rolling_sharpe=health.get('sharpe'),
+                                    trade_count=health.get('exec_count_recent'),
+                                    win_rate=health.get('win_rate'),
+                                )
+                                health_snapshot_emitter.maybe_emit(snapshot)
+                            except Exception:
+                                pass
                         except Exception:
                             pass
                     # Also buffer health metrics to Sheets if configured

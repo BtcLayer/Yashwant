@@ -19,7 +19,9 @@ from live_demo_24h.risk_and_exec import RiskConfig, RiskAndExec
 from live_demo_24h.sheets_logger import SheetsLogger
 from live_demo_24h.state import JSONState
 from ops.log_emitter import get_emitter
+from ops.heartbeat import write_heartbeat
 from live_demo_24h.health_monitor import HealthMonitor
+from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
 from live_demo_24h.repro_tracker import ReproTracker
 from live_demo_24h.execution_tracker import ExecutionTracker
 from live_demo_24h.pnl_attribution import PnLAttributionTracker
@@ -447,6 +449,7 @@ async def run_live(config_path: str, dry_run: bool = False):
     _ = JSONState(os.path.join(paper_root(), 'runtime_state.json'))
     # Initialize tracking systems
     health_monitor = HealthMonitor()
+    health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
     repro_tracker = ReproTracker()
     execution_tracker = ExecutionTracker()
     pnl_attribution = PnLAttributionTracker()
@@ -841,6 +844,12 @@ async def run_live(config_path: str, dry_run: bool = False):
             last_close = c
             last_ts = ts
 
+            # Write heartbeat
+            try:
+                write_heartbeat(paper_root(), bot_version='24h', last_bar_id=ts, last_trade_ts=last_ts)
+            except Exception:
+                pass
+
             # Update BMA histories with previous bar's aligned data (prev preds vs last realized)
             try:
                 if last_realized_bps_buffer is not None and prev_base_pred_bps is not None and prev_prob_pred_bps is not None:
@@ -989,7 +998,7 @@ async def run_live(config_path: str, dry_run: bool = False):
 
             # 5) Model inference
             model_out = mr.infer(x)
-            if not isinstance(model_out, dict):
+            if not isinstance(model_out, dict) or model_out is None:
                 # Guard against unexpected runtime returns to avoid crashing ensemble logic
                 print("[24h] Warning: model_out invalid, falling back to neutral prediction")
                 model_out = {
@@ -1005,9 +1014,9 @@ async def run_live(config_path: str, dry_run: bool = False):
                 ens_cfg = cfg.get('ensemble', {}) or {}
                 enable_bma = bool(ens_cfg.get('enable_bma', False))
                 source = str(ens_cfg.get('source', 'bma')).lower()
-                p_up = float(model_out.get('p_up', 0.0)) if isinstance(model_out, dict) else 0.0
-                p_down = float(model_out.get('p_down', 0.0)) if isinstance(model_out, dict) else 0.0
-                s_model = float(model_out.get('s_model', 0.0)) if isinstance(model_out, dict) else 0.0
+                p_up = float(model_out.get('p_up', 0.0))
+                p_down = float(model_out.get('p_down', 0.0))
+                s_model = float(model_out.get('s_model', 0.0))
                 base_pred_bps = 10000.0 * s_model
                 prob_pred_bps = 10000.0 * (p_up - p_down)
                 # Current BMA weights (from previous bar's realized alignment)
@@ -1024,7 +1033,7 @@ async def run_live(config_path: str, dry_run: bool = False):
                 prev_base_pred_bps = base_pred_bps
                 prev_prob_pred_bps = prob_pred_bps
                 # Build decision-time model_out using requested source
-                decision_model_out = dict(model_out)
+                decision_model_out = dict(model_out) if isinstance(model_out, dict) else {}
                 # Always expose both meta and bma signals for bandit arms
                 decision_model_out['s_model_meta'] = s_model
                 decision_model_out['s_model_bma'] = float(pred_bma_bps) / 10000.0
@@ -1820,6 +1829,19 @@ async def run_live(config_path: str, dry_run: bool = False):
                             try:
                                 emitter = get_emitter()
                                 emitter.emit_health(ts=ts, symbol=sym, health=health)
+                                # Emit periodic health snapshot
+                                try:
+                                    snapshot = HealthSnapshot(
+                                        equity_value=health.get('equity'),
+                                        drawdown_current=health.get('drawdown'),
+                                        daily_pnl=health.get('daily_pnl'),
+                                        rolling_sharpe=health.get('sharpe'),
+                                        trade_count=health.get('exec_count_recent'),
+                                        win_rate=health.get('win_rate'),
+                                    )
+                                    health_snapshot_emitter.maybe_emit(snapshot)
+                                except Exception:
+                                    pass
                             except Exception:
                                 pass
                         # Also buffer health metrics to Sheets if configured
