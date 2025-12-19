@@ -1679,7 +1679,8 @@ async def run_live(config_path: str, dry_run: bool = False):
                             emitter.emit_health(ts=ts, symbol=sym, health=health)
                             # Emit periodic health snapshot
                             try:
-                                snapshot = HealthSnapshot(\n                                    equity_value=health.get('equity'),
+                                snapshot = HealthSnapshot(
+                                    equity_value=health.get('equity'),
                                     drawdown_current=health.get('drawdown'),
                                     daily_pnl=health.get('daily_pnl'),
                                     rolling_sharpe=health.get('sharpe'),
