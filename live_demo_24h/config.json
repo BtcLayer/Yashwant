@@ -138,16 +138,16 @@
     "sheet_id": "1Fk9HGfUKaEOcN3DIqZOBQkTYuMzDFdAqE9eUOijKPLs",
     "creds_json": "live_demo_24h/metastackerbandit1-478b6face97d.json",
     "tabs": {
-      "hyperliquid": "hyperliquid_sheet",
-      "signals": "signals",
-      "mirror": "log_mirror",
-      "bandit": "bandit",
-      "executions": "executions_paper",
-      "equity": "equity",
-      "overlay": "overlay",
-      "health": "health_metrics",
-      "alerts": "system_alerts",
-      "pnl": "pnl_analysis"
+      "hyperliquid": "hyperliquid_sheet_24h",
+      "signals": "signals_24h",
+      "mirror": "log_mirror_24h",
+      "bandit": "bandit_24h",
+      "executions": "executions_paper_24h",
+      "equity": "equity_24h",
+      "overlay": "overlay_24h",
+      "health": "health_metrics_24h",
+      "alerts": "system_alerts_24h",
+      "pnl": "pnl_analysis_24h"
     }
   },
   "logging": {
