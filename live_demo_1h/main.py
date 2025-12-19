@@ -1691,56 +1691,59 @@ async def run_live(config_path: str, dry_run: bool = False):
                         try:
                             log_router.emit_health(ts=ts, asset=sym, health=health)
                         except Exception:
-                            # Fallback to direct emitter and optional Sheets buffer to avoid losing health logs
+                            # Fallback to direct emitter to avoid losing health logs
                             try:
                                 emitter.emit_health(ts=ts, symbol=sym, health=health)
-                                # Emit periodic health snapshot
-                                try:
-                                    snapshot = HealthSnapshot(
-                                        equity_value=health.get('equity'),
-                                        drawdown_current=health.get('drawdown'),
-                                        daily_pnl=health.get('daily_pnl'),
-                                        rolling_sharpe=health.get('sharpe'),
-                                        trade_count=health.get('exec_count_recent'),
-                                        win_rate=health.get('win_rate'),
-                                    )
-                                    health_snapshot_emitter.maybe_emit(snapshot)
-                                except Exception:
-                                    pass
-                                # Also buffer health metrics to Sheets if configured
-                                health_tab = cfg['sheets']['tabs'].get('health')
-                                if health_tab:
-                                    logger.buffer(
-                                        tab=health_tab,
-                                        row=[
-                                            to_iso(ts), ts,
-                                            health.get('recent_bars'),
-                                            health.get('mean_p_down'),
-                                            health.get('mean_p_up'),
-                                            health.get('mean_s_model'),
-                                            health.get('exec_count_recent'),
-                                            int(health.get('funding_stale')) if isinstance(health.get('funding_stale'), bool) else health.get('funding_stale'),
-                                            health.get('equity'),
-                                            health.get('ws_queue_drops'),
-                                            health.get('ws_reconnects'),
-                                            health.get('ws_staleness_ms'),
-                                            health.get('Sharpe_roll_1d'),
-                                            health.get('Sharpe_roll_1w'),
-                                            health.get('Sortino_1w'),
-                                            health.get('max_dd_to_date'),
-                                            health.get('time_in_mkt'),
-                                            health.get('hit_rate_w'),
-                                            health.get('turnover_bps_day'),
-                                            health.get('capacity_participation'),
-                                            health.get('ic_drift'),
-                                            health.get('calibration_drift'),
-                                            int(health.get('leakage_flag')) if isinstance(health.get('leakage_flag'), bool) else health.get('leakage_flag'),
-                                            int(health.get('same_bar_roundtrip_flag')) if isinstance(health.get('same_bar_roundtrip_flag'), bool) else health.get('same_bar_roundtrip_flag'),
-                                            health.get('in_band_share')
-                                        ]
-                                    )
                             except Exception:
                                 pass
+                        
+                        # Emit periodic health snapshot (always)
+                        try:
+                            snapshot = HealthSnapshot(
+                                equity_value=health.get('equity'),
+                                drawdown_current=health.get('drawdown'),
+                                daily_pnl=health.get('daily_pnl'),
+                                rolling_sharpe=health.get('sharpe'),
+                                trade_count=health.get('exec_count_recent'),
+                                win_rate=health.get('win_rate'),
+                            )
+                            health_snapshot_emitter.maybe_emit(snapshot)
+                        except Exception:
+                            pass
+                        
+                        # Buffer health metrics to Sheets if configured (always)
+                        try:
+                            health_tab = cfg['sheets']['tabs'].get('health')
+                            if health_tab:
+                                logger.buffer(
+                                    tab=health_tab,
+                                    row=[
+                                        to_iso(ts), ts,
+                                        health.get('recent_bars'),
+                                        health.get('mean_p_down'),
+                                        health.get('mean_p_up'),
+                                        health.get('mean_s_model'),
+                                        health.get('exec_count_recent'),
+                                        int(health.get('funding_stale')) if isinstance(health.get('funding_stale'), bool) else health.get('funding_stale'),
+                                        health.get('equity'),
+                                        health.get('ws_queue_drops'),
+                                        health.get('ws_reconnects'),
+                                        health.get('ws_staleness_ms'),
+                                        health.get('Sharpe_roll_1d'),
+                                        health.get('Sharpe_roll_1w'),
+                                        health.get('Sortino_1w'),
+                                        health.get('max_dd_to_date'),
+                                        health.get('time_in_mkt'),
+                                        health.get('hit_rate_w'),
+                                        health.get('turnover_bps_day'),
+                                        health.get('capacity_participation'),
+                                        health.get('ic_drift'),
+                                        health.get('calibration_drift'),
+                                        int(health.get('leakage_flag')) if isinstance(health.get('leakage_flag'), bool) else health.get('leakage_flag'),
+                                        int(health.get('same_bar_roundtrip_flag')) if isinstance(health.get('same_bar_roundtrip_flag'), bool) else health.get('same_bar_roundtrip_flag'),
+                                        health.get('in_band_share')
+                                    ]
+                                )
                         except Exception:
                             pass
                     except Exception:
