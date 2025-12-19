@@ -289,12 +289,19 @@ async def run_live(config_path: str, dry_run: bool = False):
     if kl is None or len(kl) == 0:
         raise RuntimeError("No klines returned for warmup")
 
-    # HL funding and fills
-    hl_base = cfg["exchanges"]["hyperliquid"]["base_url"]
-    hl_ws = cfg["exchanges"]["hyperliquid"]["ws_url"]
-    hl_f_cfg = cfg["exchanges"]["hyperliquid"].get("funding", {})
+    # HL funding and fills (only if using HyperLiquid)
+    if ex_active == "hyperliquid":
+        hl_base = cfg["exchanges"]["hyperliquid"]["base_url"]
+        hl_ws = cfg["exchanges"]["hyperliquid"]["ws_url"]
+        hl_f_cfg = cfg["exchanges"]["hyperliquid"].get("funding", {})
+    else:
+        # For Binance, we don't need HL websocket - set to None
+        hl_base = None
+        hl_ws = None
+        hl_f_cfg = {}
+    
     funding_client = FundingHL(
-        rest_url=hl_base,
+        rest_url=hl_base if hl_base else "https://api.hyperliquid.xyz/info",  # fallback URL
         coin="BTC",
         path=hl_f_cfg.get("path", "/v1/funding"),
         key_time=hl_f_cfg.get("key_time", "time"),
@@ -660,18 +667,20 @@ async def run_live(config_path: str, dry_run: bool = False):
         except Exception:
             overlay_sys = None
 
+    # Define stub class for non-HyperLiquid modes (offline or Binance)
+    class _HLStub:
+        def __init__(self, *args, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+        async def stream(self):
+            if False:
+                yield {}
+    
     # If offline mode is enabled, stub network-dependent components
     if offline:
-        class _HLStub:
-            def __init__(self, *args, **kwargs):
-                pass
-            async def __aenter__(self):
-                return self
-            async def __aexit__(self, exc_type, exc, tb):
-                return False
-            async def stream(self):
-                if False:
-                    yield {}
         local_HL = _HLStub
         # Stub funding client
         async def _fetch_latest_stub():
@@ -700,11 +709,16 @@ async def run_live(config_path: str, dry_run: bool = False):
             pass
         async def _fallback_public_mood_binance(ts_end_ms: int, interval_ms: int) -> float:  # type: ignore[func-redecl]
             return 0.0
-    else:
+    elif ex_active == "hyperliquid":
         local_HL = HyperliquidListener
+    else:
+        # Binance mode - use stub since we don't have HL websocket, and stub mood to 0.0
+        local_HL = _HLStub
+        async def _fallback_public_mood_binance(ts_end_ms: int, interval_ms: int) -> float:  # type: ignore[func-redecl]
+            return 0.0
 
-    # Switch to public trades to drive 'mood' from market-wide flow (or stub in offline)
-    async with local_HL(hl_ws, addresses=addresses, coin='BTC', mode='public_trades') as hl:
+    # Switch to public trades to drive 'mood' from market-wide flow (or stub for Binance)
+    async with local_HL(hl_ws if hl_ws else "wss://stub", addresses=addresses, coin='BTC', mode='public_trades') as hl:
         used_force = False
         # Background consumer to continuously read WS messages
         fill_queue = deque(maxlen=20000)
@@ -735,7 +749,7 @@ async def run_live(config_path: str, dry_run: bool = False):
                 except Exception:
                     pass
         async def _poll_user_fills_by_time(ts_end_ms: int, interval_ms: int):
-            if offline:
+            if offline or not hl_base or ex_active != "hyperliquid":
                 return []
             # Poll userFillsByTime for cohort addresses and return processed fill dicts for BTC
             url = hl_base  # e.g., https://api.hyperliquid.xyz/info
