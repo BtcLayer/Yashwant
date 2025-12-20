@@ -1,6 +1,13 @@
+import sys
+import os
+# Add project root to Python path - ensure it's at the beginning
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+sys.path.insert(0, project_root)
+print(f"DEBUG: project_root={project_root}")
+print(f"DEBUG: sys.path[0]={sys.path[0]}")
+
 import asyncio
 import json
-import os
 from typing import Dict
 import importlib
 from datetime import datetime, timezone, timedelta
@@ -73,8 +80,11 @@ def load_config(path: str) -> Dict:
     return cfg
 
 
-async def run_live(config_path: str, dry_run: bool = False):
+async def run_live(config_path: str, dry_run: bool = None):
     cfg = load_config(config_path)
+    # If dry_run not explicitly passed, read from config (default True for safety)
+    if dry_run is None:
+        dry_run = bool(cfg.get('execution', {}).get('dry_run', True))
     sym = cfg['data']['symbol']
     interval = cfg['data']['interval']
     warmup_bars = int(cfg['data'].get('warmup_bars', 1000))
