@@ -236,6 +236,21 @@ class LogEmitter:
             self._write('repro', {'sanitized': payload}, ts=ts)
         except Exception:
             return
+    
+    def emit_rejection(self, *, ts: Optional[float] = None, symbol: str = '', rejection: Dict[str, Any]):
+        """QW2: Emit order rejection details for debugging execution failures."""
+        try:
+            payload = {
+                'symbol': symbol,
+                'rejection_reason': rejection.get('reason', 'unknown'),
+                'rejection_message': rejection.get('message', ''),
+                'order_params': sanitize(rejection.get('order_params', {})),
+                'market_state': rejection.get('market_state', {}),
+                'retry_attempt': rejection.get('retry_attempt', 0),
+            }
+            self._write('rejections', payload, ts=ts)
+        except Exception:
+            return
 
 
 _GLOBAL: Optional[LogEmitter] = None

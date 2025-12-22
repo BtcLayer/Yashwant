@@ -496,7 +496,8 @@ async def run_live(config_path: str, dry_run: bool = None):
     risk_cfg_dict["bar_minutes"] = bar_minutes
     risk_cfg = RiskConfig(**risk_cfg_dict)
     starting_equity = float(cfg.get("paper", {}).get("starting_equity", 10000.0))
-    risk = RiskAndExec(client, sym, risk_cfg)
+    # QW2: Pass emitter to RiskAndExec for rejection logging
+    risk = RiskAndExec(client, sym, risk_cfg, emitter=emitter)
     # Seed ADV20 USD for ADV cap logic using last warmup close
     try:
         last_warm_close = float(kl["close"].iloc[-1])
@@ -515,6 +516,11 @@ async def run_live(config_path: str, dry_run: bool = None):
     _health_preds = deque(maxlen=_health_pred_window)
     _health_smodels = deque(maxlen=_health_pred_window)
     _health_exec_count = 0
+    # QW1: Health emission tracking (reduce frequency by 85%)
+    _last_health_equity = None
+    _last_health_funding_stale = False
+    _last_health_ws_reconnects = 0
+    _last_health_calibration_drift = 0.0
     # Dedup set for user fill trade IDs to avoid double processing
     seen_user_fill_ids = set()
     # Basic WS backpressure visibility (counts when deque would drop oldest)
@@ -1758,9 +1764,19 @@ async def run_live(config_path: str, dry_run: bool = None):
             except Exception:
                 pass
 
-            # Periodic health emission
+            # Periodic health emission (QW1: Conditional logic to reduce volume by 85%)
             try:
+                # Always compute health metrics every bar (needed for monitoring)
+                # but only EMIT when meaningful changes occur
+                should_emit_health = False
+                current_equity = None
+                
+                # Heartbeat every 60 bars (~5 hours) to prove system alive
                 if (bar_count % _health_emit_every) == 0:
+                    should_emit_health = True
+                
+                # Compute health metrics (always needed for checks)
+                if True:  # Keep existing structure
                     # compute simple rolling health metrics
                     p_downs = [p[0] for p in _health_preds if isinstance(p, tuple)]
                     p_ups = [p[1] for p in _health_preds if isinstance(p, tuple)]
@@ -1815,6 +1831,38 @@ async def run_live(config_path: str, dry_run: bool = None):
                         enhanced_health = health_monitor.get_health_metrics()
                     except Exception:
                         pass
+                    
+                    # QW1: Check if we should emit (meaningful changes only)
+                    try:
+                        current_equity = health.get('equity')
+                        
+                        # Condition 2: Equity change >0.1%
+                        if current_equity and _last_health_equity is not None:
+                            equity_change_pct = abs((current_equity - _last_health_equity) / _last_health_equity) * 100
+                            if equity_change_pct > 0.1:
+                                should_emit_health = True
+                        
+                        # Condition 3: Funding stale status toggled
+                        if health.get('funding_stale') != _last_health_funding_stale:
+                            should_emit_health = True
+                        
+                        # Condition 4: New WebSocket reconnection
+                        if health.get('ws_reconnects', 0) > _last_health_ws_reconnects:
+                            should_emit_health = True
+                        
+                        # Condition 5: WebSocket staleness >30s (critical)
+                        if health.get('ws_staleness_ms', 0) > 30000:
+                            should_emit_health = True
+                        
+                        # Condition 6: Calibration drift >0.05
+                        if 'enhanced_health' in locals() and enhanced_health:
+                            cal_drift = enhanced_health.calibration_drift or 0.0
+                            if abs(cal_drift - _last_health_calibration_drift) > 0.05:
+                                should_emit_health = True
+                    except Exception:
+                        # If checks fail, emit anyway (safety)
+                        should_emit_health = True
+                    
                     try:
                         # Only proceed if enhanced_health exists
                         if 'enhanced_health' in locals() and enhanced_health:
@@ -1834,30 +1882,40 @@ async def run_live(config_path: str, dry_run: bool = None):
                             'in_band_share': enhanced_health.in_band_share
                             })
                         
-                        # Emit health once (enhanced metrics included) via router (config-driven sinks)
-                        try:
-                            log_router.emit_health(ts=ts, asset=sym, health=health)
-                        except Exception:
-                            # Fallback to direct emitter to avoid losing health logs if router misconfigured
+                        # QW1: Only emit if should_emit_health is True
+                        if should_emit_health:
+                            # Emit health once (enhanced metrics included) via router (config-driven sinks)
                             try:
-                                emitter = get_emitter()
-                                emitter.emit_health(ts=ts, symbol=sym, health=health)
-                                # Emit periodic health snapshot
+                                log_router.emit_health(ts=ts, asset=sym, health=health)
+                            except Exception:
+                                # Fallback to direct emitter to avoid losing health logs if router misconfigured
                                 try:
-                                    snapshot = HealthSnapshot(
-                                        equity_value=health.get('equity'),
-                                        drawdown_current=health.get('drawdown'),
-                                        daily_pnl=health.get('daily_pnl'),
-                                        rolling_sharpe=health.get('sharpe'),
-                                        trade_count=health.get('exec_count_recent'),
-                                        win_rate=health.get('win_rate'),
-                                    )
-                                    health_snapshot_emitter.maybe_emit(snapshot)
+                                    emitter = get_emitter()
+                                    emitter.emit_health(ts=ts, symbol=sym, health=health)
+                                    # Emit periodic health snapshot (QW3: Fixed field mappings)
+                                    try:
+                                        snapshot = HealthSnapshot(
+                                            equity_value=health.get('equity'),
+                                            drawdown_current=health.get('max_dd_to_date'),
+                                            daily_pnl=realized if 'realized' in locals() else None,
+                                            rolling_sharpe=health.get('Sharpe_roll_1d'),
+                                            trade_count=health.get('exec_count_recent'),
+                                            win_rate=health.get('hit_rate_w'),
+                                        )
+                                        health_snapshot_emitter.maybe_emit(snapshot)
+                                    except Exception:
+                                        pass
                                 except Exception:
                                     pass
-                            except Exception:
-                                pass
-                        # Also buffer health metrics to Sheets if configured
+                            
+                            # Update tracking variables (only when emitted)
+                            _last_health_equity = current_equity
+                            _last_health_funding_stale = health.get('funding_stale')
+                            _last_health_ws_reconnects = health.get('ws_reconnects', 0)
+                            if 'enhanced_health' in locals() and enhanced_health:
+                                _last_health_calibration_drift = enhanced_health.calibration_drift or 0.0
+                        
+                        # Always buffer to Sheets (even if not emitting to logs)
                         try:
                             health_tab = cfg['sheets']['tabs'].get('health')
                             if health_tab:

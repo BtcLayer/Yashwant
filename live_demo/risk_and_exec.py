@@ -39,10 +39,11 @@ class RiskConfig:
 
 
 class RiskAndExec:
-    def __init__(self, client, symbol: str, cfg: RiskConfig):
+    def __init__(self, client, symbol: str, cfg: RiskConfig, emitter=None):
         self.client = client
         self.symbol = symbol
         self.cfg = cfg
+        self.emitter = emitter  # QW2: Store emitter for rejection logging
         self._retns = []
         self._cooldown_until_ts = 0
         self._pos = 0.0
@@ -567,6 +568,34 @@ class RiskAndExec:
                 "raw": resp,
             }
         except ClientError as e:
+            # QW2: Log rejection details for debugging
+            if self.emitter and hasattr(self.emitter, 'emit_rejection'):
+                try:
+                    rejection_data = {
+                        'reason': 'client_error',
+                        'message': str(e),
+                        'order_params': {
+                            'symbol': self.symbol,
+                            'side': side,
+                            'type': 'MARKET',
+                            'quantity': qty,
+                        },
+                        'market_state': {
+                            'last_price': last_price,
+                            'bid_estimate': last_price * 0.9999,
+                            'ask_estimate': last_price * 1.0001,
+                            'spread_estimate_bps': 1.0,
+                        },
+                        'retry_attempt': 0,
+                    }
+                    self.emitter.emit_rejection(
+                        ts=None,  # Will use current time
+                        symbol=self.symbol,
+                        rejection=rejection_data
+                    )
+                except Exception:
+                    pass  # Never crash bot if rejection logging fails
+            
             return {"error": f"order_failed: {e}", "side": side, "qty": qty}
 
     def mirror_passive_then_cross(
