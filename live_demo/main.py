@@ -530,6 +530,137 @@ async def run_live(config_path: str, dry_run: bool = None):
     # Daily risk controls
     session_peak_equity = starting_equity
 
+    # Connection health tracking
+    _rest_consecutive_failures = 0
+    _rest_failure_threshold = 3  # Reconnect after 3 consecutive failures
+    _reconnect_in_progress = False
+    _reconnect_lock = asyncio.Lock()
+    _max_reconnect_attempts = 5
+    _reconnect_backoff_base = 5.0  # seconds
+
+    def _recreate_binance_client():
+        """Recreate Binance client (used for connection recovery)"""
+        nonlocal client, md, pb_client
+        try:
+            if ex_active == "mainnet":
+                ex_cfg = cfg["exchanges"].get("binance_mainnet", {})
+            else:
+                ex_cfg = cfg["exchanges"].get("binance_testnet", {})
+            api_key = ex_cfg.get("api_key", "")
+            api_secret = ex_cfg.get("api_secret", "")
+            base_url = ex_cfg.get("base_url", "https://testnet.binancefuture.com")
+            
+            try:
+                # Preferred: binance-connector
+                mod = importlib.import_module("binance.um_futures")
+                UMFutures = getattr(mod, "UMFutures")
+                new_client = UMFutures(key=api_key, secret=api_secret, base_url=base_url)
+                pb_client = None
+            except ImportError:
+                # Fallback: python-binance
+                from binance.client import Client as PBClient
+                
+                class UMFuturesAdapter:
+                    def __init__(self, pb_client: PBClient):
+                        self._c = pb_client
+                    def klines(self, symbol: str, interval: str, limit: int = 1000):
+                        return self._c.futures_klines(symbol=symbol, interval=interval, limit=limit)
+                    def new_order(self, **kwargs):
+                        return self._c.futures_create_order(**kwargs)
+                
+                new_pb_client = PBClient(
+                    api_key, api_secret,
+                    testnet=(ex_active != "mainnet"),
+                    requests_params={"timeout": (10, 30)},
+                )
+                new_client = UMFuturesAdapter(new_pb_client)
+                pb_client = new_pb_client
+            
+            client = new_client
+            md = MarketData(client, sym, interval)
+            return True
+        except Exception as e:
+            # Log reconnection failure
+            try:
+                err_log_path = os.path.join(paper_root(), 'live_errors.log')
+                with open(err_log_path, "a", encoding="utf-8") as fh:
+                    fh.write(f"\n=== Client reconnection failed: {type(e).__name__}: {e} ===\n")
+            except OSError:
+                pass
+            return False
+
+    async def _attempt_reconnect():
+        """Attempt to reconnect Binance client with exponential backoff"""
+        nonlocal _reconnect_in_progress, _rest_consecutive_failures
+        
+        async with _reconnect_lock:
+            if _reconnect_in_progress:
+                return False  # Another reconnect already in progress
+            _reconnect_in_progress = True
+        
+        try:
+            health_mon.reconnect_attempts += 1
+            health_mon.connection_status = "reconnecting"
+            
+            for attempt in range(_max_reconnect_attempts):
+                # Emit reconnection attempt to health.jsonl
+                try:
+                    emitter.emit_health(
+                        ts=time.time(),
+                        health={
+                            "connection_status": "reconnecting",
+                            "reconnect_attempt": attempt + 1,
+                            "max_attempts": _max_reconnect_attempts,
+                            "consecutive_failures": _rest_consecutive_failures,
+                        }
+                    )
+                except Exception:
+                    pass
+                
+                if _recreate_binance_client():
+                    # Success!
+                    _rest_consecutive_failures = 0
+                    health_mon.connection_status = "connected"
+                    health_mon.last_reconnect_ts = time.time()
+                    health_mon.rest_consecutive_failures = 0
+                    
+                    # Emit success
+                    try:
+                        emitter.emit_health(
+                            ts=time.time(),
+                            health={
+                                "connection_status": "connected",
+                                "reconnect_success": True,
+                                "attempts_needed": attempt + 1,
+                            }
+                        )
+                    except Exception:
+                        pass
+                    return True
+                
+                # Exponential backoff
+                if attempt < _max_reconnect_attempts - 1:
+                    backoff = min(_reconnect_backoff_base * (2 ** attempt), 60.0)
+                    await asyncio.sleep(backoff)
+            
+            # All attempts failed - switch to degraded mode
+            health_mon.connection_status = "degraded"
+            try:
+                emitter.emit_health(
+                    ts=time.time(),
+                    health={
+                        "connection_status": "degraded",
+                        "reconnect_failed": True,
+                        "alert": "CRITICAL: Connection reconnect exhausted all attempts",
+                    }
+                )
+            except Exception:
+                pass
+            return False
+            
+        finally:
+            _reconnect_in_progress = False
+
     # BMA state: keep last-bar predictions (for alignment) and rolling histories
     bma_preds_hist = {
         'base': deque(maxlen=3000),
@@ -848,7 +979,18 @@ async def run_live(config_path: str, dry_run: bool = None):
             # 1) Poll last closed kline (resilient to transient API errors)
             try:
                 row = md.poll_last_closed_kline()
+                # Success - reset failure counter and update health monitor
+                _rest_consecutive_failures = 0
+                health_mon.rest_consecutive_failures = 0
+                health_mon.rest_total_calls += 1
+                health_mon.last_successful_rest_call = time.time()
             except Exception as e:
+                # Track failure
+                _rest_consecutive_failures += 1
+                health_mon.rest_consecutive_failures = _rest_consecutive_failures
+                health_mon.rest_total_calls += 1
+                health_mon.rest_failed_calls += 1
+                
                 # Log and retry without crashing the run
                 try:
                     err_log_path = os.path.join(paper_root(), 'live_errors.log')
@@ -857,7 +999,21 @@ async def run_live(config_path: str, dry_run: bool = None):
                         err_log_fh.write("\n=== poll_last_closed_kline error ===\n")
                         err_log_fh.write("Type: " + type(e).__name__ + "\n")
                         err_log_fh.write("Message: " + str(e) + "\n")
+                        err_log_fh.write(f"Consecutive failures: {_rest_consecutive_failures}\n")
                 except OSError:
+                    pass
+                
+                # Attempt reconnection if threshold reached
+                if _rest_consecutive_failures >= _rest_failure_threshold and not _reconnect_in_progress:
+                    try:
+                        err_log_path = os.path.join(paper_root(), 'live_errors.log')
+                        with open(err_log_path, "a", encoding="utf-8") as err_log_fh:
+                            err_log_fh.write(f"\n=== Triggering reconnection after {_rest_consecutive_failures} failures ===\n")
+                    except OSError:
+                        pass
+                    
+                    # Launch reconnection in background
+                    asyncio.create_task(_attempt_reconnect())
                     pass
                 await asyncio.sleep(2)
                 continue
@@ -1797,6 +1953,12 @@ async def run_live(config_path: str, dry_run: bool = None):
                         'ws_queue_drops': int(ws_queue_drops),
                         'ws_reconnects': int(ws_reconnects),
                         'ws_staleness_ms': ws_stale_ms,
+                        # Connection health (new)
+                        'connection_status': health_mon.connection_status,
+                        'rest_consecutive_failures': _rest_consecutive_failures,
+                        'rest_success_rate': (health_mon.rest_total_calls - health_mon.rest_failed_calls) / max(health_mon.rest_total_calls, 1) if health_mon.rest_total_calls > 0 else 1.0,
+                        'reconnect_attempts': health_mon.reconnect_attempts,
+                        'seconds_since_last_rest_success': (ts - health_mon.last_successful_rest_call) if health_mon.last_successful_rest_call else None,
                     }
                     # reset short counters
                     _health_exec_count = 0
@@ -1859,6 +2021,14 @@ async def run_live(config_path: str, dry_run: bool = None):
                             cal_drift = enhanced_health.calibration_drift or 0.0
                             if abs(cal_drift - _last_health_calibration_drift) > 0.05:
                                 should_emit_health = True
+                        
+                        # Condition 7: Connection status change (reconnecting or degraded)
+                        if health.get('connection_status') in ('reconnecting', 'degraded'):
+                            should_emit_health = True
+                        
+                        # Condition 8: REST failures threshold reached
+                        if health.get('rest_consecutive_failures', 0) >= _rest_failure_threshold:
+                            should_emit_health = True
                     except Exception:
                         # If checks fail, emit anyway (safety)
                         should_emit_health = True
