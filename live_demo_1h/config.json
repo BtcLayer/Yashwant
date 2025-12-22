@@ -8,8 +8,8 @@
   "exchanges": {
     "active": "binance_testnet",
     "binance_testnet": {
-      "api_key": "0ZkZfT8bqHtOCKUDyIPe1z4Ynca6VVumZ8RQOywI7dDSLRt9Bq18SsRWXHkk25T5",
-      "api_secret": "wYAYD0xjRK7XXYanT1cZP4waqKynJv4Io8F8fBDcCobsI8rfVjZ1QLfsPYJFyEVF",
+      "api_key": "gFrgI8OzdTcidWK4ZPTC2IRtE0LSUt9mgOFCWLwAt201QaHPZ4vOzpvJwwxYepfM",
+      "api_secret": "emufRzRzZpI8CU1fEi5lElnOMTXRRpGADzWylhYKSFktZqBbMIm3rnZLETlrG3ba",
       "base_url": "https://testnet.binancefuture.com"
     },
     "binance_mainnet": {
