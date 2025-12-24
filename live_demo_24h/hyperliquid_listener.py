@@ -46,26 +46,22 @@ class HyperliquidListener:
                 except (aiohttp.ClientError, TypeError, AttributeError):
                     pass
         else:
-            # Public trades subscription; attempt several common patterns
-            payloads = [
-                {"type": "subscribe", "channel": "trades", "coin": self.coin},
-                {"op": "subscribe", "channel": "trades", "coin": self.coin},
-                {
-                    "type": "subscribe",
-                    "streams": [{"type": "trades", "coin": self.coin}],
-                },
-                {
-                    "op": "subscribe",
-                    "streams": [{"channel": "trades", "coin": self.coin}],
-                },
-                {"type": "subscribe", "channel": "trades"},
-            ]
-            for p in payloads:
-                try:
-                    await self._ws.send_json(p)
-                    break
-                except (aiohttp.ClientError, TypeError, AttributeError):
-                    continue
+            # Public trades subscription - CORRECT format verified Dec 24, 2025
+            # Official Hyperliquid docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
+            subscription = {
+                "method": "subscribe",
+                "subscription": {
+                    "type": "trades",
+                    "coin": self.coin
+                }
+            }
+            try:
+                await self._ws.send_json(subscription)
+                # Wait briefly for subscription acknowledgment
+                await asyncio.sleep(0.1)
+            except (aiohttp.ClientError, TypeError, AttributeError) as e:
+                # Log but don't fail - will check for messages in stream()
+                pass
         return self
 
     async def _connect_with_backoff(self) -> aiohttp.ClientWebSocketResponse:

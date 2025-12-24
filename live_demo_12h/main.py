@@ -139,6 +139,10 @@ async def run_live(config_path: str, dry_run: bool = None):
         
         class HyperliquidClientAdapter:
             """Adapter to make Hyperliquid API compatible with MarketData interface"""
+            _cache = {}  # Class-level cache shared across instances
+            _last_request_time = {}  # Track last request time per endpoint
+            _min_request_interval = 2.0  # Minimum 2 seconds between requests
+            
             def __init__(self, base_url: str, symbol: str):
                 self.base_url = base_url
                 self.symbol = symbol
@@ -149,7 +153,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 }
             
             def klines(self, symbol: str, interval: str, limit: int = 1000):
-                """Get candles from Hyperliquid API"""
+                """Get candles from Hyperliquid API with caching and rate limiting"""
                 import requests
                 import time
                 from datetime import datetime, timezone
@@ -159,6 +163,16 @@ async def run_live(config_path: str, dry_run: bool = None):
                 
                 # Hyperliquid uses coin name (BTC) not symbol (BTCUSDT)
                 coin = symbol.replace("USDT", "").replace("USD", "")
+                
+                # Check cache first
+                now = time.time()
+                cache_key = f"{coin}_{hl_interval}_{limit}"
+                if cache_key in self._cache:
+                    cached_time, cached_data = self._cache[cache_key]
+                    # Use shorter cache for polling (limit <= 2), longer for warmup
+                    cache_ttl = 2.0 if limit <= 2 else 30.0
+                    if now - cached_time < cache_ttl:
+                        return cached_data
                 
                 # Calculate start time (limit * interval in seconds)
                 interval_seconds = {
@@ -170,9 +184,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 start_time = end_time - (limit * seconds_per_candle * 1000)
                 
                 # Hyperliquid API endpoint for candles
-                # Hyperliquid uses POST to base_url with type-based requests
-                # Requires startTime and endTime (epoch milliseconds), not n
-                url = self.base_url  # e.g., https://api.hyperliquid.xyz/info
+                url = self.base_url
                 payload = {
                     "type": "candleSnapshot",
                     "req": {
@@ -183,15 +195,36 @@ async def run_live(config_path: str, dry_run: bool = None):
                     }
                 }
                 
+                # Rate limiting: ensure minimum interval between requests
+                request_key = f"{coin}_{hl_interval}"
+                if request_key in self._last_request_time:
+                    elapsed = now - self._last_request_time[request_key]
+                    if elapsed < self._min_request_interval:
+                        time.sleep(self._min_request_interval - elapsed)
+                
                 try:
-                    response = requests.post(url, json=payload, timeout=30)
-                    response.raise_for_status()
+                    # Retry logic for 429 errors
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        response = requests.post(url, json=payload, timeout=30)
+                        
+                        if response.status_code == 429:
+                            if attempt < max_retries - 1:
+                                backoff = 5 * (3 ** attempt)  # 5s, 15s, 45s
+                                time.sleep(backoff)
+                                continue
+                        
+                        response.raise_for_status()
+                        break
+                    
+                    self._last_request_time[request_key] = time.time()
+                    
                     data = response.json()
                     
                     if not data:
                         raise ValueError("Invalid Hyperliquid API response")
                     
-                    # Hyperliquid returns array directly: [{"t": start_ms, "T": end_ms, "s": "BTC", "i": "5m", "o": open, "c": close, "h": high, "l": low, "v": volume, "n": count}, ...]
+                    # Hyperliquid returns array directly
                     if isinstance(data, list):
                         candles = data
                     elif isinstance(data, dict):
@@ -201,21 +234,29 @@ async def run_live(config_path: str, dry_run: bool = None):
                     
                     if not candles:
                         raise ValueError("No candle data in response")
-                    # Convert to Binance-like format: [timestamp, open, high, low, close, volume, ...]
+                    
+                    # Convert to Binance-like format
                     result = []
                     for candle in candles:
-                        # Hyperliquid uses: t (start time), T (end time), o (open), c (close), h (high), l (low), v (volume)
                         result.append([
-                            int(candle["t"]),  # timestamp (start time)
-                            float(candle["o"]),  # open
-                            float(candle["h"]),  # high
-                            float(candle["l"]),  # low
-                            float(candle["c"]),  # close
-                            float(candle.get("v", 0)),  # volume
-                            int(candle["T"]),  # close time (end time)
+                            int(candle["t"]),
+                            float(candle["o"]),
+                            float(candle["h"]),
+                            float(candle["l"]),
+                            float(candle["c"]),
+                            float(candle.get("v", 0)),
+                            int(candle["T"]),
                         ])
+                    
+                    # Cache the result
+                    self._cache[cache_key] = (time.time(), result)
                     return result
+                    
                 except Exception as e:
+                    # On error, return stale cache if available
+                    if cache_key in self._cache:
+                        _, cached_data = self._cache[cache_key]
+                        return cached_data
                     raise RuntimeError(f"Hyperliquid API error: {e}") from e
             
             def new_order(self, **kwargs):
@@ -849,14 +890,32 @@ async def run_live(config_path: str, dry_run: bool = None):
                         err_log_fh.write('Message: ' + str(e) + '\n')
                 except OSError:
                     pass
-                await asyncio.sleep(2)
+                # Smart backoff - if 429 detected, wait longer
+                error_text = str(e).lower()
+                if '429' in error_text or 'too many requests' in error_text or 'rate limit' in error_text:
+                    await asyncio.sleep(60)  # Wait 60s on rate limit
+                else:
+                    await asyncio.sleep(2)
                 continue
             if row is None:
                 await asyncio.sleep(2)
                 continue
             ts, o, h, l, c, v = row
             if last_ts is not None and ts <= last_ts:
-                await asyncio.sleep(1)
+                # Smart polling: Calculate time until next bar close + 30s buffer
+                interval_map = {
+                    '1m': 60, '3m': 180, '5m': 300, '15m': 900,
+                    '30m': 1800, '1h': 3600, '2h': 7200,
+                    '4h': 14400, '12h': 43200, '1d': 86400,
+                }
+                interval_seconds = interval_map.get(interval, 43200)
+                import time as _time
+                now_seconds = int(_time.time())
+                last_close_seconds = ts // 1000
+                next_close_seconds = last_close_seconds + interval_seconds
+                seconds_until_next = next_close_seconds - now_seconds + 30
+                wait_seconds = max(5, min(seconds_until_next, 600))  # Cap at 10min for 12h bot
+                await asyncio.sleep(wait_seconds)
                 continue
             # Update returns and last_close
             if last_close is not None:
@@ -895,6 +954,11 @@ async def run_live(config_path: str, dry_run: bool = None):
             # Drain up to a reasonable cap to avoid blocking too long
             max_drains = 5000
             public_count = 0
+            # Aggregate public trades per bar (Oct 2025 approach for strong S_mood)
+            public_buy_volume = 0.0
+            public_sell_volume = 0.0
+            last_public_price = c  # Use close price as reference
+            
             while fill_queue and max_drains > 0:
                 fill = fill_queue.popleft()
                 src = str(fill.get('source') or '')
@@ -912,10 +976,42 @@ async def run_live(config_path: str, dry_run: bool = None):
                         cohort.update_from_fill(fill, weights=w)
                         drained_fills.append(fill)  # keep user-fill logging to Sheets
                 elif src == 'public' and str(fill.get('coin') or '').upper() == 'BTC':
-                    # Update only 'mood' from public trades; no Sheets logging per-trade to avoid noise
-                    cohort.update_from_fill(fill, weights={'pros': 0.0, 'amateurs': 0.0, 'mood': 1.0})
+                    # Aggregate public trades instead of processing individually
+                    # This concentrates the signal: 398 tiny trades -> 1 large impact
+                    side = str(fill.get('side', '')).lower()
+                    size = float(fill.get('size', 0.0))
+                    if side in ('buy', 'b', 'bid'):
+                        public_buy_volume += size
+                    elif side in ('sell', 's', 'ask', 'a'):
+                        public_sell_volume += size
+                    last_public_price = float(fill.get('price', last_public_price))
                     public_count += 1
                 max_drains -= 1
+            
+            # Apply aggregated public trades as ONE fill per bar (Oct 2025 fix)
+            # Mood uses directional ratio, NOT volume normalization
+            if public_count > 0:
+                net_volume = public_buy_volume - public_sell_volume
+                total_volume = public_buy_volume + public_sell_volume
+                if total_volume > 0:
+                    # Mood = net directional pressure as ratio (-1 to +1)
+                    # Amplify by 80× to reach 0.5-1.0 range (Oct 2025 calibration)
+                    # This bypasses adv20 normalization which is designed for individual trader fills
+                    mood_ratio = net_volume / total_volume
+                    mood_amplified = mood_ratio * 80.0  # Target: ~0.5-0.8 range for typical market imbalance
+                    
+                    # Create synthetic fill with amplified mood (bypassing adv20 normalization)
+                    # We multiply by adv20 so when cohort divides by it, we get our amplified value
+                    aggregated_fill = {
+                        'ts': ts,
+                        'address': '',
+                        'coin': 'BTC',
+                        'side': 'buy' if net_volume > 0 else 'sell',
+                        'price': last_public_price,
+                        'size': abs(mood_amplified * cohort.adv20),  # Pre-multiply to bypass normalization
+                        'source': 'public',
+                    }
+                    cohort.update_from_fill(aggregated_fill, weights={'pros': 0.0, 'amateurs': 0.0, 'mood': 1.0})
 
             # Fallback: if no public prints captured for this bar, derive mood from Binance aggTrades
             if public_count == 0:

@@ -71,6 +71,13 @@ class FundingHL:
                 fresh["stale"] = False
                 return fresh
 
+        # PRIORITY FIX: If Binance client is available and rest_url is Hyperliquid default,
+        # skip Hyperliquid API calls entirely (they timeout when not accessible)
+        if self._binance_client is not None and "hyperliquid" in self.rest_url.lower():
+            fb = await self._fetch_binance_fallback()
+            if fb is not None:
+                return fb
+
         await self._ensure_session()
         # 1) Try GET on configured path (legacy) with retries
         url = f"{self.rest_url}{self.path}?coin={self.coin}"

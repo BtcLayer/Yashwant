@@ -124,6 +124,10 @@ async def run_live(config_path: str, dry_run: bool = None):
         
         class HyperliquidClientAdapter:
             """Adapter to make Hyperliquid API compatible with MarketData interface"""
+            _cache = {}  # Shared cache across all instances
+            _last_request_time = {}  # Rate limiting tracker
+            _min_request_interval = 2.0  # Minimum 2 seconds between requests per endpoint
+            
             def __init__(self, base_url: str, symbol: str):
                 self.base_url = base_url
                 self.symbol = symbol
@@ -134,7 +138,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 }
             
             def klines(self, symbol: str, interval: str, limit: int = 1000):
-                """Get candles from Hyperliquid API"""
+                """Get candles from Hyperliquid API with caching and rate limiting"""
                 import requests
                 import time
                 from datetime import datetime, timezone
@@ -144,6 +148,27 @@ async def run_live(config_path: str, dry_run: bool = None):
                 
                 # Hyperliquid uses coin name (BTC) not symbol (BTCUSDT)
                 coin = symbol.replace("USDT", "").replace("USD", "")
+                
+                # Cache key
+                cache_key = f"{coin}_{hl_interval}_{limit}"
+                now = time.time()
+                
+                # Check cache first (5 second TTL for warmup, fresh data for polling)
+                if cache_key in self._cache:
+                    cached_time, cached_data = self._cache[cache_key]
+                    # For limit=2 (polling), cache for 2 seconds
+                    # For limit>100 (warmup), cache for 30 seconds
+                    cache_ttl = 2.0 if limit <= 2 else 30.0
+                    if now - cached_time < cache_ttl:
+                        return cached_data
+                
+                # Rate limiting: ensure minimum interval between requests
+                request_key = f"{self.base_url}_candleSnapshot"
+                if request_key in self._last_request_time:
+                    elapsed = now - self._last_request_time[request_key]
+                    if elapsed < self._min_request_interval:
+                        sleep_time = self._min_request_interval - elapsed
+                        time.sleep(sleep_time)
                 
                 # Calculate start time (limit * interval in seconds)
                 interval_seconds = {
@@ -155,9 +180,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 start_time = end_time - (limit * seconds_per_candle * 1000)
                 
                 # Hyperliquid API endpoint for candles
-                # Hyperliquid uses POST to base_url with type-based requests
-                # Requires startTime and endTime (epoch milliseconds), not n
-                url = self.base_url  # e.g., https://api.hyperliquid.xyz/info
+                url = self.base_url
                 payload = {
                     "type": "candleSnapshot",
                     "req": {
@@ -169,14 +192,31 @@ async def run_live(config_path: str, dry_run: bool = None):
                 }
                 
                 try:
-                    response = requests.post(url, json=payload, timeout=30)
-                    response.raise_for_status()
+                    # Retry logic with exponential backoff for 429
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        response = requests.post(url, json=payload, timeout=30)
+                        
+                        if response.status_code == 429:
+                            if attempt < max_retries - 1:
+                                # Exponential backoff: 5s, 15s, 45s
+                                backoff = 5 * (3 ** attempt)
+                                time.sleep(backoff)
+                                continue
+                            else:
+                                raise RuntimeError(f"Hyperliquid API rate limited (429) after {max_retries} retries")
+                        
+                        response.raise_for_status()
+                        break
+                    
+                    self._last_request_time[request_key] = time.time()
+                    
                     data = response.json()
                     
                     if not data:
                         raise ValueError("Invalid Hyperliquid API response")
                     
-                    # Hyperliquid returns array directly: [{"t": start_ms, "T": end_ms, "s": "BTC", "i": "5m", "o": open, "c": close, "h": high, "l": low, "v": volume, "n": count}, ...]
+                    # Hyperliquid returns array directly
                     if isinstance(data, list):
                         candles = data
                     elif isinstance(data, dict):
@@ -186,10 +226,10 @@ async def run_live(config_path: str, dry_run: bool = None):
                     
                     if not candles:
                         raise ValueError("No candle data in response")
-                    # Convert to Binance-like format: [timestamp, open, high, low, close, volume, ...]
+                    
+                    # Convert to Binance-like format
                     result = []
                     for candle in candles:
-                        # Hyperliquid uses: t (start time), T (end time), o (open), c (close), h (high), l (low), v (volume)
                         result.append([
                             int(candle["t"]),  # timestamp (start time)
                             float(candle["o"]),  # open
@@ -199,8 +239,15 @@ async def run_live(config_path: str, dry_run: bool = None):
                             float(candle.get("v", 0)),  # volume
                             int(candle["T"]),  # close time (end time)
                         ])
+                    
+                    # Cache the result
+                    self._cache[cache_key] = (time.time(), result)
                     return result
                 except Exception as e:
+                    # If we have stale cache, return it as fallback
+                    if cache_key in self._cache:
+                        _, cached_data = self._cache[cache_key]
+                        return cached_data
                     raise RuntimeError(f"Hyperliquid API error: {e}") from e
             
             def new_order(self, **kwargs):
@@ -496,8 +543,7 @@ async def run_live(config_path: str, dry_run: bool = None):
     risk_cfg_dict["bar_minutes"] = bar_minutes
     risk_cfg = RiskConfig(**risk_cfg_dict)
     starting_equity = float(cfg.get("paper", {}).get("starting_equity", 10000.0))
-    # QW2: Pass emitter to RiskAndExec for rejection logging
-    risk = RiskAndExec(client, sym, risk_cfg, emitter=emitter)
+    risk = RiskAndExec(client, sym, risk_cfg)
     # Seed ADV20 USD for ADV cap logic using last warmup close
     try:
         last_warm_close = float(kl["close"].iloc[-1])
@@ -516,11 +562,6 @@ async def run_live(config_path: str, dry_run: bool = None):
     _health_preds = deque(maxlen=_health_pred_window)
     _health_smodels = deque(maxlen=_health_pred_window)
     _health_exec_count = 0
-    # QW1: Health emission tracking (reduce frequency by 85%)
-    _last_health_equity = None
-    _last_health_funding_stale = False
-    _last_health_ws_reconnects = 0
-    _last_health_calibration_drift = 0.0
     # Dedup set for user fill trade IDs to avoid double processing
     seen_user_fill_ids = set()
     # Basic WS backpressure visibility (counts when deque would drop oldest)
@@ -529,137 +570,6 @@ async def run_live(config_path: str, dry_run: bool = None):
     last_ws_msg_ts_ms = None
     # Daily risk controls
     session_peak_equity = starting_equity
-
-    # Connection health tracking
-    _rest_consecutive_failures = 0
-    _rest_failure_threshold = 3  # Reconnect after 3 consecutive failures
-    _reconnect_in_progress = False
-    _reconnect_lock = asyncio.Lock()
-    _max_reconnect_attempts = 5
-    _reconnect_backoff_base = 5.0  # seconds
-
-    def _recreate_binance_client():
-        """Recreate Binance client (used for connection recovery)"""
-        nonlocal client, md, pb_client
-        try:
-            if ex_active == "mainnet":
-                ex_cfg = cfg["exchanges"].get("binance_mainnet", {})
-            else:
-                ex_cfg = cfg["exchanges"].get("binance_testnet", {})
-            api_key = ex_cfg.get("api_key", "")
-            api_secret = ex_cfg.get("api_secret", "")
-            base_url = ex_cfg.get("base_url", "https://testnet.binancefuture.com")
-            
-            try:
-                # Preferred: binance-connector
-                mod = importlib.import_module("binance.um_futures")
-                UMFutures = getattr(mod, "UMFutures")
-                new_client = UMFutures(key=api_key, secret=api_secret, base_url=base_url)
-                pb_client = None
-            except ImportError:
-                # Fallback: python-binance
-                from binance.client import Client as PBClient
-                
-                class UMFuturesAdapter:
-                    def __init__(self, pb_client: PBClient):
-                        self._c = pb_client
-                    def klines(self, symbol: str, interval: str, limit: int = 1000):
-                        return self._c.futures_klines(symbol=symbol, interval=interval, limit=limit)
-                    def new_order(self, **kwargs):
-                        return self._c.futures_create_order(**kwargs)
-                
-                new_pb_client = PBClient(
-                    api_key, api_secret,
-                    testnet=(ex_active != "mainnet"),
-                    requests_params={"timeout": (10, 30)},
-                )
-                new_client = UMFuturesAdapter(new_pb_client)
-                pb_client = new_pb_client
-            
-            client = new_client
-            md = MarketData(client, sym, interval)
-            return True
-        except Exception as e:
-            # Log reconnection failure
-            try:
-                err_log_path = os.path.join(paper_root(), 'live_errors.log')
-                with open(err_log_path, "a", encoding="utf-8") as fh:
-                    fh.write(f"\n=== Client reconnection failed: {type(e).__name__}: {e} ===\n")
-            except OSError:
-                pass
-            return False
-
-    async def _attempt_reconnect():
-        """Attempt to reconnect Binance client with exponential backoff"""
-        nonlocal _reconnect_in_progress, _rest_consecutive_failures
-        
-        async with _reconnect_lock:
-            if _reconnect_in_progress:
-                return False  # Another reconnect already in progress
-            _reconnect_in_progress = True
-        
-        try:
-            health_mon.reconnect_attempts += 1
-            health_mon.connection_status = "reconnecting"
-            
-            for attempt in range(_max_reconnect_attempts):
-                # Emit reconnection attempt to health.jsonl
-                try:
-                    emitter.emit_health(
-                        ts=time.time(),
-                        health={
-                            "connection_status": "reconnecting",
-                            "reconnect_attempt": attempt + 1,
-                            "max_attempts": _max_reconnect_attempts,
-                            "consecutive_failures": _rest_consecutive_failures,
-                        }
-                    )
-                except Exception:
-                    pass
-                
-                if _recreate_binance_client():
-                    # Success!
-                    _rest_consecutive_failures = 0
-                    health_mon.connection_status = "connected"
-                    health_mon.last_reconnect_ts = time.time()
-                    health_mon.rest_consecutive_failures = 0
-                    
-                    # Emit success
-                    try:
-                        emitter.emit_health(
-                            ts=time.time(),
-                            health={
-                                "connection_status": "connected",
-                                "reconnect_success": True,
-                                "attempts_needed": attempt + 1,
-                            }
-                        )
-                    except Exception:
-                        pass
-                    return True
-                
-                # Exponential backoff
-                if attempt < _max_reconnect_attempts - 1:
-                    backoff = min(_reconnect_backoff_base * (2 ** attempt), 60.0)
-                    await asyncio.sleep(backoff)
-            
-            # All attempts failed - switch to degraded mode
-            health_mon.connection_status = "degraded"
-            try:
-                emitter.emit_health(
-                    ts=time.time(),
-                    health={
-                        "connection_status": "degraded",
-                        "reconnect_failed": True,
-                        "alert": "CRITICAL: Connection reconnect exhausted all attempts",
-                    }
-                )
-            except Exception:
-                pass
-            return False
-            
-        finally:
-            _reconnect_in_progress = False
 
     # BMA state: keep last-bar predictions (for alignment) and rolling histories
     bma_preds_hist = {
@@ -979,18 +889,7 @@ async def run_live(config_path: str, dry_run: bool = None):
             # 1) Poll last closed kline (resilient to transient API errors)
             try:
                 row = md.poll_last_closed_kline()
-                # Success - reset failure counter and update health monitor
-                _rest_consecutive_failures = 0
-                health_mon.rest_consecutive_failures = 0
-                health_mon.rest_total_calls += 1
-                health_mon.last_successful_rest_call = time.time()
             except Exception as e:
-                # Track failure
-                _rest_consecutive_failures += 1
-                health_mon.rest_consecutive_failures = _rest_consecutive_failures
-                health_mon.rest_total_calls += 1
-                health_mon.rest_failed_calls += 1
-                
                 # Log and retry without crashing the run
                 try:
                     err_log_path = os.path.join(paper_root(), 'live_errors.log')
@@ -999,30 +898,36 @@ async def run_live(config_path: str, dry_run: bool = None):
                         err_log_fh.write("\n=== poll_last_closed_kline error ===\n")
                         err_log_fh.write("Type: " + type(e).__name__ + "\n")
                         err_log_fh.write("Message: " + str(e) + "\n")
-                        err_log_fh.write(f"Consecutive failures: {_rest_consecutive_failures}\n")
                 except OSError:
                     pass
-                
-                # Attempt reconnection if threshold reached
-                if _rest_consecutive_failures >= _rest_failure_threshold and not _reconnect_in_progress:
-                    try:
-                        err_log_path = os.path.join(paper_root(), 'live_errors.log')
-                        with open(err_log_path, "a", encoding="utf-8") as err_log_fh:
-                            err_log_fh.write(f"\n=== Triggering reconnection after {_rest_consecutive_failures} failures ===\n")
-                    except OSError:
-                        pass
-                    
-                    # Launch reconnection in background
-                    asyncio.create_task(_attempt_reconnect())
-                    pass
-                await asyncio.sleep(2)
+                # Smart backoff - if 429 detected, wait longer
+                error_text = str(e).lower()
+                if "429" in error_text or "too many requests" in error_text or "rate limit" in error_text:
+                    await asyncio.sleep(60)  # Wait 60s on rate limit
+                else:
+                    await asyncio.sleep(2)
                 continue
             if row is None:
                 await asyncio.sleep(2)
                 continue
             ts, o, h, l, c, v = row
             if last_ts is not None and ts <= last_ts:
-                await asyncio.sleep(1)
+                # Smart polling: Calculate time until next bar close + 30s buffer
+                # Instead of polling every 1s, wait until we're near the next bar
+                interval_map = {
+                    "1m": 60, "3m": 180, "5m": 300, "15m": 900,
+                    "30m": 1800, "1h": 3600, "2h": 7200,
+                    "4h": 14400, "12h": 43200, "1d": 86400,
+                }
+                interval_seconds = interval_map.get(interval, 300)
+                import time as _time
+                now_seconds = int(_time.time())
+                last_close_seconds = ts // 1000
+                next_close_seconds = last_close_seconds + interval_seconds
+                seconds_until_next = next_close_seconds - now_seconds + 30  # 30s buffer
+                # Cap wait time (min 5s, max 60s) to avoid excessive delays or hammering
+                wait_seconds = max(5, min(seconds_until_next, 60))
+                await asyncio.sleep(wait_seconds)
                 continue
             # Update returns and last_close
             if last_close is not None:
@@ -1061,6 +966,11 @@ async def run_live(config_path: str, dry_run: bool = None):
             # Drain up to a reasonable cap to avoid blocking too long
             max_drains = 5000
             public_count = 0
+            # Aggregate public trades per bar (Oct 2025 approach for strong S_mood)
+            public_buy_volume = 0.0
+            public_sell_volume = 0.0
+            last_public_price = c  # Use close price as reference
+            
             while fill_queue and max_drains > 0:
                 fill = fill_queue.popleft()
                 src = str(fill.get("source") or "")
@@ -1078,12 +988,44 @@ async def run_live(config_path: str, dry_run: bool = None):
                         cohort.update_from_fill(fill, weights=w)
                         drained_fills.append(fill)  # keep user-fill logging to Sheets
                 elif src == "public" and str(fill.get("coin") or "").upper() == "BTC":
-                    # Update only 'mood' from public trades; no Sheets logging per-trade to avoid noise
-                    cohort.update_from_fill(
-                        fill, weights={"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
-                    )
+                    # Aggregate public trades instead of processing individually
+                    # This concentrates the signal: 398 tiny trades -> 1 large impact
+                    side = str(fill.get("side", "")).lower()
+                    size = float(fill.get("size", 0.0))
+                    if side in ("buy", "b", "bid"):
+                        public_buy_volume += size
+                    elif side in ("sell", "s", "ask", "a"):
+                        public_sell_volume += size
+                    last_public_price = float(fill.get("price", last_public_price))
                     public_count += 1
                 max_drains -= 1
+            
+            # Apply aggregated public trades as ONE fill per bar (Oct 2025 fix)
+            # Mood uses directional ratio, NOT volume normalization
+            if public_count > 0:
+                net_volume = public_buy_volume - public_sell_volume
+                total_volume = public_buy_volume + public_sell_volume
+                if total_volume > 0:
+                    # Mood = net directional pressure as ratio (-1 to +1)
+                    # Amplify by 80× to reach 0.5-1.0 range (Oct 2025 calibration)
+                    # This bypasses adv20 normalization which is designed for individual trader fills
+                    mood_ratio = net_volume / total_volume
+                    mood_amplified = mood_ratio * 80.0  # Target: ~0.5-0.8 range for typical market imbalance
+                    
+                    # Create synthetic fill with amplified mood (bypassing adv20 normalization)
+                    # We multiply by adv20 so when cohort divides by it, we get our amplified value
+                    aggregated_fill = {
+                        "ts": ts,
+                        "address": "",
+                        "coin": "BTC",
+                        "side": "buy" if net_volume > 0 else "sell",
+                        "price": last_public_price,
+                        "size": abs(mood_amplified * cohort.adv20),  # Pre-multiply to bypass normalization
+                        "source": "public",
+                    }
+                    cohort.update_from_fill(
+                        aggregated_fill, weights={"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
+                    )
 
             # Fallback: if no public prints captured for this bar, derive mood from Binance aggTrades
             if public_count == 0:
@@ -1920,19 +1862,9 @@ async def run_live(config_path: str, dry_run: bool = None):
             except Exception:
                 pass
 
-            # Periodic health emission (QW1: Conditional logic to reduce volume by 85%)
+            # Periodic health emission
             try:
-                # Always compute health metrics every bar (needed for monitoring)
-                # but only EMIT when meaningful changes occur
-                should_emit_health = False
-                current_equity = None
-                
-                # Heartbeat every 60 bars (~5 hours) to prove system alive
                 if (bar_count % _health_emit_every) == 0:
-                    should_emit_health = True
-                
-                # Compute health metrics (always needed for checks)
-                if True:  # Keep existing structure
                     # compute simple rolling health metrics
                     p_downs = [p[0] for p in _health_preds if isinstance(p, tuple)]
                     p_ups = [p[1] for p in _health_preds if isinstance(p, tuple)]
@@ -1953,12 +1885,6 @@ async def run_live(config_path: str, dry_run: bool = None):
                         'ws_queue_drops': int(ws_queue_drops),
                         'ws_reconnects': int(ws_reconnects),
                         'ws_staleness_ms': ws_stale_ms,
-                        # Connection health (new)
-                        'connection_status': health_mon.connection_status,
-                        'rest_consecutive_failures': _rest_consecutive_failures,
-                        'rest_success_rate': (health_mon.rest_total_calls - health_mon.rest_failed_calls) / max(health_mon.rest_total_calls, 1) if health_mon.rest_total_calls > 0 else 1.0,
-                        'reconnect_attempts': health_mon.reconnect_attempts,
-                        'seconds_since_last_rest_success': (ts - health_mon.last_successful_rest_call) if health_mon.last_successful_rest_call else None,
                     }
                     # reset short counters
                     _health_exec_count = 0
@@ -1993,46 +1919,6 @@ async def run_live(config_path: str, dry_run: bool = None):
                         enhanced_health = health_monitor.get_health_metrics()
                     except Exception:
                         pass
-                    
-                    # QW1: Check if we should emit (meaningful changes only)
-                    try:
-                        current_equity = health.get('equity')
-                        
-                        # Condition 2: Equity change >0.1%
-                        if current_equity and _last_health_equity is not None:
-                            equity_change_pct = abs((current_equity - _last_health_equity) / _last_health_equity) * 100
-                            if equity_change_pct > 0.1:
-                                should_emit_health = True
-                        
-                        # Condition 3: Funding stale status toggled
-                        if health.get('funding_stale') != _last_health_funding_stale:
-                            should_emit_health = True
-                        
-                        # Condition 4: New WebSocket reconnection
-                        if health.get('ws_reconnects', 0) > _last_health_ws_reconnects:
-                            should_emit_health = True
-                        
-                        # Condition 5: WebSocket staleness >30s (critical)
-                        if health.get('ws_staleness_ms', 0) > 30000:
-                            should_emit_health = True
-                        
-                        # Condition 6: Calibration drift >0.05
-                        if 'enhanced_health' in locals() and enhanced_health:
-                            cal_drift = enhanced_health.calibration_drift or 0.0
-                            if abs(cal_drift - _last_health_calibration_drift) > 0.05:
-                                should_emit_health = True
-                        
-                        # Condition 7: Connection status change (reconnecting or degraded)
-                        if health.get('connection_status') in ('reconnecting', 'degraded'):
-                            should_emit_health = True
-                        
-                        # Condition 8: REST failures threshold reached
-                        if health.get('rest_consecutive_failures', 0) >= _rest_failure_threshold:
-                            should_emit_health = True
-                    except Exception:
-                        # If checks fail, emit anyway (safety)
-                        should_emit_health = True
-                    
                     try:
                         # Only proceed if enhanced_health exists
                         if 'enhanced_health' in locals() and enhanced_health:
@@ -2052,40 +1938,30 @@ async def run_live(config_path: str, dry_run: bool = None):
                             'in_band_share': enhanced_health.in_band_share
                             })
                         
-                        # QW1: Only emit if should_emit_health is True
-                        if should_emit_health:
-                            # Emit health once (enhanced metrics included) via router (config-driven sinks)
+                        # Emit health once (enhanced metrics included) via router (config-driven sinks)
+                        try:
+                            log_router.emit_health(ts=ts, asset=sym, health=health)
+                        except Exception:
+                            # Fallback to direct emitter to avoid losing health logs if router misconfigured
                             try:
-                                log_router.emit_health(ts=ts, asset=sym, health=health)
-                            except Exception:
-                                # Fallback to direct emitter to avoid losing health logs if router misconfigured
+                                emitter = get_emitter()
+                                emitter.emit_health(ts=ts, symbol=sym, health=health)
+                                # Emit periodic health snapshot
                                 try:
-                                    emitter = get_emitter()
-                                    emitter.emit_health(ts=ts, symbol=sym, health=health)
-                                    # Emit periodic health snapshot (QW3: Fixed field mappings)
-                                    try:
-                                        snapshot = HealthSnapshot(
-                                            equity_value=health.get('equity'),
-                                            drawdown_current=health.get('max_dd_to_date'),
-                                            daily_pnl=realized if 'realized' in locals() else None,
-                                            rolling_sharpe=health.get('Sharpe_roll_1d'),
-                                            trade_count=health.get('exec_count_recent'),
-                                            win_rate=health.get('hit_rate_w'),
-                                        )
-                                        health_snapshot_emitter.maybe_emit(snapshot)
-                                    except Exception:
-                                        pass
+                                    snapshot = HealthSnapshot(
+                                        equity_value=health.get('equity'),
+                                        drawdown_current=health.get('drawdown'),
+                                        daily_pnl=health.get('daily_pnl'),
+                                        rolling_sharpe=health.get('sharpe'),
+                                        trade_count=health.get('exec_count_recent'),
+                                        win_rate=health.get('win_rate'),
+                                    )
+                                    health_snapshot_emitter.maybe_emit(snapshot)
                                 except Exception:
                                     pass
-                            
-                            # Update tracking variables (only when emitted)
-                            _last_health_equity = current_equity
-                            _last_health_funding_stale = health.get('funding_stale')
-                            _last_health_ws_reconnects = health.get('ws_reconnects', 0)
-                            if 'enhanced_health' in locals() and enhanced_health:
-                                _last_health_calibration_drift = enhanced_health.calibration_drift or 0.0
-                        
-                        # Always buffer to Sheets (even if not emitting to logs)
+                            except Exception:
+                                pass
+                        # Also buffer health metrics to Sheets if configured
                         try:
                             health_tab = cfg['sheets']['tabs'].get('health')
                             if health_tab:
