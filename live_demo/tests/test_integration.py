@@ -12,8 +12,8 @@ import sys
 from datetime import datetime
 import pytz
 
-# Add current directory to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from unified_overlay_system import UnifiedOverlaySystem, OverlaySystemConfig
 from overlay_manager import BarData
@@ -21,9 +21,12 @@ from features import LiveFeatureComputer, FeatureBuilder
 
 IST = pytz.timezone("Asia/Kolkata")
 
+import pytest
+
+@pytest.mark.asyncio
 async def test_overlay_integration():
     """Test the overlay system integration"""
-    print("🧪 Starting Overlay System Integration Test")
+    print("Starting Overlay System Integration Test")
     
     # 1. Initialize overlay system
     print("\n1. Initializing Overlay System...")
@@ -33,29 +36,25 @@ async def test_overlay_integration():
         overlay_timeframes=["15m", "1h"],
         rollup_windows={"15m": 3, "1h": 12},
         timeframe_weights={"5m": 0.5, "15m": 0.3, "1h": 0.2},
-        model_manifest_path="live_demo/models/LATEST.json"
+        model_manifest_path="test_models/LATEST.json"
     )
     
     overlay_system = UnifiedOverlaySystem(config)
     
     # 2. Initialize base feature computer
     print("2. Initializing Base Feature Computer...")
-    # Resolve feature schema path from model manifest
-    manifest_path = os.path.join("live_demo", "models", "LATEST.json")
-    with open(manifest_path, 'r', encoding='utf-8') as mf:
-        manifest = json.load(mf)
-    schema_file = manifest.get("feature_columns")
-    if not schema_file:
-        raise RuntimeError("feature_columns not found in model manifest")
-    schema_path = os.path.join(os.path.dirname(manifest_path), schema_file)
-    fb = FeatureBuilder(schema_path)
-    lf = LiveFeatureComputer(fb.columns, rv_window=12, vol_window=50, corr_window=36, timeframe="5m")
+    # Use a simple feature list for testing
+    feature_columns = ["mom_1", "mom_3", "mr_ema20_z", "rv_1h", "regime_high_vol", "gk_volatility",
+                      "jump_magnitude", "volume_intensity", "price_efficiency", "price_volume_corr",
+                      "vwap_momentum", "depth_proxy", "funding_rate", "funding_momentum_1h",
+                      "flow_diff", "S_top", "S_bot"]
+    lf = LiveFeatureComputer(feature_columns, rv_window=12, vol_window=50, corr_window=36, timeframe="5m")
     
     # 3. Initialize overlay system
     print("3. Initializing Overlay System with Base Computer...")
     try:
         overlay_system.initialize(lf)
-        print("✅ Overlay system initialized successfully")
+        print("Overlay system initialized successfully")
     except Exception as e:
         print(f"❌ Failed to initialize overlay system: {e}")
         return False
@@ -114,14 +113,15 @@ async def test_overlay_integration():
     except Exception as e:
         print(f"   ⚠️  Timeframe signals failed: {e}")
     
-    print("\n✅ Overlay System Integration Test Completed!")
+    print("\nOverlay System Integration Test Completed!")
     return True
 
+@pytest.mark.asyncio
 async def test_configuration_loading():
     """Test loading overlay configuration"""
-    print("\n🔧 Testing Configuration Loading...")
+    print("\nTesting Configuration Loading...")
     
-    config_path = "live_demo/config_overlay.json"
+    config_path = "../config_overlay.json"
     if not os.path.exists(config_path):
         print(f"❌ Configuration file not found: {config_path}")
         return False
@@ -130,7 +130,7 @@ async def test_configuration_loading():
         with open(config_path, 'r') as f:
             config = json.load(f)
         
-        print("✅ Configuration loaded successfully")
+        print("Configuration loaded successfully")
         print(f"   Overlay enabled: {config.get('overlay', {}).get('enabled', False)}")
         print(f"   Timeframes: {config.get('overlay', {}).get('timeframes', [])}")
         print(f"   Rollup windows: {config.get('overlay', {}).get('rollup_windows', {})}")
@@ -143,56 +143,67 @@ async def test_configuration_loading():
 
 def test_file_structure():
     """Test that all required files exist"""
-    print("\n📁 Testing File Structure...")
+    print("\nTesting File Structure...")
     
-    required_files = [
-        "live_demo/overlay_manager.py",
-        "live_demo/overlay_features.py", 
-        "live_demo/overlay_signal_generator.py",
-        "live_demo/enhanced_signal_combiner.py",
-        "live_demo/unified_overlay_system.py",
-        "live_demo/main_overlay.py",
-        "live_demo/config_overlay.json",
-    "live_demo/tests/test_overlay_system.py"
+    # Get the current directory of this test file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    
+    # Files that should exist in live_demo directory
+    live_demo_files = [
+        os.path.join(project_root, "live_demo", "unified_overlay_system.py"),
+        os.path.join(project_root, "live_demo", "overlay_features.py"),
+        os.path.join(project_root, "live_demo", "overlay_signal_generator.py"),
+        os.path.join(project_root, "live_demo", "enhanced_signal_combiner.py"),
+        os.path.join(project_root, "live_demo", "config_overlay.json")
     ]
     
+    # Files that should exist in live_demo_1h directory
+    live_demo_1h_files = [
+        os.path.join(project_root, "live_demo_1h", "overlay_manager.py"),
+        os.path.join(project_root, "live_demo_1h", "features.py"),
+        os.path.join(project_root, "live_demo_1h", "model_runtime.py"),
+        os.path.join(project_root, "live_demo_1h", "main_overlay.py")
+    ]
+    
+    all_files = live_demo_files + live_demo_1h_files
+    
     missing_files = []
-    for file_path in required_files:
+    for file_path in all_files:
         if not os.path.exists(file_path):
             missing_files.append(file_path)
         else:
-            print(f"   ✅ {file_path}")
+            print(f"   OK {file_path}")
     
     if missing_files:
-        print(f"\n❌ Missing files:")
+        print(f"\nMissing files:")
         for file_path in missing_files:
-            print(f"   ❌ {file_path}")
-        return False
+            print(f"   {file_path}")
+        assert False, f"Missing files: {missing_files}"
     
-    print("✅ All required files exist")
-    return True
+    print("All required files exist")
 
 async def main():
     """Main test function"""
-    print("🚀 Overlay System Implementation Test Suite")
+    print("Overlay System Implementation Test Suite")
     print("=" * 50)
     
     # Test file structure
     if not test_file_structure():
-        print("\n❌ File structure test failed")
+        print("\nFile structure test failed")
         return False
     
     # Test configuration loading
     if not await test_configuration_loading():
-        print("\n❌ Configuration test failed")
+        print("\nConfiguration test failed")
         return False
     
     # Test overlay integration
     if not await test_overlay_integration():
-        print("\n❌ Integration test failed")
+        print("\nIntegration test failed")
         return False
     
-    print("\n🎉 All tests passed! Overlay system is ready for deployment.")
+    print("\nAll tests passed! Overlay system is ready for deployment.")
     return True
 
 if __name__ == "__main__":

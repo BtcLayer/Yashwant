@@ -40,7 +40,7 @@
   "thresholds": {
     "S_MIN": 0.05,
     "M_MIN": 0.06,
-    "CONF_MIN": 0.02,
+    "CONF_MIN": 0.55,
     "ALPHA_MIN": 0.05,
     "flip_mood": true,
     "flip_model": true,

@@ -10,7 +10,7 @@ import numpy as np
 from dataclasses import dataclass
 from enum import Enum
 
-from live_demo.overlay_signal_generator import OverlaySignal, OverlaySignalResult
+from overlay_signal_generator import OverlaySignal, OverlaySignalResult
 
 
 class AlignmentRule(Enum):

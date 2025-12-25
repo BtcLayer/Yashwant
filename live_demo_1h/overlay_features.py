@@ -11,8 +11,8 @@ from collections import deque
 import math
 from dataclasses import dataclass
 
-from live_demo.overlay_manager import OverlayManager, BarData
-from live_demo.features import LiveFeatureComputer
+from overlay_manager import OverlayManager, BarData
+from features import LiveFeatureComputer
 
 @dataclass
 class OverlayFeatures:

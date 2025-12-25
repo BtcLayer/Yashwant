@@ -17,7 +17,6 @@ class FeatureBuilder:
             raise ValueError("Invalid feature schema payload")
 
     def build(self, bar_row: Dict, cohort: Dict, funding: float) -> List[float]:
-<<<<<<< HEAD
         """
         Build features in the exact order of self.columns from primitives.
         bar_row: {'open','high','low','close','volume','rv_1h','gk_vol',...}
@@ -26,9 +25,6 @@ class FeatureBuilder:
         Return: list of floats matching length and order of schema
         """
         primitives = {**bar_row, **cohort, 'funding': funding}
-=======
-        primitives = {**bar_row, **cohort, "funding": funding}
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         out: List[float] = []
         for col in self.columns:
             val = primitives.get(col)
@@ -50,9 +46,6 @@ class FeatureBuilder:
 
 
 class LiveFeatureComputer:
-<<<<<<< HEAD
-    def __init__(self, columns: List[str], rv_window: int = 12, vol_window: int = 50, corr_window: int = 36, timeframe: str = "5m"):
-=======
     def __init__(
         self,
         columns: List[str],
@@ -61,7 +54,6 @@ class LiveFeatureComputer:
         corr_window: int = 36,
         timeframe: str = "1h",
     ):
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         self.columns = columns
         self.rv_window = rv_window
         self.vol_window = vol_window
@@ -107,16 +99,12 @@ class LiveFeatureComputer:
         self._lows.append(l)
         self._vols.append(v)
         self._funding.append(float(funding))
-<<<<<<< HEAD
-        # EMA20
-        self._ema20 = (1 - self._ema_alpha) * self._ema20 + self._ema_alpha * c if self._ema20 != 0 else c
-=======
+        
         self._ema20 = (
             (1 - self._ema_alpha) * self._ema20 + self._ema_alpha * c
             if self._ema20 != 0
             else c
         )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
 
         # Basic returns
         r1 = self._ret(prev_close, c) if prev_close is not None else 0.0
@@ -178,14 +166,8 @@ class LiveFeatureComputer:
             f_ema = funding_rate
         funding_momentum_1h = funding_rate - f_ema
 
-<<<<<<< HEAD
-        # cohort mappings
-        s_top = float(cohort.get('pros', 0.0))
-        s_bot = float(cohort.get('amateurs', 0.0))
-=======
         s_top = float(cohort.get("pros", 0.0))
         s_bot = float(cohort.get("amateurs", 0.0))
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         flow_diff = s_top - s_bot
 
         feature_map = {

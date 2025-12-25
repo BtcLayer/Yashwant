@@ -38,7 +38,7 @@ except ImportError:
     CustomClassificationCalibrator = None  # type: ignore
 
 try:
-    from live_demo.features import FeaturePipeline  # type: ignore
+    from features import FeaturePipeline  # type: ignore
 except ImportError:  # pragma: no cover
     from .features import FeaturePipeline  # type: ignore
 

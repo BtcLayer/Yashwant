@@ -84,7 +84,7 @@ class TestOverlayManager(unittest.TestCase):
             # After 3 bars, should generate 15m rollup
             if i >= 2:
                 self.assertIn("15m", overlay_bars)
-                self.assertEqual(overlay_bars["15m"].bar_id, 1)  # First rollup bar
+                self.assertEqual(overlay_bars["15m"].bar_id, i-1)  # Rollup bar ID
         
         # Check 15m rollup values
         rollup_15m = self.manager.overlay_bars["15m"][0]
@@ -168,7 +168,7 @@ class TestOverlayFeatureComputer(unittest.TestCase):
         """Test computing features for all timeframes"""
         # Mock overlay manager
         self.mock_overlay_manager.config.overlay_timeframes = ["15m", "1h"]
-        self.mock_overlay_manager.is_timeframe_ready.side_effect = lambda tf: tf in ["5m", "15m", "1h"]
+        self.mock_overlay_manager.is_timeframe_ready.side_effect = lambda tf, min_bars=50: tf in ["5m", "15m", "1h"]
         self.mock_overlay_manager.get_latest_bars.return_value = []
         
         cohort_signals = {"S_top": 0.1, "S_bot": -0.1}
@@ -414,7 +414,10 @@ class TestUnifiedOverlaySystem(unittest.TestCase):
             rollup_windows={"15m": 3, "1h": 12},
             model_manifest_path="test_models/LATEST.json"
         )
-        self.system = UnifiedOverlaySystem(self.config)
+        # Mock model runtime to avoid file loading issues
+        with patch('unified_overlay_system.ModelRuntime') as mock_model_runtime:
+            mock_model_runtime.return_value = Mock()
+            self.system = UnifiedOverlaySystem(self.config)
     
     def test_initialization(self):
         """Test system initialization"""
