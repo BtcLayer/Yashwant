@@ -367,18 +367,52 @@ class RiskAndExec:
         except (KeyError, TypeError, ValueError, AttributeError):
             pass
 
-    def clamp_qty(self, qty: float, price: float) -> float:
+    def calculate_precision(self, qty: float, price: float) -> float:
+        """Calculate appropriate precision for the exchange"""
+        # Ensure exchange filters are loaded
+        self.ensure_exchange_filters()
+        
+        # Start with the quantity
         q = abs(qty)
-        # Min qty
+        
+        # Apply minimum quantity requirement
         if self._min_qty > 0:
             q = max(q, self._min_qty)
-        # Min notional
+        
+        # Apply minimum notional requirement
         if self._min_notional > 0 and price > 0:
-            q = max(q, self._min_notional / price)
-        # Step size
-        step = self._step_size or 0.000001
-        q = math.floor(q / step) * step
+            min_qty_from_notional = self._min_notional / price
+            q = max(q, min_qty_from_notional)
+        
+        # Apply step size (lot size) precision
+        if self._step_size and self._step_size > 0:
+            # Calculate how many steps fit into the quantity
+            steps = q / self._step_size
+            # Round down to nearest step to avoid precision errors
+            steps = math.floor(steps)
+            q = steps * self._step_size
+        
+        # Apply tick size precision if needed (for price)
+        if self._tick_size and self._tick_size > 0 and price > 0:
+            # This is mainly for price precision, but can affect quantity calculation
+            pass
+        
+        # Ensure we don't return zero quantity if original was non-zero
+        if q == 0 and abs(qty) > 0:
+            # Fall back to a reasonable minimum if all else fails
+            q = max(self._min_qty if self._min_qty > 0 else 0.000001,
+                   self._min_notional / price if self._min_notional > 0 and price > 0 else 0.000001)
+            # Apply step size one more time
+            if self._step_size and self._step_size > 0:
+                steps = q / self._step_size
+                steps = math.floor(steps)
+                q = steps * self._step_size
+        
         return q if qty >= 0 else -q
+
+    def clamp_qty(self, qty: float, price: float) -> float:
+        """Legacy method - delegates to calculate_precision for better precision handling"""
+        return self.calculate_precision(qty, price)
 
     # ---------- Paper simulation helpers ----------
     def _apply_slippage(self, side: str, price: float) -> float:

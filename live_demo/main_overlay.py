@@ -78,14 +78,12 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
     manifest_rel_for_overlay = cfg.get('artifacts', {}).get('latest_manifest', 'live_demo/models/LATEST.json')
     overlay_config = OverlaySystemConfig(
         enable_overlays=cfg.get("overlay", {}).get("enabled", True),
-        base_timeframe=interval,
-<<<<<<< HEAD
         overlay_timeframes=cfg.get('overlay', {}).get('timeframes', ["15m", "1h"]),
         rollup_windows=cfg.get('overlay', {}).get('rollup_windows', {"15m": 3, "1h": 12}),
         timeframe_weights=cfg.get('overlay', {}).get('weights', {"5m": 0.5, "15m": 0.3, "1h": 0.2}),
         model_manifest_path=abspath(manifest_rel_for_overlay)
     )
-    
+
     # Output root helper: unify under PAPER_TRADING_ROOT if set; else repo-level paper_trading_outputs
     def paper_root() -> str:
         env = os.environ.get('PAPER_TRADING_ROOT')
@@ -93,19 +91,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
             return os.path.abspath(env)
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
         return os.path.abspath(os.path.join(repo_root, 'paper_trading_outputs'))
-=======
-        overlay_timeframes=cfg.get("overlay", {}).get("timeframes", ["15m", "1h"]),
-        rollup_windows=cfg.get("overlay", {}).get(
-            "rollup_windows", {"15m": 3, "1h": 12}
-        ),
-        timeframe_weights=cfg.get("overlay", {}).get(
-            "weights", {"5m": 0.5, "15m": 0.3, "1h": 0.2}
-        ),
-        model_manifest_path=cfg.get("artifacts", {}).get(
-            "latest_manifest", "live_demo/models/LATEST.json"
-        ),
-    )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
 
     # Initialize unified overlay system
     overlay_system = UnifiedOverlaySystem(overlay_config)
@@ -172,7 +157,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
             kl = None
 
     # Initialize components (same as original)
-<<<<<<< HEAD
     # Hyperliquid funding and WS endpoints
     hl_base = cfg['exchanges']['hyperliquid']['base_url']
     hl_ws = cfg['exchanges']['hyperliquid']['ws_url']
@@ -234,51 +218,19 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
     # Initialize overlay system with base feature computer
     overlay_system.initialize(lf)
     
-=======
-    funding_client = FundingHL(cfg["exchanges"]["hyperliquid"])
-    cohort = CohortState(window=int(cfg["cohorts"].get("window", 12)))
-
-    # Load cohort addresses
-    top_file = abspath(cfg["cohorts"]["top_file"])
-    bottom_file = abspath(cfg["cohorts"]["bottom_file"])
-    top_df = pd.read_csv(top_file) if os.path.exists(top_file) else pd.DataFrame()
-    bottom_df = (
-        pd.read_csv(bottom_file) if os.path.exists(bottom_file) else pd.DataFrame()
-    )
-    top_set = set(str(addr).lower() for addr in top_df.get("address", []))
-    bottom_set = set(str(addr).lower() for addr in bottom_df.get("address", []))
-
-    # Initialize feature builder and computer
-    fb = FeatureBuilder()
-    lf = LiveFeatureComputer(
-        fb.get_columns(),
-        rv_window=12,
-        vol_window=50,
-        corr_window=36,
-        timeframe=interval,
-    )
-
-    # Initialize overlay system with base feature computer
-    overlay_system.initialize(lf)
-
     # Initialize model runtime
     manifest_rel = cfg["artifacts"]["latest_manifest"]
     manifest_abs = abspath(manifest_rel)
     mr = ModelRuntime(manifest_abs)
 
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
     # Initialize other components (same as original)
     creds_path = abspath(cfg["sheets"]["creds_json"])
     sheet_id = cfg["sheets"]["sheet_id"]
     headers = ["ts_ist", "ts", "address", "coin", "side", "price", "size"]
     logger = SheetsLogger(creds_path, sheet_id, headers=headers)
-<<<<<<< HEAD
     # Log router (per-topic sink fan-out, matches main.py behavior)
     log_router = LogRouter(cfg.get('logging', {}))
     
-=======
-
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
     # Initialize tracking systems
     health_monitor = HealthMonitor()
     repro_tracker = ReproTracker()
@@ -360,16 +312,9 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
     bandit_cfg = cfg.get("execution", {}).get("bandit", {})
     bandit = None
     bandit_io = None
-<<<<<<< HEAD
     if bandit_cfg and bool(bandit_cfg.get('enabled', False)):
         state_rel = bandit_cfg.get('state_path', os.path.join('paper_trading_outputs', 'runtime_bandit.json'))
         bandit_state_path = state_rel if os.path.isabs(state_rel) else os.path.join(paper_root(), os.path.basename(state_rel))
-=======
-    if bandit_cfg and bool(bandit_cfg.get("enabled", False)):
-        bandit_state_path = bandit_cfg.get(
-            "state_path", os.path.join("paper_trading_outputs", "runtime_bandit.json")
-        )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         try:
             from live_demo.bandit import BanditStateIO
 
@@ -384,7 +329,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
     last_chosen_arm: str | None = None
 
     # Hyperliquid WebSocket setup (same as original)
-<<<<<<< HEAD
     fill_queue = deque(maxlen=20000)
     
     async def _consume_ws(hl: HyperliquidListener):
@@ -399,15 +343,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
                 fill_queue.append(fmsg)
         except (aiohttp.ClientError, asyncio.CancelledError):
             pass
-=======
-    hl_listener = HyperliquidListener(cfg["exchanges"]["hyperliquid"])
-    fill_queue = deque()
-
-    async def _consume_ws():
-        async for msg in hl_listener.listen():
-            if msg.get("channel") == "trades":
-                fill_queue.append(msg.get("data", {}))
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
 
     # Helper functions (same as original)
     async def _fallback_public_mood_binance(ts_end_ms: int, interval_ms: int) -> float:
@@ -441,7 +376,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
         addresses_to_query = list(top_set.union(bottom_set))
         if not addresses_to_query:
             return []
-<<<<<<< HEAD
         results = []
         sem = asyncio.Semaphore(8)
 
@@ -492,26 +426,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
         try:
             dbg_path = os.path.join(paper_root(), 'user_fills_poll_debug.csv')
             os.makedirs(os.path.dirname(dbg_path), exist_ok=True)
-=======
-
-        try:
-            results = await hl_listener.poll_user_fills_by_time(
-                addresses=addresses_to_query,
-                start_time_ms=start_ms,
-                end_time_ms=ts_end_ms,
-            )
-        except Exception:
-            return []
-
-        # Debug logging
-        try:
-            dbg_path = os.path.join(
-                os.path.dirname(__file__),
-                "..",
-                "paper_trading_outputs",
-                "user_fills_poll_debug.csv",
-            )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
             if not os.path.exists(dbg_path):
                 with open(dbg_path, "w", encoding="utf-8") as fh:
                     fh.write("ts_iso,ts,window_ms,addresses,results_count\n")
@@ -538,21 +452,18 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
 
     # Main trading loop with overlay system
     while True:
+
         try:
             # 1) Poll last closed kline
             row = md.poll_last_closed_kline()
         except Exception as e:
             try:
-<<<<<<< HEAD
-                err_log_path = os.path.join(paper_root(), 'live_errors.log')
-=======
                 err_log_path = os.path.join(
                     os.path.dirname(__file__),
                     "..",
                     "paper_trading_outputs",
                     "live_errors.log",
                 )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
                 os.makedirs(os.path.dirname(err_log_path), exist_ok=True)
                 with open(err_log_path, "a", encoding="utf-8") as err_log_fh:
                     err_log_fh.write("\n=== poll_last_closed_kline error ===\n")
@@ -560,15 +471,37 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
                     err_log_fh.write("Message: " + str(e) + "\n")
             except OSError:
                 pass
+            print(f"[DATA PIPELINE] ERROR: poll_last_closed_kline failed: {type(e).__name__}: {e}")
             await asyncio.sleep(2)
             continue
 
+        # Data pipeline debug logging
+        import time
+        now_ts = int(time.time() * 1000)
         if row is None:
+            print(f"[DATA PIPELINE] WARNING: No bar returned by poll_last_closed_kline at {now_ts}")
             await asyncio.sleep(2)
             continue
 
         ts, o, h, l, c, v = row
+        # Sanity checks
+        issues = []
+        if any(x is None for x in [ts, o, h, l, c, v]):
+            issues.append("MALFORMED_BAR: None in OHLCV")
+        if o <= 0 or h <= 0 or l <= 0 or c <= 0 or v < 0:
+            issues.append(f"MALFORMED_BAR: Non-positive OHLCV o={o} h={h} l={l} c={c} v={v}")
+        if not (h >= l and h >= o and h >= c and l <= o and l <= c):
+            issues.append(f"MALFORMED_BAR: OHLC out of order o={o} h={h} l={l} c={c}")
+        # Freshness check
+        bar_age_sec = (now_ts - ts) / 1000.0
+        if bar_age_sec > 600:
+            issues.append(f"STALE_BAR: Bar age {bar_age_sec:.1f}s exceeds 10min")
+        # Log bar info
+        print(f"[DATA PIPELINE] 5m BAR ts={ts} sys_ts={now_ts} age={bar_age_sec:.1f}s o={o} h={h} l={l} c={c} v={v} issues={issues if issues else 'OK'}")
+        if issues:
+            print(f"[DATA PIPELINE] FLAGGED: {issues}")
         if last_ts is not None and ts <= last_ts:
+            print(f"[DATA PIPELINE] WARNING: Duplicate or out-of-order bar ts={ts} <= last_ts={last_ts}")
             await asyncio.sleep(1)
             continue
 
@@ -699,21 +632,18 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
         alpha = overlay_decision.alpha
         confidence = overlay_decision.confidence
 
+        # Model output debug logging
+        import math
+        model_issues = []
+        if any(math.isnan(x) for x in [alpha, confidence]):
+            model_issues.append("NaN in model output")
+        if abs(alpha) > 10 or abs(confidence) > 10:
+            model_issues.append(f"Extreme outlier: alpha={alpha}, confidence={confidence}")
+        # Optionally, track last N predictions for constant output detection (not implemented here)
+        print(f"[MODEL OUTPUT] 5m ts={ts} direction={direction} alpha={alpha} confidence={confidence} issues={model_issues if model_issues else 'OK'}")
+
         # Log overlay decision details
         try:
-<<<<<<< HEAD
-            log_router.emit_ensemble(
-                ts=ts,
-                asset=sym,
-                raw_preds={
-                    'overlay_direction': direction,
-                    'overlay_alpha': alpha,
-                    'overlay_confidence': confidence,
-                    'chosen_timeframes': overlay_decision.chosen_timeframes,
-                    'alignment_rule': overlay_decision.alignment_rule
-                },
-                meta={'overlay_system': True, 'manifest': manifest_rel}
-=======
             emitter = get_emitter("live_demo")
             emitter.emit_ensemble(
                 ts=ts,
@@ -726,7 +656,6 @@ async def run_live_with_overlay(config_path: str, dry_run: bool = False):
                     "alignment_rule": overlay_decision.alignment_rule,
                 },
                 meta={"overlay_system": True, "manifest": manifest_rel},
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
             )
         except Exception:
             pass

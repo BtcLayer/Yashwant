@@ -10,8 +10,8 @@ import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
 
-from overlay_features import OverlayFeatures
-from model_runtime import ModelRuntime
+from live_demo.overlay_features import OverlayFeatures
+from live_demo.model_runtime import ModelRuntime
 
 
 @dataclass

@@ -1,40 +1,3 @@
-"""Simple heartbeat writer used by monitoring and smoke tests.
-
-This writes a small JSON file into paper_trading_outputs/logs/<bot>/heartbeat/heartbeat.json
-It intentionally does not change runtime behavior and is safe for 1.1.
-"""
-import json
-import os
-from datetime import datetime
-import pytz
-
-IST = pytz.timezone("Asia/Kolkata")
-
-
-def write_heartbeat(root: str, bot_version: str = "default", last_bar_id=None, last_trade_ts=None) -> str:
-    path = os.path.join(root, bot_version, "heartbeat", "heartbeat.json")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-
-    try:
-        from core.config import get_strategy_id, get_schema_version
-        strategy_id = get_strategy_id()
-        schema_version = get_schema_version()
-    except Exception:
-        strategy_id = "ensemble_1_0"
-        schema_version = "v1"
-
-    payload = {
-        "ts_ist": datetime.now(IST).isoformat(),
-        "strategy_id": strategy_id,
-        "schema_version": schema_version,
-        "last_bar_id": last_bar_id,
-        "last_trade_ts": last_trade_ts,
-    }
-
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh)
-
-    return path
 """Write lightweight heartbeat JSON for each bot to paper_trading_outputs/logs/<bot>/heartbeat/heartbeat.json
 
 This is used by monitor_bots.py to detect liveness and stuck processes.
@@ -44,13 +7,32 @@ import json
 import os
 from pathlib import Path
 import pytz
-from core.config import get_strategy_id, get_schema_version
 
+try:
+    from core.config import get_strategy_id, get_schema_version
+except ImportError:
+    # Fallback if core.config is not available
+    def get_strategy_id():
+        return "ensemble_1_0"
+    def get_schema_version():
+        return "v1"
 
 IST = pytz.timezone("Asia/Kolkata")
 
 
 def write_heartbeat(base_dir: str, bot_version: str | None = None, last_bar_id: int | None = None, last_trade_ts: float | None = None, last_error: str | None = None):
+    """Write heartbeat JSON to file.
+    
+    Args:
+        base_dir: Base directory for logs
+        bot_version: Bot version (e.g., "5m", "1h", etc.)
+        last_bar_id: Last bar ID processed
+        last_trade_ts: Last trade timestamp
+        last_error: Last error message
+        
+    Returns:
+        str: Path to heartbeat file
+    """
     base = Path(base_dir)
     if bot_version:
         root = base / bot_version

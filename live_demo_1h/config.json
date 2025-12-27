@@ -40,8 +40,8 @@
   "thresholds": {
     "S_MIN": 0.05,
     "M_MIN": 0.06,
-    "CONF_MIN": 0.55,
-    "ALPHA_MIN": 0.05,
+    "CONF_MIN": 0.60,
+    "ALPHA_MIN": 0.10,
     "flip_mood": true,
     "flip_model": true,
     "allow_model_only_when_mood_neutral": true
@@ -125,9 +125,9 @@
       "neutral_band": 0.05
     },
     "signal_thresholds": {
-      "default": { "min_confidence": 0.62, "min_alpha": 0.11, "neutral_band": 0.055 },
-      "15m":     { "min_confidence": 0.62, "min_alpha": 0.11, "neutral_band": 0.055 },
-      "1h":      { "min_confidence": 0.65, "min_alpha": 0.12, "neutral_band": 0.06 },
+      "default": { "min_confidence": 0.60, "min_alpha": 0.10, "neutral_band": 0.05 },
+      "15m":     { "min_confidence": 0.60, "min_alpha": 0.10, "neutral_band": 0.05 },
+      "1h":      { "min_confidence": 0.60, "min_alpha": 0.10, "neutral_band": 0.10 },
       "4h":      { "min_confidence": 0.68, "min_alpha": 0.14, "neutral_band": 0.07 }
     }
   },

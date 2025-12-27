@@ -17,7 +17,6 @@ class FeatureBuilder:
             raise ValueError("Invalid feature schema payload")
 
     def build(self, bar_row: Dict, cohort: Dict, funding: float) -> List[float]:
-<<<<<<< HEAD
         """
         Build features in the exact order of self.columns from primitives.
         bar_row: {'open','high','low','close','volume','rv_1h','gk_vol',...}
@@ -25,10 +24,7 @@ class FeatureBuilder:
         funding: float
         Return: list of floats matching length and order of schema
         """
-        primitives = {**bar_row, **cohort, 'funding': funding}
-=======
         primitives = {**bar_row, **cohort, "funding": funding}
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         out: List[float] = []
         for col in self.columns:
             val = primitives.get(col)
@@ -50,9 +46,6 @@ class FeatureBuilder:
 
 
 class LiveFeatureComputer:
-<<<<<<< HEAD
-    def __init__(self, columns: List[str], rv_window: int = 12, vol_window: int = 50, corr_window: int = 36, timeframe: str = "5m"):
-=======
     def __init__(
         self,
         columns: List[str],
@@ -61,7 +54,6 @@ class LiveFeatureComputer:
         corr_window: int = 36,
         timeframe: str = "12h",
     ):
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         self.columns = columns
         self.rv_window = rv_window
         self.vol_window = vol_window
@@ -107,16 +99,13 @@ class LiveFeatureComputer:
         self._lows.append(l)
         self._vols.append(v)
         self._funding.append(float(funding))
-<<<<<<< HEAD
+        
         # EMA20
-        self._ema20 = (1 - self._ema_alpha) * self._ema20 + self._ema_alpha * c if self._ema20 != 0 else c
-=======
         self._ema20 = (
             (1 - self._ema_alpha) * self._ema20 + self._ema_alpha * c
             if self._ema20 != 0
             else c
         )
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
 
         # Basic returns
         r1 = self._ret(prev_close, c) if prev_close is not None else 0.0
@@ -176,33 +165,8 @@ class LiveFeatureComputer:
             f_ema = float(np.mean(self._funding))
         else:
             f_ema = funding_rate
-        funding_momentum_1h = funding_rate - f_ema
+        funding_momentum_12h = funding_rate - f_ema
 
-<<<<<<< HEAD
-        # cohort mappings
-        s_top = float(cohort.get('pros', 0.0))
-        s_bot = float(cohort.get('amateurs', 0.0))
-        flow_diff = s_top - s_bot
-
-        feature_map = {
-            'mom_1': r1,
-            'mom_3': r3,
-            'mr_ema20_z': (c - self._ema20) / (rv_1h + 1e-9),
-            'rv_1h': rv_1h,
-            'regime_high_vol': regime_high_vol,
-            'gk_volatility': gk,
-            'jump_magnitude': jump_mag,
-            'volume_intensity': volume_intensity,
-            'price_efficiency': price_efficiency,
-            'price_volume_corr': price_volume_corr,
-            'vwap_momentum': vwap_momentum,
-            'depth_proxy': depth_proxy,
-            'funding_rate': funding_rate,
-            'funding_momentum_1h': funding_momentum_1h,
-            'flow_diff': flow_diff,
-            'S_top': s_top,
-            'S_bot': s_bot,
-=======
         s_top = float(cohort.get("pros", 0.0))
         s_bot = float(cohort.get("amateurs", 0.0))
         flow_diff = s_top - s_bot
@@ -225,7 +189,6 @@ class LiveFeatureComputer:
             "flow_diff": flow_diff,
             "S_top": s_top,
             "S_bot": s_bot,
->>>>>>> a425beb9a39dcb2c03ba879f40b73a3beb6babde
         }
 
         # Prepare output in schema order, defaulting to 0.0 for missing

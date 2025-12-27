@@ -12,12 +12,12 @@ from datetime import datetime
 import json
 import pytz
 
-from overlay_manager import OverlayManager, OverlayConfig, BarData
-from overlay_features import OverlayFeatureComputer
-from overlay_signal_generator import OverlaySignalGenerator
-from enhanced_signal_combiner import EnhancedSignalCombiner
-from model_runtime import ModelRuntime
-from features import LiveFeatureComputer
+from live_demo.overlay_manager import OverlayManager, OverlayConfig, BarData
+from live_demo.overlay_features import OverlayFeatureComputer
+from live_demo.overlay_signal_generator import OverlaySignalGenerator
+from live_demo.enhanced_signal_combiner import EnhancedSignalCombiner
+from live_demo.model_runtime import ModelRuntime
+from live_demo.features import LiveFeatureComputer
 
 IST = pytz.timezone("Asia/Kolkata")
 

@@ -104,6 +104,10 @@ async def run_live(config_path: str, dry_run: bool = None):
             os.environ['PAPER_TRADING_ROOT'] = tf_root
     except Exception:
         pass
+
+    # DEBUG: Confirm main loop is running and not stalled
+    import sys as _sys
+    print("[DEBUG][main] Entered run_live main loop, config loaded, starting bar processing...", file=_sys.stderr, flush=True)
     # Project root and path helper
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 
@@ -886,6 +890,7 @@ async def run_live(config_path: str, dry_run: bool = None):
         _consumer_task = asyncio.create_task(_consume_ws())
 
         while True:
+            print(f"[DEBUG][main] Top of bar-processing loop, waiting for/processing new bar...", file=_sys.stderr, flush=True)
             # 1) Poll last closed kline (resilient to transient API errors)
             try:
                 row = md.poll_last_closed_kline()
@@ -910,6 +915,9 @@ async def run_live(config_path: str, dry_run: bool = None):
             if row is None:
                 await asyncio.sleep(2)
                 continue
+            # DEBUG: Print fetched bar data or error
+            import sys as _sys
+            print(f"[DEBUG][main] Fetched bar row: {row}", file=_sys.stderr, flush=True)
             ts, o, h, l, c, v = row
             if last_ts is not None and ts <= last_ts:
                 # Smart polling: Calculate time until next bar close + 30s buffer

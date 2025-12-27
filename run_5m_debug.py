@@ -12,7 +12,7 @@ try:
     import asyncio
     asyncio.run(main.run_live('live_demo/config.json'))
 except Exception as e:
-    print(f"\n❌ ERROR: {type(e).__name__}: {e}")
+    print(f"\nERROR: {type(e).__name__}: {e}")
     import traceback
     traceback.print_exc()
     input("\nPress Enter to close...")

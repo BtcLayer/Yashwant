@@ -30,6 +30,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
     Output:
       - {'dir': -1|0|1, 'alpha': [0,1], 'details': {...}}
     """
+
     s_pros = float(cohort_snapshot.get("pros", 0.0))
     s_am = float(cohort_snapshot.get("amateurs", 0.0))
     s_mood = float(cohort_snapshot.get("mood", 0.0))
@@ -45,11 +46,17 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
     mood_ok = abs(s_mood) >= th.M_MIN
     model_ok = abs(s_model) >= th.S_MIN
 
+    # DEBUG LOGGING: Trace gating variables
+    import sys
+    print(f"[DEBUG][gate_and_score] s_pros={s_pros:.4f} s_am={s_am:.4f} s_mood={s_mood:.4f} s_model={s_model:.4f} mood_ok={mood_ok} model_ok={model_ok} M_MIN={th.M_MIN} S_MIN={th.S_MIN}", file=sys.stderr)
+
     if not (mood_ok and model_ok):
         # Optional: allow model-only trading when mood is neutral and model is strong
         if (not mood_ok) and model_ok and th.allow_model_only_when_mood_neutral:
             conf_model = clamp(abs(s_model), 0.0, 1.0)
+            print(f"[DEBUG][gate_and_score] Model-only path: conf_model={conf_model:.4f} CONF_MIN={th.CONF_MIN}", file=sys.stderr)
             if conf_model < th.CONF_MIN:
+                print(f"[DEBUG][gate_and_score] Blocked: model-only rejected due to low confidence", file=sys.stderr)
                 return {
                     "dir": 0,
                     "alpha": 0.0,
@@ -66,6 +73,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
                 }
             alpha = clamp(conf_model, th.ALPHA_MIN, 1.0)
             direction = 1 if s_model > 0 else -1
+            print(f"[DEBUG][gate_and_score] Model-only trade allowed: direction={direction} alpha={alpha:.4f}", file=sys.stderr)
             return {
                 "dir": direction,
                 "alpha": alpha,
@@ -80,6 +88,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
                     "mode": "model_only",
                 },
             }
+        print(f"[DEBUG][gate_and_score] Blocked: mood_ok={mood_ok}, model_ok={model_ok}", file=sys.stderr)
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -97,7 +106,9 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
     sign_mood = 1 if s_mood > 0 else -1
     sign_model = 1 if s_model > 0 else -1
     consensus = sign_mood == sign_model
+    print(f"[DEBUG][gate_and_score] sign_mood={sign_mood} sign_model={sign_model} consensus={consensus}", file=sys.stderr)
     if not consensus:
+        print(f"[DEBUG][gate_and_score] Blocked: consensus failure", file=sys.stderr)
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -112,7 +123,9 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
 
     # Confidence: blend of magnitudes (cap to [0,1])
     conf = clamp(0.5 * (abs(s_mood) + abs(s_model)), 0.0, 1.0)
+    print(f"[DEBUG][gate_and_score] conf={conf:.4f} CONF_MIN={th.CONF_MIN}", file=sys.stderr)
     if conf < th.CONF_MIN:
+        print(f"[DEBUG][gate_and_score] Blocked: confidence below threshold", file=sys.stderr)
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -127,7 +140,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
 
     alpha = clamp(conf, th.ALPHA_MIN, 1.0)
     direction = 1 if s_model > 0 else -1
-
+    print(f"[DEBUG][gate_and_score] Trade allowed: direction={direction} alpha={alpha:.4f}", file=sys.stderr)
     return {
         "dir": direction,
         "alpha": alpha,
