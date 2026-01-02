@@ -3,10 +3,13 @@
     "symbol": "BTCUSDT",
     "interval": "5m",
     "warmup_bars": 1000,
-    "overlays": ["15m", "1h"]
+    "overlays": [
+      "15m",
+      "1h"
+    ]
   },
   "exchanges": {
-  "active": "hyperliquid",
+    "active": "hyperliquid",
     "binance_testnet": {
       "api_key": "gFrgI8OzdTcidWK4ZPTC2IRtE0LSUt9mgOFCWLwAt201QaHPZ4vOzpvJwwxYepfM",
       "api_secret": "emufRzRzZpI8CU1fEi5lElnOMTXRRpGADzWylhYKSFktZqBbMIm3rnZLETlrG3ba",
@@ -40,11 +43,12 @@
   "thresholds": {
     "S_MIN": 0.05,
     "M_MIN": 0.12,
-    "CONF_MIN": 0.55,
+    "CONF_MIN": 0.60,
     "ALPHA_MIN": 0.02,
     "flip_mood": true,
     "flip_model": true,
-    "allow_model_only_when_mood_neutral": true
+    "allow_model_only_when_mood_neutral": true,
+    "require_consensus": false
   },
   "alerts": {
     "ic_drift": {
@@ -113,9 +117,19 @@
   },
   "overlay": {
     "enabled": true,
-    "timeframes": ["15m", "1h"],
-    "rollup_windows": { "15m": 3, "1h": 12 },
-    "weights": { "5m": 0.5, "15m": 0.3, "1h": 0.2 },
+    "timeframes": [
+      "15m",
+      "1h"
+    ],
+    "rollup_windows": {
+      "15m": 3,
+      "1h": 12
+    },
+    "weights": {
+      "5m": 0.5,
+      "15m": 0.3,
+      "1h": 0.2
+    },
     "alignment_rules": {
       "require_5m_15m_agreement": true,
       "allow_1h_override": true,
@@ -125,10 +139,26 @@
       "neutral_band": 0.10
     },
     "signal_thresholds": {
-      "default": { "min_confidence": 0.55, "min_alpha": 0.02, "neutral_band": 0.10 },
-      "5m":      { "min_confidence": 0.55, "min_alpha": 0.02, "neutral_band": 0.10 },
-      "15m":     { "min_confidence": 0.55, "min_alpha": 0.02, "neutral_band": 0.10 },
-      "1h":      { "min_confidence": 0.60, "min_alpha": 0.10, "neutral_band": 0.10 }
+      "default": {
+        "min_confidence": 0.55,
+        "min_alpha": 0.02,
+        "neutral_band": 0.10
+      },
+      "5m": {
+        "min_confidence": 0.55,
+        "min_alpha": 0.02,
+        "neutral_band": 0.10
+      },
+      "15m": {
+        "min_confidence": 0.55,
+        "min_alpha": 0.02,
+        "neutral_band": 0.10
+      },
+      "1h": {
+        "min_confidence": 0.60,
+        "min_alpha": 0.10,
+        "neutral_band": 0.10
+      }
     }
   },
   "microstructure": {
@@ -156,11 +186,50 @@
     "retention_days": 30,
     "base_dir": "paper_trading_outputs/logs",
     "formats": {
-      "market": ["ts_ist", "asset", "bar_id", "mid", "bid1", "ask1", "spread_bps", "rv_1h"],
-      "signals": ["ts_ist", "asset", "bar_id", "S_top", "S_bot", "F_top_norm", "F_bot_norm"],
-      "ensemble": ["ts_ist", "asset", "bar_id", "pred_stack", "pred_bma", "bandit_arm", "ic_200"],
-      "health": ["ts_ist", "Sharpe_roll_1d", "max_dd_to_date", "ic_drift"],
-      "overlay": ["ts_ist", "asset", "bar_id", "direction", "alpha", "confidence", "alignment_rule", "chosen_timeframes"]
+      "market": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "mid",
+        "bid1",
+        "ask1",
+        "spread_bps",
+        "rv_1h"
+      ],
+      "signals": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "S_top",
+        "S_bot",
+        "F_top_norm",
+        "F_bot_norm"
+      ],
+      "ensemble": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "pred_stack",
+        "pred_bma",
+        "bandit_arm",
+        "ic_200"
+      ],
+      "health": [
+        "ts_ist",
+        "Sharpe_roll_1d",
+        "max_dd_to_date",
+        "ic_drift"
+      ],
+      "overlay": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "direction",
+        "alpha",
+        "confidence",
+        "alignment_rule",
+        "chosen_timeframes"
+      ]
     },
     "sinks": {
       "sheets": true,
@@ -169,7 +238,7 @@
     },
     "topics": {
       "signals": "emitter",
-  "executions": "llm",
+      "executions": "llm",
       "costs": "emitter",
       "health": "emitter",
       "ensemble": "llm",
@@ -182,7 +251,12 @@
   "ensemble": {
     "enable_bma": true,
     "source": "bma",
-    "bma": { "kappa": 8.0, "ic_window_bars": 200, "min_coverage_bars": 600, "freeze": false }
+    "bma": {
+      "kappa": 8.0,
+      "ic_window_bars": 200,
+      "min_coverage_bars": 600,
+      "freeze": false
+    }
   },
   "alignment": {
     "agree_5m_15m_full": true,
@@ -191,7 +265,9 @@
   },
   "calibration": {
     "band_bps": 15,
-    "report_windows": { "ab_rolling_hours": 24 }
+    "report_windows": {
+      "ab_rolling_hours": 24
+    }
   },
   "risk_controls": {
     "sigma_target_ann": 0.10,
@@ -210,7 +286,13 @@
     "algo": "exp3",
     "eta": 0.06,
     "floor": 0.06,
-    "arms": ["Base","BMA","Top","Bot","Micro"]
+    "arms": [
+      "Base",
+      "BMA",
+      "Top",
+      "Bot",
+      "Micro"
+    ]
   },
   "artifacts": {
     "latest_manifest": "live_demo/models/LATEST.json"

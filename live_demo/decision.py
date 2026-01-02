@@ -15,6 +15,8 @@ class Thresholds:
     flip_model_bma: bool = True
     # If true, allow trading on model signal alone when cohort mood is neutral (< M_MIN)
     allow_model_only_when_mood_neutral: bool = True
+    # If true, require consensus between mood and model (can block SELL trades)
+    require_consensus: bool = True
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -107,7 +109,8 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Di
     sign_model = 1 if s_model > 0 else -1
     consensus = sign_mood == sign_model
     print(f"[DEBUG][gate_and_score] sign_mood={sign_mood} sign_model={sign_model} consensus={consensus}", file=sys.stderr)
-    if not consensus:
+    # Only enforce consensus if required by config
+    if not consensus and th.require_consensus:
         print(f"[DEBUG][gate_and_score] Blocked: consensus failure", file=sys.stderr)
         return {
             "dir": 0,

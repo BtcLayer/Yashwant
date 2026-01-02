@@ -1,0 +1,62 @@
+{
+  "5m": {
+    "start_equity": 9994.30591176692,
+    "current_equity": 9997.060474467997,
+    "total_return_pct": 0.027561320669944323,
+    "total_pnl": -706.2207518354531,
+    "num_trades": 137,
+    "num_signals": 1397,
+    "exec_rate_pct": 9.806728704366499,
+    "win_rate_pct": 0.0,
+    "num_wins": 0,
+    "num_losses": 136,
+    "avg_win": 0,
+    "avg_loss": -5.19279964584892,
+    "expectancy": -5.154895998798928
+  },
+  "1h": {
+    "start_equity": 10000.0,
+    "current_equity": 10000.0,
+    "total_return_pct": 0.0,
+    "total_pnl": 0,
+    "num_trades": 9,
+    "num_signals": 175,
+    "exec_rate_pct": 5.142857142857142,
+    "win_rate_pct": 0,
+    "num_wins": 0,
+    "num_losses": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "expectancy": 0
+  },
+  "12h": {
+    "start_equity": 10000.0,
+    "current_equity": 10000.0,
+    "total_return_pct": 0.0,
+    "total_pnl": 0,
+    "num_trades": 4,
+    "num_signals": 105,
+    "exec_rate_pct": 3.8095238095238098,
+    "win_rate_pct": 0,
+    "num_wins": 0,
+    "num_losses": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "expectancy": 0
+  },
+  "24h": {
+    "start_equity": 9994.323681306278,
+    "current_equity": 9998.46915307681,
+    "total_return_pct": 0.041478262088778806,
+    "total_pnl": -359.70986712747384,
+    "num_trades": 69,
+    "num_signals": 69,
+    "exec_rate_pct": 100.0,
+    "win_rate_pct": 0.0,
+    "num_wins": 0,
+    "num_losses": 69,
+    "avg_win": 0,
+    "avg_loss": -5.213186480108317,
+    "expectancy": -5.213186480108317
+  }
+}

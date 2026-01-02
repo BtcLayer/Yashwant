@@ -1,0 +1,30 @@
+{
+  "timestamp_utc": "20260101_101711",
+  "target": "direction_confidence_5m",
+  "n_features": 17,
+  "schema_hash": "d7a9e9fb3a42",
+  "class_mapping": {
+    "down": 0,
+    "neutral": 1,
+    "up": 2
+  },
+  "meta_score_in_sample": 0.9959636730575177,
+  "calibrated_score": 0.9959636730575177,
+  "cv_scores": {
+    "randomforest": 0.9959636730575177,
+    "extratrees": 0.9959636730575177,
+    "histgb": 0.9959636730575177,
+    "gb_classifier": 0.9919273461150353
+  },
+  "folds": 3,
+  "embargo_pct": 0.01,
+  "purge_pct": 0.02,
+  "training_samples": 3960,
+  "test_samples": 991,
+  "data_start": "2025-12-15 05:40:00",
+  "data_end": "2026-01-01 10:10:00",
+  "validation_passed": false,
+  "validation_issues": [
+    "Only predicts 1 classes"
+  ]
+}

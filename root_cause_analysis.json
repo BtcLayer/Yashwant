@@ -1,0 +1,24 @@
+{
+  "analysis_time": "2025-12-29T16:00:23.394540",
+  "total_trades": 69,
+  "gross_pnl": -5.684341886080802e-14,
+  "total_costs": 359.70986712747384,
+  "net_pnl": -359.7098671274739,
+  "costs_as_pct_of_gross": 6.328082904518679e+17,
+  "buy_trades": 69,
+  "buy_pnl": -359.7098671274739,
+  "sell_trades": 0,
+  "sell_pnl": 0,
+  "avg_cost_per_trade": 5.213186480108317,
+  "avg_gross_per_trade": -8.238176646493915e-16,
+  "diagnosis": [
+    "1. \ud83d\udd34 NO EDGE EVEN BEFORE COSTS",
+    "   Gross P&L: $-0.00 (negative)",
+    "   System predictions are not working",
+    "   ACTION: Fix model or signal generation logic",
+    "3. \ud83d\udd34 ZERO WIN RATE",
+    "   0 wins out of 69 trades",
+    "   This is statistically impossible for a random system",
+    "   ACTION: Check for systematic execution errors"
+  ]
+}

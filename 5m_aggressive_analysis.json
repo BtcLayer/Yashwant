@@ -1,0 +1,10 @@
+{
+  "gross_pnl_before_costs": -50.979890161097956,
+  "total_costs": 655.2408616743552,
+  "net_pnl": -706.2207518354531,
+  "buy_pnl": -706.2207518354531,
+  "sell_pnl": 0.0,
+  "model_has_edge": false,
+  "recommended_path": "model_retraining",
+  "timeline_days": 14
+}

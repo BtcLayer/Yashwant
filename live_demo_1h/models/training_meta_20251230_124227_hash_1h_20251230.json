@@ -1,0 +1,24 @@
+{
+  "timestamp_utc": "20251230_124227",
+  "target": "direction_confidence_1h",
+  "n_features": 10,
+  "schema_hash": "hash_1h_20251230",
+  "class_mapping": {
+    "down": 0,
+    "neutral": 1,
+    "up": 2
+  },
+  "meta_score_in_sample": 0.8,
+  "calibrated_score": 0.7941520467836257,
+  "cv_scores": {
+    "randomforest": 0.8269005847953217,
+    "extratrees": 0.8280701754385965,
+    "histgb": 0.8046783625730994,
+    "gb_classifier": 0.8116959064327486
+  },
+  "folds": 3,
+  "embargo_pct": 0.01,
+  "purge_pct": 0.02,
+  "training_samples": 3416,
+  "test_samples": 855
+}

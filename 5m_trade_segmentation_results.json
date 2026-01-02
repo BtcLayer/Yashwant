@@ -1,0 +1,20 @@
+{
+  "direction_performance": {
+    "BUY": {
+      "count": 137,
+      "total_pnl": -706.2207518354531,
+      "avg_pnl": -5.154895998798928
+    },
+    "SELL": {
+      "count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": NaN
+    }
+  },
+  "confidence_correlation": null,
+  "best_confidence_bucket": null,
+  "recommendations": [
+    "3. AVOID TRADING IN HOURS: [10, 11, 12, 13, 14, 15, 16, 17, 18]",
+    "   These hours consistently lose money"
+  ]
+}
