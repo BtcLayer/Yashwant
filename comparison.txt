@@ -1,0 +1,60 @@
+﻿================================================================================
+COMPARING OLD MODEL vs NEW MODEL
+================================================================================
+
+### OLD MODEL (October 2025) ###
+Model type: EnhancedMetaClassifier
+Model expects: 17 features
+Feature JSON has: 17 features
+Training meta n_features: 17
+
+Old model features (17):
+   1. mom_1
+   2. mom_3
+   3. mr_ema20_z
+   4. rv_1h
+   5. regime_high_vol
+   6. gk_volatility
+   7. jump_magnitude
+   8. volume_intensity
+   9. price_efficiency
+  10. price_volume_corr
+  11. vwap_momentum
+  12. depth_proxy
+  13. funding_rate
+  14. funding_momentum_1h
+  15. flow_diff
+  16. S_top
+  17. S_bot
+
+### NEW MODEL (January 2026) ###
+Model type: LogisticRegression
+Model expects: 18 features
+Feature JSON has: 17 features
+Training meta n_features: 17
+
+New model features (17):
+   1. mom_1
+   2. mom_3
+   3. mr_ema20_z
+   4. rv_1h
+   5. regime_high_vol
+   6. gk_volatility
+   7. jump_magnitude
+   8. volume_intensity
+   9. price_efficiency
+  10. price_volume_corr
+  11. vwap_momentum
+  12. depth_proxy
+  13. funding_rate
+  14. funding_momentum_1h
+  15. flow_diff
+  16. S_top
+  17. S_bot
+
+================================================================================
+COMPARISON SUMMARY
+================================================================================
+
+Old: Model expects 17, JSON has 17 features
+New: Model expects 18, JSON has 17 features

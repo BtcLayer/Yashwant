@@ -1,0 +1,48 @@
+﻿Analyzing optimal thresholds for current market...
+
+Return statistics:
+  Mean: 0.000005
+  Std:  0.001194
+  Min:  -0.011136
+  Max:  0.021878
+
+Percentiles:
+   1%: -0.003427
+   5%: -0.001685
+  10%: -0.001135
+  25%: -0.000437
+  50%: 0.000011
+  75%: 0.000441
+  90%: 0.001108
+  95%: 0.001632
+  99%: 0.003284
+
+Testing different thresholds:
+
+  Threshold ▒0.1%:
+    DOWN:      580 ( 11.6%)
+    NEUTRAL:  3849 ( 76.9%)
+    UP:        578 ( 11.5%)
+python : Traceback (most recent call last):
+At line:1 char:1
++ python analyze_thresholds.py 2>&1 | Out-File -Encoding 
+utf8 threshold ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback ( 
+   most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\yashw\MetaStackerBandit\analyze_threshol
+ds.py", line 67, in <module>
+    print(f"    \u2713 Good balance!")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program 
+Files\Python313\Lib\encodings\cp1252.py", line 19, in 
+encode
+    return codecs.charmap_encode(input,self.errors,encodi
+ng_table)[0]
+           
+~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode 
+character '\u2713' in position 4: character maps to 
+<undefined>

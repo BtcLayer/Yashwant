@@ -21,6 +21,14 @@ BotV2-LSTM.rar
 historical_trades_btc.csv
 funding_btc.csv
 ohlc_btc_*.csv
+executions*.csv
+diagnostics.csv
+signals.csv
+trade_log.csv
+equity.csv
+cohort_stats.csv
+bottom_cohort.csv
+top_cohort.csv
 
 # Model backups
 models_backup_*/

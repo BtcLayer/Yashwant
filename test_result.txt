@@ -1,0 +1,61 @@
+﻿================================================================================
+TESTING MODEL AFTER FIX
+================================================================================
+
+Loading model from: c:\Users\yashw\MetaStackerBandit\live_demo\models\LATEST.json
+Model file: meta_classifier_20251018_101628_d7a9e9fb3a42.joblib
+
+Model type: EnhancedMetaClassifier
+Expected features: 17
+Feature columns: ['mom_1', 'mom_3', 'mr_ema20_z', 'rv_1h', 'regime_high_vol', 'gk_volatility', 'jump_magnitude', 'volume_intensity', 'price_efficiency', 'price_volume_corr', 'vwap_momentum', 'depth_proxy', 'funding_rate', 'funding_momentum_1h', 'flow_diff', 'S_top', 'S_bot']
+
+================================================================================
+TESTING INFERENCE
+================================================================================
+
+Test input: 17 features
+python : Traceback (most recent call last):
+At line:1 char:1
++ python test_model_fix.py 2>&1 | Out-File 
+-Encoding utf8 test_result.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Tra 
+   ceback (most recent call last)::String) [],   
+  RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\yashw\MetaStackerBandit\test_mod
+el_fix.py", line 35, in <module>
+    print("\n\u2713 SUCCESS! Inference completed 
+without errors.")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Program 
+Files\Python313\Lib\encodings\cp1252.py", line 
+19, in encode
+    return codecs.charmap_encode(input,self.error
+s,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode 
+character '\u2713' in position 2: character maps 
+to <undefined>
+
+During handling of the above exception, another 
+exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\test_mod
+el_fix.py", line 45, in <module>
+    print(f"\n\u2717 ERROR: {e}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Program 
+Files\Python313\Lib\encodings\cp1252.py", line 
+19, in encode
+    return codecs.charmap_encode(input,self.error
+s,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode 
+character '\u2717' in position 2: character maps 
+to <undefined>

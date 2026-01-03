@@ -1,0 +1,33 @@
+{
+  "timestamp_utc": "20260103_124414",
+  "target": "direction_confidence_5m",
+  "n_features": 17,
+  "schema_hash": "d7a9e9fb3a42",
+  "class_mapping": {
+    "down": 0,
+    "neutral": 1,
+    "up": 2
+  },
+  "meta_score_in_sample": 0.6711223203026482,
+  "calibrated_score": 0.9979838709677419,
+  "cv_scores": {
+    "histgb": 0.9959100247805627,
+    "randomforest": 0.9965827459376432,
+    "extratrees": 0.9959100247805627,
+    "gb_classifier": 0.9942013977493841,
+    "logistic_scaled": 0.8915620084079556,
+    "naive_bayes_scaled": 0.9214557459951739
+  },
+  "folds": 3,
+  "embargo_pct": 0.01,
+  "purge_pct": 0.02,
+  "training_samples": 3965,
+  "test_samples": 992,
+  "data_start": "2025-12-17 07:35:00",
+  "data_end": "2026-01-03 12:35:00",
+  "confidence_stats": {
+    "mean": 0.0012610340479192943,
+    "std": 4.336808689942018e-19,
+    "high_conf_pct": 0.0
+  }
+}

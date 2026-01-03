@@ -31,6 +31,51 @@ import os
 import shutil
 import math
 
+# ============================================
+# MODEL WRAPPER CLASS (FIX FOR SERIALIZATION BUG)
+# ============================================
+class SimpleMetaClassifier:
+    """
+    Wrapper for base models + meta-classifier.
+    Ensures saved model accepts 17 features (not 18).
+    
+    This fixes the bug where only the meta_classifier was saved,
+    which expected 18 stacked probability features instead of 
+    17 raw input features.
+    """
+    def __init__(self, base_models, meta_model, feature_columns):
+        self.base_models = base_models  # Dict of trained base models
+        self.meta_model = meta_model    # Trained LogisticRegression
+        self.feature_columns = feature_columns
+        self.is_fitted = True
+        
+    def predict_proba(self, X):
+        """
+        Accept 17 raw features, return 3-class probabilities.
+        
+        Pipeline:
+        1. Run each base model on raw features
+        2. Stack their probability outputs (4 models × 3 classes = 12 features)
+        3. Feed stacked features to meta-classifier
+        4. Return final probabilities
+        """
+        # Generate base model predictions
+        meta_features = []
+        for name, model in self.base_models.items():
+            pred = model.predict_proba(X)
+            meta_features.append(pred)
+        
+        # Stack predictions: 4 models × 3 classes = 12 features
+        X_meta = np.hstack(meta_features)
+        
+        # Meta-classifier prediction
+        return self.meta_model.predict_proba(X_meta)
+    
+    def predict(self, X):
+        """Return class predictions (0=down, 1=neutral, 2=up)"""
+        probs = self.predict_proba(X)
+        return np.argmax(probs, axis=1)
+
 print("=" * 80)
 print("5M MODEL AUTOMATED RETRAINING")
 print("=" * 80)
@@ -299,8 +344,20 @@ print()
 # Train base models (EXACT same as current model)
 print("Training base models...")
 models = {
-    'randomforest': RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1),
-    'extratrees': ExtraTreesClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1),
+    'randomforest': RandomForestClassifier(
+        n_estimators=100, 
+        max_depth=10, 
+        random_state=42, 
+        n_jobs=-1,
+        class_weight='balanced'
+    ),
+    'extratrees': ExtraTreesClassifier(
+        n_estimators=100, 
+        max_depth=10, 
+        random_state=42, 
+        n_jobs=-1,
+        class_weight='balanced'
+    ),
     'histgb': HistGradientBoostingClassifier(max_iter=100, random_state=42),
     'gb_classifier': GradientBoostingClassifier(n_estimators=100, max_depth=5, random_state=42),
 }
@@ -332,7 +389,11 @@ for name, model in trained_models.items():
 X_meta_train = np.hstack(meta_features_train)
 X_meta_test = np.hstack(meta_features_test)
 
-meta_classifier = LogisticRegression(random_state=42, max_iter=1000)
+meta_classifier = LogisticRegression(
+    random_state=42, 
+    max_iter=1000,
+    class_weight='balanced'  # Handle class imbalance (matches old model)
+)
 meta_classifier.fit(X_meta_train, y_train)
 
 meta_score = meta_classifier.score(X_meta_test, y_test)
@@ -391,10 +452,18 @@ cal_file = f'calibrator_{timestamp}_{schema_hash}.joblib'
 joblib.dump(calibrator, f"{MODEL_DIR}/{cal_file}")
 print(f"✅ Saved: {cal_file}")
 
-# Save meta-classifier
+# Create wrapper that includes base models (CRITICAL FIX!)
+print("Creating model wrapper with base models...")
+full_model = SimpleMetaClassifier(
+    base_models=trained_models,
+    meta_model=meta_classifier,
+    feature_columns=feature_columns
+)
+
+# Save the FULL model (not just meta_classifier)
 meta_file = f'meta_classifier_{timestamp}_{schema_hash}.joblib'
-joblib.dump(meta_classifier, f"{MODEL_DIR}/{meta_file}")
-print(f"✅ Saved: {meta_file}")
+joblib.dump(full_model, f"{MODEL_DIR}/{meta_file}")
+print(f"✅ Saved: {meta_file} (FULL MODEL with base estimators - accepts 17 features)")
 
 # Save feature columns
 feat_file = f'feature_columns_{timestamp}_{schema_hash}.json'
