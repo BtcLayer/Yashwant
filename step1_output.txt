@@ -1,0 +1,62 @@
+================================================================================
+STEP 1: RAW MODEL PREDICTION ANALYSIS
+================================================================================
+
+Total signals: 1816
+
+Available columns: ['ts_iso', 'ts', 'open', 'high', 'low', 'close', 'volume', 'S_top', 'S_bot', 'S_mood', 'p_down', 'p_neutral', 'p_up', 's_model', 's_model_meta', 's_model_bma', 'model_source', 'bma_w_base', 'bma_w_prob', 'pred_bma_bps', 'dir', 'alpha', 'funding', 'funding_stale', 'position', 'exec_resp']
+
+Prediction columns found: ['pred_bma_bps']
+
+--- pred_bma_bps ---
+Mean: 279.519466
+Std: 600.032668
+Min: -2649.393148
+Max: 3339.802090
+Positive: 1409 (77.6%)
+Negative: 280 (15.4%)
+Zero: 127 (7.0%)
+
+Recent 20 values:
+[   22.78516035   255.75101488  -775.68212386 -1264.46954511
+     0.           400.82055349  -122.40553486  1220.76526749
+  -786.83288105  -475.73376269  2330.83154414  2640.57487417
+  -220.75204471  2993.37137164  2292.43344459  1756.93527081
+  1764.33181775  -201.71761493  2024.1581677   -162.1299971 ]
+
+================================================================================
+COHORT SIGNALS (S_top, S_bot)
+================================================================================
+
+S_top statistics:
+Mean: -0.000020
+Non-zero: 1471 (81.0%)
+
+S_bot statistics:
+Mean: 0.000000
+Non-zero: 0 (0.0%)
+
+Recent 10 cohort signals:
+                   ts_iso     S_top  S_bot
+2026-01-06T12:15:00+05:30 -0.000497    0.0
+2026-01-06T12:20:00+05:30 -0.000557    0.0
+2026-01-06T12:25:00+05:30 -0.000206    0.0
+2026-01-06T12:30:00+05:30 -0.000080    0.0
+2026-01-06T12:35:00+05:30  0.000869    0.0
+2026-01-06T12:40:00+05:30  0.000192    0.0
+2026-01-06T12:45:00+05:30  0.000030    0.0
+2026-01-06T12:50:00+05:30  0.000977    0.0
+2026-01-06T12:55:00+05:30  0.000468    0.0
+2026-01-06T13:00:00+05:30  0.000011    0.0
+
+================================================================================
+DIAGNOSIS:
+================================================================================
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\investigate_model_predictions.py", line 83, in <module>
+    print(f"\u2713 {col} has varying predictions (std={std:.6f})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 0: character maps to <undefined>

@@ -48,7 +48,19 @@
     "flip_mood": true,
     "flip_model": true,
     "allow_model_only_when_mood_neutral": true,
-    "require_consensus": false
+    "require_consensus": false,
+    "costs": {
+      "taker_fee_bps": 5.0,
+      "slippage_bps": 1.0,
+      "min_net_edge_buffer_bps": 2.0
+    },
+    "dynamic_abstain": {
+      "enable": true,
+      "volatility_threshold": 0.015,
+      "spread_threshold_bps": 10.0,
+      "conf_multiplier": 1.15,
+      "s_min_multiplier": 1.2
+    }
   },
   "alerts": {
     "ic_drift": {
@@ -116,7 +128,7 @@
     }
   },
   "overlay": {
-    "enabled": true,
+    "enabled": false,
     "timeframes": [
       "15m",
       "1h"

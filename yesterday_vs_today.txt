@@ -1,0 +1,55 @@
+================================================================================
+WHAT CHANGED BETWEEN YESTERDAY (WORKING) AND TODAY (BROKEN)?
+================================================================================
+
+Yesterday: 2026-01-05
+Today: 2026-01-06
+
+--- YESTERDAY (2026-01-05) - WORKING ---
+Total signals: 76
+Neutral (dir=0): 73 (96.1%)
+BUY (dir=1): 3 (3.9%)
+Mean p_up: 0.205
+Mean p_down: 0.195
+Mean p_neutral: 0.600
+Mean confidence: 0.233
+Non-zero alpha: 3 (3.9%)
+
+Cohort signals:
+  S_top non-zero: 76 (100.0%)
+  S_bot non-zero: 0 (0.0%)
+  S_top mean: 0.000042
+  S_bot mean: 0.000000
+
+--- TODAY (2026-01-06) - BROKEN ---
+Total signals: 35
+Neutral (dir=0): 34 (97.1%)
+BUY (dir=1): 1 (2.9%)
+Mean p_up: 0.249
+Mean p_down: 0.176
+Mean p_neutral: 0.575
+Mean confidence: 0.272
+Non-zero alpha: 1 (2.9%)
+
+Cohort signals:
+  S_top non-zero: 35 (100.0%)
+  S_bot non-zero: 0 (0.0%)
+  S_top mean: 0.000004
+  S_bot mean: 0.000000
+
+================================================================================
+MARKET DATA FRESHNESS
+================================================================================
+
+Cached 5m data:
+  Last update: 2026-01-06 06:20:00
+  Age: 8.4 hours
+  Dates in cache: [datetime.date(2026, 1, 4), datetime.date(2026, 1, 5), datetime.date(2026, 1, 6)]
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\investigate_yesterday_vs_today.py", line 87, in <module>
+    print(f"  \u2713 Cache includes today's data")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 2: character maps to <undefined>

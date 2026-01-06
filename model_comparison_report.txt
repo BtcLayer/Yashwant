@@ -1,0 +1,49 @@
+================================================================================
+OLD MODEL vs NEW MODEL COMPARISON
+================================================================================
+
+--- OLD MODEL (Before Retraining on Jan 5, 16:01) ---
+Total trades: 1
+  BUY: 1 (100.0%)
+
+Performance:
+  Total PnL: $-1.43
+  Win Rate: 0.0%
+  Avg PnL per trade: $-1.43
+
+--- NEW MODEL (After Retraining on Jan 5, 16:01) ---
+Total trades: 6
+  BUY: 6 (100.0%)
+
+Performance:
+  Total PnL: $-4.43
+  Win Rate: 0.0%
+  Avg PnL per trade: $-0.74
+
+================================================================================
+CHECKING SIGNAL ARCHIVES
+================================================================================
+
+Found 2 signal files:
+  signals.csv
+  signals_dedup.csv
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\compare_old_new_model.py", line 67, in <module>
+    signals['datetime'] = pd.to_datetime(signals['ts_iso'].str.split('.').str[0])
+                          ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 1068, in to_datetime
+    cache_array = _maybe_cache(arg, format, cache, convert_listlike)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 249, in _maybe_cache
+    cache_dates = convert_listlike(unique_dates, format)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 435, in _convert_listlike_datetimes
+    return _array_strptime_with_fallback(arg, name, utc, format, exact, errors)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 469, in _array_strptime_with_fallback
+    result, tz_out = array_strptime(arg, fmt, exact=exact, errors=errors, utc=utc)
+                     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/tslibs/strptime.pyx", line 501, in pandas._libs.tslibs.strptime.array_strptime
+  File "pandas/_libs/tslibs/strptime.pyx", line 451, in pandas._libs.tslibs.strptime.array_strptime
+  File "pandas/_libs/tslibs/strptime.pyx", line 583, in pandas._libs.tslibs.strptime._parse_with_format
+ValueError: time data "2025-12-09T12:13:37" doesn't match format "%Y-%m-%dT%H:%M:%S%z", at position 125. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.

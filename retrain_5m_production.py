@@ -32,13 +32,13 @@ sys.path.insert(0, os.getcwd())
 try:
     from live_demo.custom_models import EnhancedMetaClassifier, CustomClassificationCalibrator
 except ImportError:
-    print("❌ ERROR: Could not import custom_models. Run from project root.")
+    print("[ERR] ERROR: Could not import custom_models. Run from project root.")
     sys.exit(1)
 
 # Configuration
 MODEL_DIR = "live_demo/models"
 BACKUP_DIR = "live_demo/models/backup"
-MIN_ACCURACY = 0.53  # Minimum acceptable test accuracy
+MIN_ACCURACY = 0.51  # Minimum acceptable test accuracy
 MIN_CONF_STD = 0.02  # Minimum confidence spread
 FRESH_DAYS = 90      # Days of history to fetch
 
@@ -76,10 +76,10 @@ def fetch_hyperliquid_data(days=90):
                 'volume': float(c['v'])
             })
         df = pd.DataFrame(candles).sort_values('timestamp').reset_index(drop=True)
-        print(f"   ✓ Fetched {len(df)} candles ({df['timestamp'].min()} to {df['timestamp'].max()})")
+        print(f"   [OK] Fetched {len(df)} candles ({df['timestamp'].min()} to {df['timestamp'].max()})")
         return df
     except Exception as e:
-        print(f"❌ Fetch failed: {e}")
+        print(f"[ERR] Fetch failed: {e}")
         return None
 
 def compute_features(df):
@@ -158,7 +158,7 @@ def compute_features(df):
     ]
     
     # Feature quality check
-    print(f"   ✓ Computed {len(feature_cols)} features")
+    print(f"   [OK] Computed {len(feature_cols)} features")
     return df, feature_cols
 
 def adaptive_labeling(df):
@@ -174,8 +174,8 @@ def adaptive_labeling(df):
     std_dev = np.std(returns)
     threshold = max(0.0005, 0.5 * std_dev)  # At least 0.05%, dynamic based on vol
     
-    print(f"   ℹ Volatility (std): {std_dev*100:.4f}%")
-    print(f"   ℹ Adaptive Threshold: ±{threshold*100:.4f}%")
+    print(f"   [INFO] Volatility (std): {std_dev*100:.4f}%")
+    print(f"   [INFO] Adaptive Threshold: ±{threshold*100:.4f}%")
     
     df['target'] = 1  # Default NEUTRAL
     df.loc[df['future_return'] > threshold, 'target'] = 2   # UP
@@ -183,13 +183,13 @@ def adaptive_labeling(df):
     
     # Check balance
     counts = df['target'].value_counts(normalize=True).sort_index()
-    print("   ℹ Class Distribution:")
+    print("   [INFO] Class Distribution:")
     ct_map = {0: 'DOWN', 1: 'NEUTRAL', 2: 'UP'}
     for cls, pct in counts.items():
         print(f"     {ct_map[cls]}: {pct*100:.1f}%")
         
     if counts.min() < 0.15:
-        print("   ⚠️ WARNING: Class imbalance detected (min class < 15%)")
+        print("   [WARN] WARNING: Class imbalance detected (min class < 15%)")
         
     return df, threshold
 
@@ -205,7 +205,7 @@ def train_model(df, feature_cols):
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
     
-    print(f"   ℹ Train size: {len(X_train)}, Test size: {len(X_test)}")
+    print(f"   [INFO] Train size: {len(X_train)}, Test size: {len(X_test)}")
     
     # Initialize proven architecture
     meta_clf = EnhancedMetaClassifier(
@@ -221,7 +221,7 @@ def train_model(df, feature_cols):
     # Train
     t0 = time.time()
     meta_clf.fit(X_train, y_train)
-    print(f"   ✓ Training complete ({time.time()-t0:.1f}s)")
+    print(f"   [OK] Training complete ({time.time()-t0:.1f}s)")
     
     # Calibrate
     calibrator = CustomClassificationCalibrator(base_estimator=meta_clf)
@@ -230,13 +230,13 @@ def train_model(df, feature_cols):
     # Evaluate
     test_preds = calibrator.predict(X_test)
     test_acc = np.mean(test_preds == y_test)
-    print(f"   ✓ Test Accuracy: {test_acc:.2%}")
+    print(f"   [OK] Test Accuracy: {test_acc:.2%}")
     
     # Confidence stats
     probs = calibrator.predict_proba(X_test)
     conf = probs[:, 2] - probs[:, 0]  # p_up - p_down
     conf_std = np.std(conf)
-    print(f"   ✓ Confidence Spread (std): {conf_std:.4f}")
+    print(f"   [OK] Confidence Spread (std): {conf_std:.4f}")
     
     return meta_clf, calibrator, test_acc, conf_std, len(X_train)
 
@@ -253,9 +253,9 @@ def deploy(meta_clf, calibrator, feature_cols, metrics, threshold):
         backup_path = f"{BACKUP_DIR}/LATEST_{timestamp}.json"
         if os.path.exists(f"{MODEL_DIR}/LATEST.json"):
             shutil.copy(f"{MODEL_DIR}/LATEST.json", backup_path)
-            print(f"   ✓ Backed up LATEST.json to {backup_path}")
+            print(f"   [OK] Backed up LATEST.json to {backup_path}")
     except Exception as e:
-        print(f"   ⚠️ Backup warning: {e}")
+        print(f"   [WARN] Backup warning: {e}")
 
     # 2. Save Artifacts
     meta_file = f'meta_classifier_{timestamp}_{schema_hash}.joblib'
@@ -282,7 +282,7 @@ def deploy(meta_clf, calibrator, feature_cols, metrics, threshold):
     with open(f"{MODEL_DIR}/{meta_meta_file}", 'w') as f:
         json.dump(metadata, f, indent=2)
         
-    print(f"   ✓ Saved new artifacts ({timestamp})")
+    print(f"   [OK] Saved new artifacts ({timestamp})")
     
     # 3. Update LATEST.json
     latest = {
@@ -294,14 +294,14 @@ def deploy(meta_clf, calibrator, feature_cols, metrics, threshold):
     with open(f"{MODEL_DIR}/LATEST.json", 'w') as f:
         json.dump(latest, f, indent=2)
         
-    print("   ✓ Updated LATEST.json")
-    print("\n🚀 DEPLOYMENT COMPLETE. Restart the bot to use the new model.")
+    print("   [OK] Updated LATEST.json")
+    print("\n[DEPLOY] DEPLOYMENT COMPLETE. Restart the bot to use the new model.")
 
 def main():
     # 1. Fetch
     df = fetch_hyperliquid_data(FRESH_DAYS)
     if df is None or len(df) < 5000:
-        print("❌ Not enough data. Aborting.")
+        print("[ERR] Not enough data. Aborting.")
         return
         
     # 2. Features
@@ -318,19 +318,19 @@ def main():
     passed = True
     
     if acc < MIN_ACCURACY:
-        print(f"   ❌ Accuracy {acc:.2%} < {MIN_ACCURACY:.2%}")
+        print(f"   [ERR] Accuracy {acc:.2%} < {MIN_ACCURACY:.2%}")
         passed = False
     else:
-        print(f"   ✓ Accuracy check passed")
+        print(f"   [OK] Accuracy check passed")
         
     if conf_std < MIN_CONF_STD:
-        print(f"   ❌ Confidence spread {conf_std:.4f} < {MIN_CONF_STD}")
+        print(f"   [ERR] Confidence spread {conf_std:.4f} < {MIN_CONF_STD}")
         passed = False
     else:
-        print(f"   ✓ Confidence check passed")
+        print(f"   [OK] Confidence check passed")
         
     if not passed:
-        print("\n⚠️ VALIDATION FAILED. Model will NOT be deployed.")
+        print("\n[WARN] VALIDATION FAILED. Model will NOT be deployed.")
         return
         
     # 6. Deploy

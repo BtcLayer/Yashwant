@@ -1,0 +1,87 @@
+================================================================================
+MODEL INVESTIGATION - Did retraining break the bot?
+================================================================================
+
+--- MODEL FILES ---
+
+--- LATEST.json MANIFEST ---
+{
+  "meta_classifier": "meta_classifier_20260105_160141_d7a9e9fb3a42.joblib",
+  "calibrator": "calibrator_20260105_160141_d7a9e9fb3a42.joblib",
+  "feature_columns": "feature_columns_20260105_160141_d7a9e9fb3a42.json",
+  "training_meta": "training_meta_20260105_160141_d7a9e9fb3a42.json"
+}
+
+Manifest last updated: 2026-01-05 16:01:42.771844
+Age: 22.6 hours ago
+
+--- CHECKING EXECUTION HISTORY ---
+
+Trades by date:
+            trades       pnl
+date                        
+2026-01-03       2 -1.496002
+2026-01-05       3 -2.200977
+2026-01-06       1 -0.729747
+
+--- SIGNAL QUALITY BY DATE ---
+
+2026-01-03:
+  Total signals: 65
+  dir=0 (neutral): 56 (86.2%)
+  dir=1 (buy): 9 (13.8%)
+  Mean p_neutral: 0.735
+  Mean p_up: 0.146
+  Mean p_down: 0.119
+  Mean confidence: 0.152
+  Non-zero alpha: 9 (13.8%)
+
+2026-01-05:
+  Total signals: 76
+  dir=0 (neutral): 73 (96.1%)
+  dir=1 (buy): 3 (3.9%)
+  Mean p_neutral: 0.600
+  Mean p_up: 0.205
+  Mean p_down: 0.195
+  Mean confidence: 0.233
+  Non-zero alpha: 3 (3.9%)
+
+2026-01-06:
+  Total signals: 34
+  dir=0 (neutral): 33 (97.1%)
+  dir=1 (buy): 1 (2.9%)
+  Mean p_neutral: 0.580
+  Mean p_up: 0.244
+  Mean p_down: 0.175
+  Mean confidence: 0.267
+  Non-zero alpha: 1 (2.9%)
+
+================================================================================
+DIAGNOSIS
+================================================================================
+
+COMPARISON: Yesterday vs Today
+
+Yesterday (2026-01-05):
+  Neutral rate: 96.1%
+  Mean confidence: 0.233
+  Mean p_neutral: 0.600
+
+Today (2026-01-06):
+  Neutral rate: 97.1%
+  Mean confidence: 0.267
+  Mean p_neutral: 0.580
+
+--- CHECKING FOR RETRAINING LOGS ---
+
+retraining_log.txt:
+  Modified: 2026-01-05 16:01:42.796108
+  Age: 22.6 hours ago
+  *** MODIFIED YESTERDAY! ***
+
+5m_new_model_err.log:
+  Modified: 2026-01-05 16:40:00.906673
+  Age: 21.9 hours ago
+  *** MODIFIED YESTERDAY! ***
+
+================================================================================

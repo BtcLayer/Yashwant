@@ -1,0 +1,147 @@
+================================================================================
+FORENSIC ANALYSIS: MULTI-TIMEFRAME MODEL QUALITY
+================================================================================
+
+================================================================================
+TIMEFRAME: 5m
+================================================================================
+
+--- BASIC STATS ---
+Total signals: 1844
+Columns: ['ts_iso', 'ts', 'open', 'high', 'low', 'close', 'volume', 'S_top', 'S_bot', 'S_mood', 'p_down', 'p_neutral', 'p_up', 's_model', 's_model_meta', 's_model_bma', 'model_source', 'bma_w_base', 'bma_w_prob', 'pred_bma_bps', 'dir', 'alpha', 'funding', 'funding_stale', 'position', 'exec_resp']
+
+--- CLASS DISTRIBUTION ---
+  dir=0:   1687 ( 91.5%)
+  dir=1:    157 (  8.5%)
+
+--- PROBABILITY DISTRIBUTION ---
+  p_up:      mean=0.1636, std=0.0917
+  p_down:    mean=0.1355, std=0.1168
+  p_neutral: mean=0.7009, std=0.2006
+  Probabilities sum to 1: True
+
+--- CONFIDENCE ANALYSIS ---
+  Mean confidence: 0.1749
+  Median confidence: 0.1346
+  Std confidence: 0.1068
+  Min confidence: 0.0000
+  Max confidence: 0.5781
+
+  Signals meeting confidence thresholds:
+    >= 0.20:    539 ( 29.2%)
+    >= 0.30:    304 ( 16.5%)
+    >= 0.40:     77 (  4.2%)
+    >= 0.50:     13 (  0.7%)
+    >= 0.60:      0 (  0.0%)
+    >= 0.70:      0 (  0.0%)
+
+--- ALPHA / BPS ANALYSIS ---
+  Alpha (|p_up - p_down|):
+    Mean: 0.0507
+    Median: 0.0445
+    Std: 0.0455
+
+  Signals meeting alpha thresholds:
+    >= 0.02:   1300 ( 70.5%)
+    >= 0.05:    870 ( 47.2%)
+    >= 0.10:    148 (  8.0%)
+    >= 0.15:     61 (  3.3%)
+    >= 0.20:     34 (  1.8%)
+
+--- ELIGIBILITY (CONF >= 0.60 AND ALPHA >= 0.10) ---
+  Eligible signals: 0 (0.0%)
+
+  Actual 'alpha' column:
+    Mean: 0.008932
+    Non-zero: 157 (8.5%)
+    Positive: 157
+    Negative: 0
+
+--- MODEL SOURCE ---
+model_source
+bma    1844
+Name: count, dtype: int64
+
+================================================================================
+TIMEFRAME: 1h
+================================================================================
+  [ERROR] No signals file found at paper_trading_outputs\1h\sheets_fallback\signals.csv
+
+================================================================================
+TIMEFRAME: 12h
+================================================================================
+  [ERROR] No signals file found at paper_trading_outputs\12h\sheets_fallback\signals.csv
+
+================================================================================
+TIMEFRAME: 24h
+================================================================================
+
+--- BASIC STATS ---
+Total signals: 69
+Columns: ['ts_iso', 'ts', 'open', 'high', 'low', 'close', 'volume', 'S_top', 'S_bot', 'S_mood', 'p_down', 'p_neutral', 'p_up', 's_model', 's_model_meta', 's_model_bma', 'model_source', 'bma_w_base', 'bma_w_prob', 'pred_bma_bps', 'dir', 'alpha', 'funding', 'funding_stale', 'position', 'exec_resp']
+
+--- CLASS DISTRIBUTION ---
+  dir=1:     69 (100.0%)
+
+--- PROBABILITY DISTRIBUTION ---
+  p_up:      mean=0.1341, std=0.0008
+  p_down:    mean=0.0638, std=0.0054
+  p_neutral: mean=0.8021, std=0.0046
+  Probabilities sum to 1: True
+
+--- CONFIDENCE ANALYSIS ---
+  Mean confidence: 0.1341
+  Median confidence: 0.1346
+  Std confidence: 0.0008
+  Min confidence: 0.1329
+  Max confidence: 0.1346
+
+  Signals meeting confidence thresholds:
+    >= 0.20:      0 (  0.0%)
+    >= 0.30:      0 (  0.0%)
+    >= 0.40:      0 (  0.0%)
+    >= 0.50:      0 (  0.0%)
+    >= 0.60:      0 (  0.0%)
+    >= 0.70:      0 (  0.0%)
+
+--- ALPHA / BPS ANALYSIS ---
+  Alpha (|p_up - p_down|):
+    Mean: 0.0704
+    Median: 0.0743
+    Std: 0.0062
+
+  Signals meeting alpha thresholds:
+    >= 0.02:     69 (100.0%)
+    >= 0.05:     69 (100.0%)
+    >= 0.10:      0 (  0.0%)
+    >= 0.15:      0 (  0.0%)
+    >= 0.20:      0 (  0.0%)
+
+--- ELIGIBILITY (CONF >= 0.60 AND ALPHA >= 0.10) ---
+  Eligible signals: 0 (0.0%)
+
+  Actual 'alpha' column:
+    Mean: 0.070372
+    Non-zero: 69 (100.0%)
+    Positive: 69
+    Negative: 0
+
+--- MODEL SOURCE ---
+model_source
+bma    69
+Name: count, dtype: int64
+
+================================================================================
+CROSS-TIMEFRAME COMPARISON
+================================================================================
+
+Timeframe  Status       Signals    Neutral%   Conf     Alpha    Eligible% 
+--------------------------------------------------------------------------------
+5m         ANALYZED     1844       91.5       0.175    0.051    0.0       
+1h         MISSING      No signals file
+12h        MISSING      No signals file
+24h        ANALYZED     69         0.0        0.134    0.070    0.0       
+
+================================================================================
+Analysis complete. Results saved to forensic_analysis_results.json
+================================================================================

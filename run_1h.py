@@ -2,8 +2,8 @@ import sys
 import os
 
 # Set up path
-sys.path.insert(0, 'C:\\Users\\yashw\\MetaStackerBandit')
-os.chdir('C:\\Users\\yashw\\MetaStackerBandit')
+sys.path.insert(0, os.getcwd())
+# os.chdir(os.getcwd())
 
 try:
     print("Starting 1h bot...")

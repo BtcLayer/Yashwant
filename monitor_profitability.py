@@ -10,7 +10,7 @@ def get_latest_file(pattern, directory):
         return None
     return max(files, key=os.path.getmtime)
 
-EXECUTIONS_FILE = r'c:\Users\yashw\MetaStackerBandit\paper_trading_outputs\5m\sheets_fallback\executions_paper.csv'
+EXECUTIONS_FILE = os.path.join(os.getcwd(), 'paper_trading_outputs', '5m', 'sheets_fallback', 'executions_paper.csv')
 
 print("=" * 60)
 print("PROFITABILITY MONITOR - 5M BOT (NEW MODEL)")

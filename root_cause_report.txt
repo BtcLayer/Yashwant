@@ -1,0 +1,107 @@
+================================================================================
+ROOT CAUSE ANALYSIS: MODEL FAILURE DIAGNOSIS
+================================================================================
+
+--- CURRENT MODEL (Jan 5, 16:01) ---
+{
+  "timestamp_utc": "20260105_160141",
+  "target": "direction_confidence_5m_adaptive",
+  "threshold": 0.0005,
+  "metrics": {
+    "accuracy": 0.5417085427135678,
+    "conf_std": 0.14173770016817408,
+    "final_samples": 3976
+  },
+  "config": {
+    "fresh_days": 90,
+    "min_accuracy": 0.51
+  }
+}
+
+--- RUNTIME BEHAVIOR ANALYSIS ---
+Total signals: 1840
+
+1. PROBABILITY DISTRIBUTIONS:
+   p_up:      mean=0.163, std=0.091
+   p_down:    mean=0.135, std=0.117
+   p_neutral: mean=0.701, std=0.201
+
+2. CONFIDENCE METRICS:
+   Mean confidence: 0.175
+   Std confidence:  0.107
+   Max confidence:  0.578
+   Signals conf >= 0.60: 0 (0.0%)
+   Signals conf >= 0.40: 76 (4.1%)
+   Signals conf >= 0.20: 535 (29.1%)
+
+3. ALPHA METRICS:
+   Mean alpha: 0.051
+   Std alpha:  0.045
+   Signals alpha >= 0.10: 145 (7.9%)
+   Signals alpha >= 0.02: 1296 (70.4%)
+
+4. PREDICTED CLASS DISTRIBUTION:
+   p_neutral: 1704 (92.6%)
+   p_up: 71 (3.9%)
+   p_down: 65 (3.5%)
+
+5. ELIGIBILITY UNDER VARIOUS THRESHOLDS:
+   CONF>=0.60, ALPHA>=0.10: 0 (0.0%)
+   CONF>=0.60, ALPHA>=0.02: 0 (0.0%)
+   CONF>=0.40, ALPHA>=0.02: 76 (4.1%)
+   CONF>=0.20, ALPHA>=0.02: 315 (17.1%)
+
+6. BPS (BASIS POINTS) ANALYSIS:
+   Mean BPS: 281.20
+   Std BPS:  617.48
+   BPS > 0:  1421 (77.2%)
+   BPS < 0:  292 (15.9%)
+   |BPS| > 100: 1592 (86.5%)
+
+================================================================================
+DIAGNOSIS
+================================================================================
+
+FINDING 1: NEUTRAL BIAS
+  CRITICAL: Model predicts NEUTRAL 92.6% of the time
+  This indicates over-calibration or poor class separation
+
+FINDING 2: LOW CONFIDENCE
+  CRITICAL: Mean confidence 0.175 is far below threshold 0.60
+  Model is uncertain about its predictions
+  Calibrator may be over-smoothing probabilities
+
+FINDING 3: ELIGIBILITY FAILURE
+  CRITICAL: ZERO signals meet CONF>=0.60, ALPHA>=0.10
+  This is why no trades are executing
+
+FINDING 4: TRAINING METRICS vs RUNTIME
+  Training accuracy: 54.17%
+  Training conf_std: 0.1417
+  Runtime conf_std:  0.1067
+
+================================================================================
+ROOT CAUSES IDENTIFIED
+================================================================================
+
+1. CALIBRATION OVER-SMOOTHING
+   - Calibrator is pushing probabilities toward 1/3, 1/3, 1/3
+   - This reduces confidence and increases neutral predictions
+   - Likely cause: Calibration on imbalanced or noisy data
+
+2. WEAK BASE MODEL
+   - Test accuracy 54.17% is barely above random (33.3%)
+   - Model has poor discriminative power
+   - Features may not be predictive or labels may be noisy
+
+3. LABEL QUALITY ISSUES
+   - Adaptive threshold: 0.050%
+   - This is VERY small (0.05% price move)
+   - Labels may be mostly noise, not signal
+   - Future 1-bar return is too short-term
+
+4. CLASS IMBALANCE NOT ADDRESSED
+   - No evidence of class weighting or SMOTE
+   - Model learns to predict majority class (neutral)
+
+================================================================================

@@ -1,0 +1,83 @@
+================================================================================
+STEP 3: DATA FRESHNESS ANALYSIS
+================================================================================
+
+--- CACHED DATA FILES ---
+
+BTCUSDT_12h_1000.csv:
+  Rows: 1001
+  First: 2024-08-16 00:00:00
+  Last: 2025-12-29 00:00:00
+  Age: 206.5 hours ago
+  Status: STALE
+
+BTCUSDT_12h_2.csv:
+  Rows: 3
+  First: 2025-12-07 00:00:00
+  Last: 2025-12-08 00:00:00
+  Age: 710.5 hours ago
+  Status: STALE
+
+BTCUSDT_1d_1000.csv:
+  Rows: 1001
+  First: 2023-04-04 00:00:00
+  Last: 2025-12-29 00:00:00
+  Age: 206.5 hours ago
+  Status: STALE
+
+BTCUSDT_1h_1000.csv:
+  Rows: 1001
+  First: 2025-11-18 15:00:00
+  Last: 2025-12-30 07:00:00
+  Age: 175.5 hours ago
+  Status: STALE
+
+BTCUSDT_1h_2.csv:
+  Rows: 3
+  First: 2025-12-08 08:00:00
+  Last: 2025-12-08 10:00:00
+  Age: 700.5 hours ago
+  Status: STALE
+
+BTCUSDT_1h_24.csv:
+  Rows: 25
+  First: 2025-12-29 11:00:00
+  Last: 2025-12-30 11:00:00
+  Age: 171.5 hours ago
+  Status: STALE
+
+BTCUSDT_5m_1000.csv:
+  Rows: 1001
+  First: 2026-01-02 19:00:00
+  Last: 2026-01-06 06:20:00
+  Age: 8.1 hours ago
+  Status: STALE
+
+BTCUSDT_5m_2.csv:
+  Rows: 3
+  First: 2025-12-08 10:05:00
+  Last: 2025-12-08 10:15:00
+  Age: 700.2 hours ago
+  Status: STALE
+
+--- SIGNALS TIMESTAMP ANALYSIS ---
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\investigate_data_freshness.py", line 40, in <module>
+    signals['datetime'] = pd.to_datetime(signals['ts_iso'])
+                          ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 1068, in to_datetime
+    cache_array = _maybe_cache(arg, format, cache, convert_listlike)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 249, in _maybe_cache
+    cache_dates = convert_listlike(unique_dates, format)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 435, in _convert_listlike_datetimes
+    return _array_strptime_with_fallback(arg, name, utc, format, exact, errors)
+  File "C:\Users\yashw\MetaStackerBandit\.venv\Lib\site-packages\pandas\core\tools\datetimes.py", line 469, in _array_strptime_with_fallback
+    result, tz_out = array_strptime(arg, fmt, exact=exact, errors=errors, utc=utc)
+                     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/tslibs/strptime.pyx", line 501, in pandas._libs.tslibs.strptime.array_strptime
+  File "pandas/_libs/tslibs/strptime.pyx", line 451, in pandas._libs.tslibs.strptime.array_strptime
+  File "pandas/_libs/tslibs/strptime.pyx", line 583, in pandas._libs.tslibs.strptime._parse_with_format
+ValueError: time data "2025-12-09T12:13:37.106000+05:30" doesn't match format "%Y-%m-%dT%H:%M:%S%z", at position 125. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.

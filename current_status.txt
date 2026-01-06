@@ -1,0 +1,44 @@
+======================================================================
+COMPREHENSIVE VALIDATION REPORT
+======================================================================
+
+[ACCOUNT STATUS]
+  Balance:         $9998.12
+  Position:        0.0067 BTC ($623.92)
+  Unrealized PnL:  $-1.14 (-18.34 bps)
+  Realized PnL:    $-0.73
+  Net Total:       $-1.88
+
+[MODEL PERFORMANCE - Last 20 Bars]
+  UP:       5 (25%)
+  DOWN:     0 (0%)
+  NEUTRAL: 15 (75%)
+
+[SIGNAL QUALITY METRICS]
+  Avg Alpha:       0.1305
+  Avg Edge:        6.52 bps
+  Max Edge:        13.58 bps
+  Avg Confidence:  51.8%
+  Avg Neutral:     50.9%
+  Signals > 8bps:  9/20 (45%)
+
+[LATEST 5 SIGNALS - Detail]
+ time     p_up   p_down  p_neutral    alpha  edge_bps  confidence
+12:35 0.195783 0.221032   0.583185 0.025249  1.262466    0.583185
+12:40 0.183800 0.181522   0.634678 0.002279  0.113926    0.634678
+12:45 0.265017 0.239442   0.495540 0.025575  1.278755    0.495540
+12:50 0.135448 0.213016   0.651536 0.077568  3.878411    0.651536
+12:55 0.096232 0.222678   0.681090 0.126447  6.322348    0.681090
+
+======================================================================
+PROFITABILITY ASSESSMENT
+======================================================================
+[LOSS] CURRENT TRADE: UNDERWATER
+   Drawdown: -18.3 bps
+
+[WARN] NET SESSION: SLIGHT LOSS ($-1.88)
+   Mostly fees, model is performing as expected
+
+[RECOMMENDATION]
+[OK] KEEP RUNNING - Model is generating quality signals
+======================================================================

@@ -1,0 +1,28 @@
+{
+  "5m": {
+    "status": "ANALYZED",
+    "total_signals": 1844,
+    "neutral_pct": 91.48590021691973,
+    "mean_conf": 0.17489407525752476,
+    "mean_alpha": 0.05068609548605009,
+    "eligible_pct": 0.0,
+    "p_neutral_mean": 0.7008979449710006
+  },
+  "1h": {
+    "status": "MISSING",
+    "error": "No signals file"
+  },
+  "12h": {
+    "status": "MISSING",
+    "error": "No signals file"
+  },
+  "24h": {
+    "status": "ANALYZED",
+    "total_signals": 69,
+    "neutral_pct": 0.0,
+    "mean_conf": 0.13413365284522114,
+    "mean_alpha": 0.0703719394200977,
+    "eligible_pct": 0.0,
+    "p_neutral_mean": 0.8021046337296553
+  }
+}
