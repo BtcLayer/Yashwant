@@ -80,6 +80,106 @@ def load_config(path: str) -> Dict:
     return cfg
 
 
+class ManifestWriter:
+    """Tracks run metadata and stream activity for run_manifest.json"""
+    
+    def __init__(self, run_id: str, asset: str, output_dir: str, interval: str):
+        self.run_id = run_id
+        self.asset = asset
+        self.output_dir = output_dir
+        self.interval = interval
+        self.manifest_path = os.path.join(output_dir, 'run_manifest.json')
+        
+        self.start_ts = None
+        self.stream_counts = {}
+        self.stream_last_ts = {}
+        
+        # Tracked streams (6 core streams)
+        self.tracked_streams = [
+            'signals',
+            'decisions',
+            'executions',
+            'risk_veto',
+            'errors',
+            'health'
+        ]
+        
+        # Adaptive update interval based on timeframe
+        self.update_interval = {
+            '5m': 50,   # ~4 hours
+            '15m': 40,  # ~10 hours
+            '1h': 24,   # ~1 day
+            '24h': 7    # ~1 week
+        }.get(interval, 50)
+    
+    def initialize(self, config_path: str = None, manifest_path: str = None):
+        """Called on startup"""
+        self.start_ts = datetime.now(timezone.utc).isoformat()
+        
+        # Generate hashes with graceful fallback
+        self.cfg_hash = self._hash_file(config_path) if config_path else "Not present"
+        self.code_hash = self._hash_file(__file__)
+        self.model_hash = self._hash_file(manifest_path) if manifest_path else "Not present"
+        
+        self._write()
+    
+    def track_event(self, stream: str, timestamp: int):
+        """Increment counter and update last timestamp for a stream"""
+        if stream in self.tracked_streams:
+            self.stream_counts[stream] = self.stream_counts.get(stream, 0) + 1
+            self.stream_last_ts[stream] = timestamp
+    
+    def update(self):
+        """Periodic update (e.g., every N bars based on timeframe)"""
+        self._write()
+    
+    def finalize(self):
+        """Called on shutdown"""
+        self._write()
+    
+    def _write(self):
+        """Write manifest to disk (overwrites)"""
+        manifest = {
+            "run_id": self.run_id,
+            "asset": self.asset,
+            "interval": self.interval,
+            "start_ts": self.start_ts,
+            "end_ts": datetime.now(timezone.utc).isoformat(),
+            "stream_counts": dict(self.stream_counts),
+            "stream_last_ts": {k: self._ts_to_iso(v) for k, v in self.stream_last_ts.items()},
+            "cfg_hash": self.cfg_hash,
+            "code_hash": self.code_hash,
+            "model_hash": self.model_hash,
+            "update_interval_bars": self.update_interval
+        }
+        
+        try:
+            os.makedirs(os.path.dirname(self.manifest_path), exist_ok=True)
+            with open(self.manifest_path, 'w', encoding='utf-8') as f:
+                json.dump(manifest, f, indent=2)
+        except Exception:
+            pass  # Graceful failure - don't crash bot if manifest write fails
+    
+    def _hash_file(self, path: str) -> str:
+        """Generate SHA256 hash of file with graceful fallback"""
+        import hashlib
+        try:
+            if path and os.path.exists(path):
+                with open(path, 'rb') as f:
+                    return hashlib.sha256(f.read()).hexdigest()[:16]
+        except Exception:
+            pass
+        return "Not present"
+    
+    def _ts_to_iso(self, ts_ms: int) -> str:
+        """Convert millisecond timestamp to ISO format"""
+        try:
+            return datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).isoformat()
+        except Exception:
+            return "Invalid timestamp"
+
+
+
 async def run_live(config_path: str, dry_run: bool = None):
     cfg = load_config(config_path)
     # If dry_run not explicitly passed, read from config (default True for safety)
@@ -117,6 +217,22 @@ async def run_live(config_path: str, dry_run: bool = None):
             if (p and os.path.isabs(p))
             else (os.path.join(project_root, p) if p else None)
         )
+
+    # Initialize manifest writer
+    try:
+        tf_root_for_manifest = os.environ.get('PAPER_TRADING_ROOT') or os.path.join(project_root, 'paper_trading_outputs', '5m')
+        run_id = f"{interval}_{sym}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        manifest_writer = ManifestWriter(
+            run_id=run_id,
+            asset=sym,
+            output_dir=tf_root_for_manifest,
+            interval=interval
+        )
+        manifest_writer.initialize(config_path=config_path)
+        print(f"[INFO] Manifest writer initialized: {manifest_writer.manifest_path}")
+    except Exception as e:
+        print(f"[WARN] Failed to initialize manifest writer: {e}")
+        manifest_writer = None
 
     # Exchange client: support Binance (testnet/mainnet) or Hyperliquid
     # Select exchange environment for data. We always respect dry_run for execution.
@@ -1415,6 +1531,9 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
                 if order_intent:
                     emitter.emit_order_intent(order_intent)
+                    # Track decision event in manifest
+                    if manifest_writer:
+                        manifest_writer.track_event('decisions', ts)
             except Exception:
                 pass
 
@@ -1762,6 +1881,9 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
                 # Routed execution emission (emitter and/or llm based on config)
                 log_router.emit_execution(ts=ts, asset=sym, exec_resp=exec_resp, risk_state={'position': risk.get_position()}, bar_id=bar_count)
+                # Track execution event in manifest
+                if manifest_writer:
+                    manifest_writer.track_event('executions', ts)
                 # health exec counter
                 try:
                     _health_exec_count += 1
@@ -1867,6 +1989,9 @@ async def run_live(config_path: str, dry_run: bool = None):
             try:
                 emitter = get_emitter()
                 emitter.emit_signals(ts=ts, symbol=sym, features=x, model_out=model_out, decision=decision, cohort={'pros': cohort.pros, 'amateurs': cohort.amateurs, 'mood': cohort.mood})
+                # Track signal event in manifest
+                if manifest_writer:
+                    manifest_writer.track_event('signals', ts)
             except Exception:
                 pass
 
@@ -1949,11 +2074,17 @@ async def run_live(config_path: str, dry_run: bool = None):
                         # Emit health once (enhanced metrics included) via router (config-driven sinks)
                         try:
                             log_router.emit_health(ts=ts, asset=sym, health=health)
+                            # Track health event in manifest
+                            if manifest_writer:
+                                manifest_writer.track_event('health', ts)
                         except Exception:
                             # Fallback to direct emitter to avoid losing health logs if router misconfigured
                             try:
                                 emitter = get_emitter()
                                 emitter.emit_health(ts=ts, symbol=sym, health=health)
+                                # Track health event in manifest (fallback path)
+                                if manifest_writer:
+                                    manifest_writer.track_event('health', ts)
                                 # Emit periodic health snapshot
                                 try:
                                     snapshot = HealthSnapshot(
@@ -2158,6 +2289,13 @@ async def run_live(config_path: str, dry_run: bool = None):
                 break
             await asyncio.sleep(1)
             bar_count += 1
+            
+            # Periodic manifest update (adaptive interval based on timeframe)
+            try:
+                if manifest_writer and (bar_count % manifest_writer.update_interval == 0):
+                    manifest_writer.update()
+            except Exception:
+                pass
 
         # Clean up consumer task on exit (e.g., one-shot mode)
         try:
@@ -2174,6 +2312,14 @@ async def run_live(config_path: str, dry_run: bool = None):
     try:
         await funding_client.close()
     except (AttributeError, RuntimeError):
+        pass
+
+    # Finalize manifest on shutdown
+    try:
+        if manifest_writer:
+            manifest_writer.finalize()
+            print(f"[INFO] Manifest finalized: {manifest_writer.manifest_path}")
+    except Exception:
         pass
 
 

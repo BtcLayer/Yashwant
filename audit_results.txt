@@ -1,0 +1,97 @@
+﻿================================================================================
+COMPREHENSIVE SYSTEM AUDIT
+================================================================================
+
+--- ALL COLUMNS IN LIVE SIGNALS ---
+Total columns: 26
+ 1. ts_iso
+ 2. ts
+ 3. open
+ 4. high
+ 5. low
+ 6. close
+ 7. volume
+ 8. S_top
+ 9. S_bot
+10. S_mood
+11. p_down
+12. p_neutral
+13. p_up
+14. s_model
+15. s_model_meta
+16. s_model_bma
+17. model_source
+18. bma_w_base
+19. bma_w_prob
+20. pred_bma_bps
+21. dir
+22. alpha
+23. funding
+24. funding_stale
+25. position
+26. exec_resp
+
+--- CATEGORIZED COLUMNS ---
+
+Technical Features (5):
+  - open
+  - high
+  - low
+  - close
+  - volume
+
+Cohort Signals (3):
+  - S_top: 1515 non-zero (81.5%), mean=-0.000018
+  - S_bot: 0 non-zero (0.0%), mean=0.000000
+  - S_mood: 1555 non-zero (83.6%), mean=0.005558
+
+Model Outputs (9):
+  - p_down: mean=0.135438
+  - p_neutral: mean=0.701148
+  - p_up: mean=0.163414
+  - s_model: mean=0.027976
+  - s_model_meta: mean=0.027976
+  - s_model_bma: mean=0.027976
+  - bma_w_base: mean=0.567204
+  - bma_w_prob: mean=0.432796
+  - pred_bma_bps: mean=279.764610
+
+Metadata (9):
+  - ts_iso
+  - ts
+  - model_source
+  - dir
+  - alpha
+  - funding
+  - funding_stale
+  - position
+  - exec_resp
+
+================================================================================
+CURRENT MODEL FEATURES
+================================================================================
+
+Current model uses 2 features:
+ 1. feature_cols
+ 2. schema_hash
+
+--- MISSING FROM CURRENT MODEL ---
+.\.venv\Scripts\python.exe : Traceback (most recent call last):
+At line:1 char:1
++ .\.venv\Scripts\python.exe comprehensive_audit.py 2>&1 | Out-File 
+-Fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent c 
+   all last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\yashw\MetaStackerBandit\comprehensive_audit.py", 
+line 98, in <module>
+    print("\n\u274c CRITICAL: NO COHORT SIGNALS IN MODEL!")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' 
+in position 2: character maps to <undefined>

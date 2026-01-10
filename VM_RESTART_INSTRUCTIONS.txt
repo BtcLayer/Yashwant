@@ -1,0 +1,35 @@
+
+TO RESTART BOT ON VM:
+=====================
+
+1. SSH into VM:
+   ssh -i "C:\Users\yashw\MetaStackerBandit\yashw-key.pem" ec2-user@34.200.33.226
+
+2. Navigate to project:
+   cd MetaStackerBandit
+
+3. Stop current bot:
+   pkill -f "python.*live_demo.main" || true
+
+4. Pull latest changes (with new cohort file):
+   git pull
+
+5. Restart bot:
+   nohup .venv/bin/python -m live_demo.main > bot.log 2>&1 &
+
+6. Verify it's running:
+   ps aux | grep live_demo.main
+
+7. Monitor logs:
+   tail -f bot.log
+
+8. Exit SSH (bot keeps running):
+   exit
+
+THEN LOCALLY:
+=============
+
+Wait 10-15 minutes, then run:
+   python monitor_sbot.py
+
+This will show if S_bot is now active.

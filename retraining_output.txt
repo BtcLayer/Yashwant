@@ -1,0 +1,89 @@
+﻿================================================================================
+PRODUCTION 5M MODEL RETRAINING V3
+================================================================================
+Start time: 2026-01-06 17:09:10.417193
+Target: Balanced, high-confidence, production-grade model
+================================================================================
+
+[1/8] DATA COLLECTION
+--------------------------------------------------------------------------------
+Loading data from ohlc_btc_5m.csv...
+[OK] Loaded 51840 bars
+  Date range: 1970-01-01 00:29:05.213400 to 1970-01-01 00:29:20.765100
+
+[2/8] FEATURE ENGINEERING
+--------------------------------------------------------------------------------
+Computing features...
+[OK] Created 17 features
+
+[3/8] ADAPTIVE LABELING
+--------------------------------------------------------------------------------
+Labeling with forward_horizon=12 bars...
+
+Label distribution (sklearn format):
+  DOWN (label=0): 15982 (30.9%)
+  NEUTRAL (label=1): 19278 (37.2%)
+  UP (label=2): 16519 (31.9%)
+
+[4/8] DATA SPLITTING
+--------------------------------------------------------------------------------
+[OK] Train: 36245 samples
+[OK] Calibration: 7766 samples
+[OK] Test: 7768 samples
+
+[5/8] CLASS BALANCING
+--------------------------------------------------------------------------------
+[OK] Computed sample weights for 40/20/40 target distribution
+
+[6/8] MODEL TRAINING
+--------------------------------------------------------------------------------
+Training base models...
+  Training rf...
+  Training xgb...
+  Training lr...
+[OK] Base models trained
+Training meta-classifier...
+[OK] Meta-classifier trained
+Calibrating on separate calibration set...
+[OK] Model calibrated
+
+[7/8] VALIDATION
+--------------------------------------------------------------------------------
+
+Test Set Results:
+  Class Distribution:
+    DOWN: 9.8%
+    NEUTRAL: 67.8%
+    UP: 22.4%
+  Confidence:
+    Mean: 0.326
+    Median: 0.335
+    >= 0.60: 0.1%
+  Alpha:
+    Mean: 0.024
+    >= 0.10: 0.1%
+  Eligibility (conf>=0.60 AND alpha>=0.10): 0.1%
+
+================================================================================
+REQUIREMENT CHECKS
+================================================================================
+[FAIL] Class Balance - DOWN: 9.8% in [30%, 45%]
+[FAIL] Class Balance - UP: 22.4% in [30%, 45%]
+[FAIL] Class Balance - NEUTRAL: 67.8% <= 40%
+[FAIL] Confidence Mean: 0.326 >= 0.65
+[FAIL] Confidence >= 0.60: 0.1% >= 40%
+[FAIL] Alpha Mean: 0.024 >= 0.12
+[FAIL] Eligibility: 0.1% >= 30%
+
+================================================================================
+VALIDATION FAILED - MODEL DOES NOT MEET REQUIREMENTS
+================================================================================
+
+Model training completed but validation failed.
+This model will NOT be deployed.
+
+Recommendations:
+1. Adjust class balancing weights
+2. Increase training data
+3. Tune model hyperparameters
+4. Review labeling logic

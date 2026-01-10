@@ -1,0 +1,39 @@
+﻿================================================================================
+BACKTESTING ENGINE VERIFICATION TEST
+================================================================================
+
+[TEST 1] Thompson Bandit Class
+--------------------------------------------------------------------------------
+.\.venv\Scripts\python.exe : Traceback (most recent call last):
+At line:1 char:1
++ .\.venv\Scripts\python.exe test_backtest_engine.py 2>&1 | Out-File 
+-F ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent c 
+   all last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\yashw\MetaStackerBandit\test_backtest_engine.py", 
+line 23, in <module>
+    print(f"\u2713 Bandit created successfully")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' 
+in position 0: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\yashw\MetaStackerBandit\test_backtest_engine.py", 
+line 34, in <module>
+    print(f"\u274c TEST 1 FAILED: {e}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' 
+in position 0: character maps to <undefined>

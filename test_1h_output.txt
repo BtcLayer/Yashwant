@@ -1,0 +1,74 @@
+﻿================================================================================
+PRODUCTION 1H MODEL RETRAINING
+================================================================================
+Start time: 2026-01-06 17:15:57.338218
+Hypothesis: 1h should have higher confidence than 5m
+================================================================================
+
+[1/8] DATA COLLECTION
+--------------------------------------------------------------------------------
+Loading ohlc_btc_1h.csv...
+[OK] Loaded 4321 bars
+  Date range: 2025-07-03 12:30:00 to 2025-12-30 12:30:00
+
+[2/8] FEATURE ENGINEERING
+--------------------------------------------------------------------------------
+Computing 1h features...
+[OK] Created 14 features
+
+[3/8] ADAPTIVE LABELING
+--------------------------------------------------------------------------------
+Labeling with forward_horizon=8 bars (8 hours)...
+
+Label distribution:
+  DOWN: 1271 (29.8%)
+  NEUTRAL: 1684 (39.5%)
+  UP: 1311 (30.7%)
+
+[4/8] DATA SPLITTING
+--------------------------------------------------------------------------------
+[OK] Train: 2986, Cal: 639, Test: 641
+
+[5/8] CLASS BALANCING
+--------------------------------------------------------------------------------
+[OK] Computed sample weights
+
+[6/8] MODEL TRAINING
+--------------------------------------------------------------------------------
+  Training rf...
+  Training xgb...
+  Training lr...
+[OK] Base models trained
+[OK] Meta-classifier trained
+[OK] Model calibrated
+
+[7/8] VALIDATION
+--------------------------------------------------------------------------------
+
+Test Results:
+  Class: DOWN=5.0%, NEUTRAL=70.7%, UP=24.3%
+  Confidence: mean=0.344, >=0.50: 0.0%
+  Alpha: mean=0.044
+  Eligibility: 0.0%
+
+================================================================================
+REQUIREMENT CHECKS
+================================================================================
+[FAIL] Class Balance
+[FAIL] Confidence
+[FAIL] Eligibility
+
+[FAIL] Validation failed
+
+But let's see the comparison with 5m:
+  1h confidence: 0.344
+  5m confidence: 0.326
+  Improvement: 0.018
+
+[8/8] SAVING RESULTS
+--------------------------------------------------------------------------------
+[OK] Results saved to live_demo_1h\models\test_results_20260106_171601.json
+
+================================================================================
+1H MODEL TEST COMPLETE
+================================================================================

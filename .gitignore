@@ -10,8 +10,9 @@ paper_trading_outputs/**
 *.log
 
 # Archives
-*.zip
 *.rar
+*.zip
+*.gz
 
 # Old bot versions
 BotV2-LSTM/
@@ -33,3 +34,6 @@ top_cohort.csv
 # Model backups
 models_backup_*/
 */models/backup/
+
+# Markdown files
+*.md

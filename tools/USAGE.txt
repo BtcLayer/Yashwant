@@ -1,0 +1,33 @@
+# Package Run Tool - Quick Reference
+
+## Usage
+
+```bash
+# Basic usage
+python tools/package_run.py --run_dir paper_trading_outputs/5m
+
+# Custom output
+python tools/package_run.py --run_dir paper_trading_outputs/5m --out review.zip
+
+# Size limit
+python tools/package_run.py --run_dir paper_trading_outputs/5m --max_size_mb 50
+```
+
+## What's Included
+
+- run_manifest.json (Task B1)
+- All logs (signals, decisions, executions)
+- Health snapshots (if present)
+- Schemas (if present)
+- Auto-generated README
+
+## What's Excluded
+
+- Secrets (credentials, API keys)
+- Large binaries (.pkl, .h5, .pt)
+- Temporary files
+
+## Default Settings
+
+- Max size: 100 MB
+- Output: review_{run}_{timestamp}.zip

@@ -229,8 +229,27 @@ class LogRouter:
                 emitter.emit_hyperliquid_fill(ts=ts, symbol=asset, fill=fill2)
             except Exception:
                 pass
+
+    # Unified Trade Summary (bridge log)
+    def emit_trade_summary(self, *, ts: Optional[float], asset: str, summary: Dict[str, Any]):
+        targets = self._targets_for("trade_summary")
+        event_id = build_event_id(ts, asset, "trade_summary", summary)
+        if targets.get("emitter"):
+            try:
+                emitter = get_emitter(self.bot_version, base_dir=self.emit_base)
+                # Production emitter uses the dict directly
+                summary2 = dict(summary or {})
+                summary2["event_id"] = event_id
+                # LogRouter supports both legacy and production emitters
+                if hasattr(emitter, 'emit_trade_summary'):
+                    emitter.emit_trade_summary(summary2)
+                else:
+                    # Fallback for simple LogEmitter
+                    emitter._write("trade_summary", {"sanitized": summary2}, ts=ts)
+            except Exception:
+                pass
         if targets.get("llm"):
             try:
-                write_jsonl("hyperliquid_fills", {**payload, "event_id": event_id}, asset=asset, root=self.llm_root)
+                write_jsonl("trade_summary", {**summary, "asset": asset, "event_id": event_id}, asset=asset, root=self.llm_root)
             except Exception:
                 pass

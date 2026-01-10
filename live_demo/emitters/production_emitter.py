@@ -108,6 +108,7 @@ class ProductionLogEmitter:
             "order_intent",
             "feature_log",
             "calibration",
+            "trade_summary",
         ]:
             self._queues[log_type] = queue.Queue(maxsize=10000)
             self._writers[log_type] = threading.Thread(
@@ -407,6 +408,14 @@ class ProductionLogEmitter:
             self._queues["calibration"].put(record)
         else:
             self._write_single_with_retry("calibration", record)
+
+    def emit_trade_summary(self, record: Dict[str, Any]):
+        """Emit trade summary log"""
+        record = self._add_metadata(record, "trade_summary")
+        if self.config.enable_async:
+            self._queues["trade_summary"].put(record)
+        else:
+            self._write_single_with_retry("trade_summary", record)
 
     def flush_all(self):
         """Flush all pending records"""

@@ -1,0 +1,72 @@
+﻿================================================================================
+VERIFICATION: S_TOP AND S_BOT DIRECTIONAL BIAS
+================================================================================
+
+Analyzing 1862 signals
+
+================================================================================
+S_TOP ANALYSIS
+================================================================================
+Non-zero S_top signals: 1517
+
+Distribution:
+  Positive (indicating BUY pressure): 788 (51.9%)
+  Negative (indicating SELL pressure): 729 (48.1%)
+  Mean: -0.00002259
+  Median: 0.00000354
+
+================================================================================
+S_MOOD ANALYSIS (for comparison)
+================================================================================
+Non-zero S_mood signals: 1557
+
+Distribution:
+  Positive (BUY pressure): 823 (52.9%)
+  Negative (SELL pressure): 734 (47.1%)
+  Mean: 0.00663915
+  Median: 0.00000791
+
+================================================================================
+CORRELATION WITH FINAL DIRECTION
+================================================================================
+S_top correlation with direction: -0.0122
+S_mood correlation with direction: -0.0004
+
+Final direction distribution:
+  BUY (1): 159 (8.5%)
+  NEUTRAL (0): 1703 (91.5%)
+  SELL (-1): 0 (0.0%)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+USER'S HYPOTHESIS: S_top and S_bot both generate BUY and SELL signals.
+The difference is SUCCESS RATE, not direction.
+
+VERIFICATION:
+
+S_top generates:
+  51.9% BUY signals (positive)
+  48.1% SELL signals (negative)
+.\.venv\Scripts\python.exe : Traceback (most recent call last):
+At line:1 char:1
++ .\.venv\Scripts\python.exe verify_directional_bias.py 2>&1 | 
+Out-File ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent c 
+   all last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\yashw\MetaStackerBandit\verify_directional_bias.py", 
+line 84, in <module>
+    print(f"\n\u2713 BALANCED - S_top generates both directions 
+roughly equally")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+  File "C:\Program Files\Python313\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' 
+in position 2: character maps to <undefined>

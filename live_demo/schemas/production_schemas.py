@@ -967,6 +967,23 @@ class ProductionSchemas:
             description="Same bar roundtrip flag",
             example=False,
         ),
+        FieldDefinition(
+            "ws_lag_ms",
+            DataType.FLOAT,
+            "milliseconds",
+            NullPolicy.ALLOW_NULL,
+            min_value=0.0,
+            description="Websocket latency in milliseconds",
+            example=45.2,
+        ),
+        FieldDefinition(
+            "is_connected",
+            DataType.BOOLEAN,
+            "flag",
+            NullPolicy.ALLOW_NULL,
+            description="Exchange connectivity status",
+            example=True,
+        ),
     ]
 
     # Repro/Config Schema
@@ -1407,6 +1424,113 @@ class ProductionSchemas:
             example=0.72,
         ),
     ]
+    
+    TRADE_SUMMARY_SCHEMA = [
+        FieldDefinition(
+            "ts_ist",
+            DataType.TIMESTAMP,
+            "ISO-8601+05:30",
+            NullPolicy.NEVER_NULL,
+            description="IST timestamp",
+            example="2025-10-22T10:10:00+05:30",
+        ),
+        FieldDefinition(
+            "asset",
+            DataType.STRING,
+            "symbol",
+            NullPolicy.NEVER_NULL,
+            description="Trading asset symbol",
+            example="BTC-PERP",
+        ),
+        FieldDefinition(
+            "bar_id",
+            DataType.INTEGER,
+            "id",
+            NullPolicy.NEVER_NULL,
+            description="Monotonic bar identifier",
+            example=9675312,
+        ),
+        FieldDefinition(
+            "signal_alpha",
+            DataType.FLOAT,
+            "bps",
+            NullPolicy.ALLOW_NULL,
+            description="Ensemble prediction in basis points",
+            example=12.5,
+        ),
+        FieldDefinition(
+            "intent_side",
+            DataType.STRING,
+            "side",
+            NullPolicy.ALLOW_NULL,
+            description="Intent direction (BUY/SELL/HOLD)",
+            example="BUY",
+        ),
+        FieldDefinition(
+            "intent_qty",
+            DataType.FLOAT,
+            "qty",
+            NullPolicy.ALLOW_NULL,
+            description="Intended trade quantity",
+            example=0.42,
+        ),
+        FieldDefinition(
+            "exec_side",
+            DataType.STRING,
+            "side",
+            NullPolicy.ALLOW_NULL,
+            description="Actual execution side",
+            example="BUY",
+        ),
+        FieldDefinition(
+            "exec_price",
+            DataType.FLOAT,
+            "price",
+            NullPolicy.ALLOW_NULL,
+            description="Average fill price",
+            example=66120.5,
+        ),
+        FieldDefinition(
+            "exec_qty",
+            DataType.FLOAT,
+            "qty",
+            NullPolicy.ALLOW_NULL,
+            description="Actual filled quantity",
+            example=0.42,
+        ),
+        FieldDefinition(
+            "fee_usd",
+            DataType.FLOAT,
+            "USD",
+            NullPolicy.ALLOW_NULL,
+            description="Total execution fees in USD",
+            example=14.7,
+        ),
+        FieldDefinition(
+            "pnl_usd",
+            DataType.FLOAT,
+            "USD",
+            NullPolicy.ALLOW_NULL,
+            description="Realized PnL from this trade in USD",
+            example=62.1,
+        ),
+        FieldDefinition(
+            "reason_codes",
+            DataType.JSON,
+            "codes",
+            NullPolicy.ALLOW_NULL,
+            description="Decision reason codes and gating status",
+            example={"threshold": True, "risk_ok": True},
+        ),
+        FieldDefinition(
+            "event_id",
+            DataType.STRING,
+            "id",
+            NullPolicy.ALLOW_NULL,
+            description="Unique event traceability ID",
+            example="1698000000:BTC:summary:a1b2c3d4",
+        ),
+    ]
 
     @classmethod
     def get_schema(cls, schema_name: str) -> List[FieldDefinition]:
@@ -1423,6 +1547,7 @@ class ProductionSchemas:
             "order_intent": cls.ORDER_INTENT_SCHEMA,
             "feature_log": cls.FEATURE_LOG_SCHEMA,
             "calibration": cls.CALIBRATION_SCHEMA,
+            "trade_summary": cls.TRADE_SUMMARY_SCHEMA,
         }
         return schema_map.get(schema_name, [])
 

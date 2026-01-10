@@ -236,6 +236,15 @@ class LogEmitter:
             self._write('repro', {'sanitized': payload}, ts=ts)
         except Exception:
             return
+
+    def emit_trade_summary(self, record: Dict[str, Any]):
+        """Emit unified trade summary (Signal + Intent + Exec + Outcome)."""
+        try:
+            symbol = record.get('asset') or record.get('symbol') or ''
+            payload = {'symbol': symbol, 'trade_summary': sanitize(record)}
+            self._write('trade_summary', {'sanitized': payload}, ts=record.get('ts'))
+        except Exception:
+            return
     
     def emit_rejection(self, *, ts: Optional[float] = None, symbol: str = '', rejection: Dict[str, Any]):
         """QW2: Emit order rejection details for debugging execution failures."""

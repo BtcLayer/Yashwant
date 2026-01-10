@@ -1,0 +1,23 @@
+{
+  "timeframe": "1h",
+  "timestamp": "20260106_171601",
+  "passed_validation": false,
+  "results": {
+    "class_dist": {
+      "down": 0.0499219968798752,
+      "neutral": 0.7067082683307332,
+      "up": 0.24336973478939158
+    },
+    "confidence": {
+      "mean": 0.34385854924418197,
+      "median": 0.3326773575818163,
+      "pct_above_050": 0.0
+    },
+    "alpha": {
+      "mean": 0.043959984450475775
+    },
+    "eligibility": {
+      "pct": 0.0
+    }
+  }
+}
