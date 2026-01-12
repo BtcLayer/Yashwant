@@ -90,13 +90,15 @@ def save_to_csv(candles, filename="snapshot.csv"):
         print(f"Last candle:  {datetime.fromtimestamp(result[-1][0]/1000)} UTC")
 
 def main():
-    # Fetch 200 5-minute candles for SOL
-    candles = fetch_hyperliquid_candles(symbol="SOL", num_candles=200)
+    # Fetch 1200 5-minute candles for SOL
+    candles = fetch_hyperliquid_candles(symbol="SOL", num_candles=1200)
     
-    # Save to snapshot.csv
+    # Save to snapshots/snapshot.csv
     if candles:
-        save_to_csv(candles, filename="snapshot.csv")
-        print("\n✅ Done! snapshot.csv created successfully")
+        import os
+        os.makedirs("snapshots", exist_ok=True)
+        save_to_csv(candles, filename="snapshots/snapshot.csv")
+        print("\n✅ Done! snapshots/snapshot.csv created successfully with 1200 candles")
     else:
         print("\n❌ Failed to fetch candles")
 

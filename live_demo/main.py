@@ -39,7 +39,7 @@ from live_demo.unified_overlay_system import UnifiedOverlaySystem, OverlaySystem
 from live_demo.alerts.alert_router import get_alert_router
 from ops.llm_logging import write_jsonl
 from live_demo.ops.log_router import LogRouter
-from live_demo.ops.bma import bma_weights, rolling_ic, series_vol
+from ops.manifest_writer import ManifestWriter
 
 
 def _deep_merge(base: Dict, override: Dict) -> Dict:
@@ -78,106 +78,6 @@ def load_config(path: str) -> Dict:
     except Exception:
         pass
     return cfg
-
-
-class ManifestWriter:
-    """Tracks run metadata and stream activity for run_manifest.json"""
-    
-    def __init__(self, run_id: str, asset: str, output_dir: str, interval: str):
-        self.run_id = run_id
-        self.asset = asset
-        self.output_dir = output_dir
-        self.interval = interval
-        self.manifest_path = os.path.join(output_dir, 'run_manifest.json')
-        
-        self.start_ts = None
-        self.stream_counts = {}
-        self.stream_last_ts = {}
-        
-        # Tracked streams (6 core streams)
-        self.tracked_streams = [
-            'signals',
-            'decisions',
-            'executions',
-            'risk_veto',
-            'errors',
-            'health'
-        ]
-        
-        # Adaptive update interval based on timeframe
-        self.update_interval = {
-            '5m': 50,   # ~4 hours
-            '15m': 40,  # ~10 hours
-            '1h': 24,   # ~1 day
-            '24h': 7    # ~1 week
-        }.get(interval, 50)
-    
-    def initialize(self, config_path: str = None, manifest_path: str = None):
-        """Called on startup"""
-        self.start_ts = datetime.now(timezone.utc).isoformat()
-        
-        # Generate hashes with graceful fallback
-        self.cfg_hash = self._hash_file(config_path) if config_path else "Not present"
-        self.code_hash = self._hash_file(__file__)
-        self.model_hash = self._hash_file(manifest_path) if manifest_path else "Not present"
-        
-        self._write()
-    
-    def track_event(self, stream: str, timestamp: int):
-        """Increment counter and update last timestamp for a stream"""
-        if stream in self.tracked_streams:
-            self.stream_counts[stream] = self.stream_counts.get(stream, 0) + 1
-            self.stream_last_ts[stream] = timestamp
-    
-    def update(self):
-        """Periodic update (e.g., every N bars based on timeframe)"""
-        self._write()
-    
-    def finalize(self):
-        """Called on shutdown"""
-        self._write()
-    
-    def _write(self):
-        """Write manifest to disk (overwrites)"""
-        manifest = {
-            "run_id": self.run_id,
-            "asset": self.asset,
-            "interval": self.interval,
-            "start_ts": self.start_ts,
-            "end_ts": datetime.now(timezone.utc).isoformat(),
-            "stream_counts": dict(self.stream_counts),
-            "stream_last_ts": {k: self._ts_to_iso(v) for k, v in self.stream_last_ts.items()},
-            "cfg_hash": self.cfg_hash,
-            "code_hash": self.code_hash,
-            "model_hash": self.model_hash,
-            "update_interval_bars": self.update_interval
-        }
-        
-        try:
-            os.makedirs(os.path.dirname(self.manifest_path), exist_ok=True)
-            with open(self.manifest_path, 'w', encoding='utf-8') as f:
-                json.dump(manifest, f, indent=2)
-        except Exception:
-            pass  # Graceful failure - don't crash bot if manifest write fails
-    
-    def _hash_file(self, path: str) -> str:
-        """Generate SHA256 hash of file with graceful fallback"""
-        import hashlib
-        try:
-            if path and os.path.exists(path):
-                with open(path, 'rb') as f:
-                    return hashlib.sha256(f.read()).hexdigest()[:16]
-        except Exception:
-            pass
-        return "Not present"
-    
-    def _ts_to_iso(self, ts_ms: int) -> str:
-        """Convert millisecond timestamp to ISO format"""
-        try:
-            return datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).isoformat()
-        except Exception:
-            return "Invalid timestamp"
-
 
 
 async def run_live(config_path: str, dry_run: bool = None):
