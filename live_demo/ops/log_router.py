@@ -104,7 +104,17 @@ class LogRouter:
                 pass
 
     # Executions
-    def emit_execution(self, *, ts: Optional[float], asset: str, exec_resp: Dict[str, Any], risk_state: Dict[str, Any], bar_id: Optional[int] = None):
+    def emit_execution(
+        self, 
+        *, 
+        ts: Optional[float], 
+        asset: str, 
+        exec_resp: Dict[str, Any], 
+        risk_state: Dict[str, Any], 
+        bar_id: Optional[int] = None,
+        is_forced: bool = False,
+        is_dry_run: bool = True
+    ):
         targets = self._targets_for("executions")
         event_id = build_event_id(ts, asset, "executions", {"exec": exec_resp, "risk": risk_state, "bar_id": bar_id})
         if targets.get("emitter"):
@@ -113,7 +123,14 @@ class LogRouter:
                 exec2 = dict(exec_resp or {})
                 exec2["event_id"] = event_id
                 emitter = get_emitter(self.bot_version, base_dir=self.emit_base)
-                emitter.emit_execution(ts=ts, symbol=asset, exec_resp=exec2, risk_state=risk_state)
+                emitter.emit_execution(
+                    ts=ts, 
+                    symbol=asset, 
+                    exec_resp=exec2, 
+                    risk_state=risk_state,
+                    is_forced=is_forced,
+                    is_dry_run=is_dry_run
+                )
             except Exception:
                 pass
         # Emit LLM execution log only when explicitly enabled for this topic
@@ -136,6 +153,8 @@ class LogRouter:
                     "router": exec_resp.get("route", "BINANCE"),
                     "rejections": exec_resp.get("rejections", 0),
                     "ioc_ms": exec_resp.get("ioc_ms"),
+                    "is_forced": is_forced,
+                    "is_dry_run": is_dry_run
                 }
                 write_jsonl("execution_log", rec, asset=asset, root=self.llm_root)
             except Exception:
@@ -169,7 +188,7 @@ class LogRouter:
             except Exception:
                 pass
 
-    # Equity / PnL (llm default)
+    # Equity / PnL (llm + emitter)
     def emit_equity(self, *, asset: str, ts: Optional[float], pnl_total_usd: Optional[float], equity_value: Optional[float], realized_return_bps: Optional[float] = None):
         targets = self._targets_for("equity")
         payload = {
@@ -179,17 +198,51 @@ class LogRouter:
             "realized_return_bps": None if realized_return_bps is None else float(realized_return_bps),
         }
         event_id = build_event_id(ts, asset, "equity", payload)
+        
+        # Write to emitter for schema-compliant JSONL logs
+        if targets.get("emitter"):
+            try:
+                emitter = get_emitter(self.bot_version, base_dir=self.emit_base)
+                emitter.emit_pnl_equity(
+                    ts=ts,
+                    symbol=asset,
+                    equity_value=equity_value if equity_value is not None else 0.0,
+                    pnl_total_usd=pnl_total_usd if pnl_total_usd is not None else 0.0,
+                    realized_return_bps=realized_return_bps,
+                )
+            except Exception:
+                pass
+        
+        # Write to LLM logs (compact format)
         if targets.get("llm"):
             try:
                 write_jsonl("pnl_equity_log", {**payload, "event_id": event_id}, asset=asset, root=self.llm_root)
             except Exception:
                 pass
 
-    # Overlay status (llm default)
+    # Overlay status (llm + emitter)
     def emit_overlay_status(self, *, ts: Optional[float], asset: str, status: Dict[str, Any]):
         targets = self._targets_for("overlay_status")
         payload = {**status, "asset": asset}
         event_id = build_event_id(ts, asset, "overlay_status", payload)
+        
+        # Write to emitter for schema-compliant JSONL logs
+        if targets.get("emitter"):
+            try:
+                emitter = get_emitter(self.bot_version, base_dir=self.emit_base)
+                emitter.emit_overlay(
+                    ts=ts,
+                    symbol=asset,
+                    bar_id=status.get('bar_id', 0),
+                    confidence=status.get('confidence', 0.0),
+                    alignment_rule=status.get('alignment_rule', ''),
+                    chosen_timeframes=status.get('chosen_timeframes', []),
+                    individual_signals=status.get('individual_signals', {}),
+                )
+            except Exception:
+                pass
+        
+        # Write to LLM logs (compact format)
         if targets.get("llm"):
             try:
                 write_jsonl("overlay_status", {**payload, "event_id": event_id}, asset=asset, root=self.llm_root)
@@ -229,27 +282,8 @@ class LogRouter:
                 emitter.emit_hyperliquid_fill(ts=ts, symbol=asset, fill=fill2)
             except Exception:
                 pass
-
-    # Unified Trade Summary (bridge log)
-    def emit_trade_summary(self, *, ts: Optional[float], asset: str, summary: Dict[str, Any]):
-        targets = self._targets_for("trade_summary")
-        event_id = build_event_id(ts, asset, "trade_summary", summary)
-        if targets.get("emitter"):
-            try:
-                emitter = get_emitter(self.bot_version, base_dir=self.emit_base)
-                # Production emitter uses the dict directly
-                summary2 = dict(summary or {})
-                summary2["event_id"] = event_id
-                # LogRouter supports both legacy and production emitters
-                if hasattr(emitter, 'emit_trade_summary'):
-                    emitter.emit_trade_summary(summary2)
-                else:
-                    # Fallback for simple LogEmitter
-                    emitter._write("trade_summary", {"sanitized": summary2}, ts=ts)
-            except Exception:
-                pass
         if targets.get("llm"):
             try:
-                write_jsonl("trade_summary", {**summary, "asset": asset, "event_id": event_id}, asset=asset, root=self.llm_root)
+                write_jsonl("hyperliquid_fills", {**payload, "event_id": event_id}, asset=asset, root=self.llm_root)
             except Exception:
                 pass

@@ -101,7 +101,7 @@
   "execution": {
     "dry_run": true,
     "one_shot": false,
-    "force_validation_trade": true,
+    "force_validation_trade": false,
     "health_emit_every_bars": 3,
     "health_pred_window": 60,
     "mode": "market",
@@ -279,7 +279,8 @@
     "funding_guard_sigma": 2.0,
     "funding_guard_bias": 0.1,
     "min_sign_flip_gap_s": 5,
-    "max_orders_per_sec": 1
+    "max_orders_per_sec": 1,
+    "max_impact_bps": 50.0
   },
   "bandit": {
     "algo": "exp3",

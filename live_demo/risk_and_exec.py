@@ -6,6 +6,8 @@ import math
 
 import numpy as np
 
+from live_demo.reason_codes import GuardReasonCode
+
 
 @dataclass
 class RiskConfig:
@@ -21,10 +23,6 @@ class RiskConfig:
     # Optional: when realized_vol is not yet available (startup/one-shot), use this floor
     # so we can compute a non-zero target. If <= 0, we fall back to returning 0.
     vol_floor: float = 0.0
-    # Optional realized-volatility guard to shrink signals when realized sigma is elevated
-    vol_guard_enable: bool = False
-    vol_guard_sigma: float = 0.80
-    vol_guard_min_scale: float = 0.25
     # Guardrails
     adv_cap_pct: float = 0.0  # % of ADV20 USD per trade cap
     rebalance_min_pos_delta: float = (
@@ -39,11 +37,10 @@ class RiskConfig:
 
 
 class RiskAndExec:
-    def __init__(self, client, symbol: str, cfg: RiskConfig, emitter=None):
+    def __init__(self, client, symbol: str, cfg: RiskConfig):
         self.client = client
         self.symbol = symbol
         self.cfg = cfg
-        self.emitter = emitter  # QW2: Store emitter for rejection logging
         self._retns = []
         self._cooldown_until_ts = 0
         self._pos = 0.0
@@ -63,7 +60,6 @@ class RiskAndExec:
         self._hour_execs = deque(maxlen=10_000)  # (ts_ms, notional_usd)
         self._flip_last_sign = 0
         self._flip_last_ts_ms = 0
-        self._last_vol_guard = 1.0
 
     def update_returns(self, prev_close: float, new_close: float):
         if prev_close and new_close:
@@ -88,16 +84,7 @@ class RiskAndExec:
                 rv = float(self.cfg.vol_floor)
             else:
                 return 0.0
-        guard_alpha = alpha
-        self._last_vol_guard = 1.0
-        if self.cfg.vol_guard_enable:
-            sigma_cap = max(1e-9, float(self.cfg.vol_guard_sigma or 0.0))
-            if rv > sigma_cap:
-                min_scale = min(1.0, max(0.0, float(self.cfg.vol_guard_min_scale or 0.0)))
-                scale = max(min_scale, sigma_cap / rv)
-                guard_alpha *= scale
-                self._last_vol_guard = scale
-        pos = (self.cfg.sigma_target / rv) * guard_alpha
+        pos = (self.cfg.sigma_target / rv) * alpha
         pos = max(-self.cfg.pos_max, min(self.cfg.pos_max, pos))
         return float(direction) * pos
 
@@ -137,7 +124,7 @@ class RiskAndExec:
                     **decision,
                     'dir': 0,
                     'alpha': 0.0,
-                    'details': {**details_prev, 'mode': 'spread_guard', 'spread_bps': spread_bps}
+                    'details': {**details_prev, 'mode': GuardReasonCode.SPREAD, 'spread_bps': spread_bps}
                 }
         except Exception:
             # Guard must not break the loop
@@ -216,7 +203,7 @@ class RiskAndExec:
                 fg_bias = float((controls or {}).get('funding_guard_bias', 0.0) or 0.0)
                 # Simple rule: if |funding| > bias and sign(funding)==dir, neutralize
                 if d.get('dir', 0) != 0 and abs(fr) > fg_bias and (1 if fr > 0 else -1) == int(d.get('dir', 0)):
-                    d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'funding_guard', 'funding': fr}}
+                    d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.FUNDING, 'funding': fr}}
             except Exception:
                 pass
             # Min sign-flip gap: prevent rapid flips within N seconds
@@ -227,7 +214,7 @@ class RiskAndExec:
                     last_flip = int(self._flip_last_ts_ms or 0)
                     if self._flip_last_sign != 0 and new_sign != self._flip_last_sign and last_flip > 0:
                         if (ts_ms - last_flip) < (gap_s * 1000):
-                            d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'min_sign_flip_gap', 'gap_s': gap_s}}
+                            d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.MIN_SIGN_FLIP, 'gap_s': gap_s}}
             except Exception:
                 pass
             # Delta pi minimum: require sufficient change in target position fraction
@@ -238,7 +225,29 @@ class RiskAndExec:
                     frac_min = bps_min / 10_000.0
                     tgt = self.target_position(int(d.get('dir', 0)), float(d.get('alpha', 0.0)))
                     if abs(float(tgt) - float(self._pos)) < frac_min:
-                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'delta_pi_min', 'delta_pi_min_bps': bps_min}}
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.DELTA_PI_MIN, 'delta_pi_min_bps': bps_min}}
+            except Exception:
+                pass
+            # Impact Guard: estimate impact BPS and cap it
+            try:
+                max_impact = float((controls or {}).get('max_impact_bps', 0.0) or 0.0)
+                impact_k = float(self.cfg.impact_k or 0.0)
+                if max_impact > 0.0 and impact_k > 0.0 and int(d.get('dir', 0)) != 0 and last_price is not None:
+                    tgt = self.target_position(int(d.get('dir', 0)), float(d.get('alpha', 0.0)))
+                    pos_delta_frac = abs(float(tgt) - float(self._pos))
+                    est_notional = pos_delta_frac * max(1e-6, float(self.cfg.base_notional))
+                    est_qty = est_notional / max(1e-6, last_price)
+                    
+                    # Estimate impact bps: k * qty * 10000
+                    est_impact_bps = impact_k * est_qty * 10000.0
+                    
+                    if est_impact_bps > max_impact:
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {
+                            **details_prev, 
+                            'mode': GuardReasonCode.IMPACT_GUARD, 
+                            'est_impact_bps': est_impact_bps, 
+                            'max_impact_bps': max_impact
+                        }}
             except Exception:
                 pass
             # Throttle: limit orders per second
@@ -247,7 +256,7 @@ class RiskAndExec:
                 if mops > 0 and int(d.get('dir', 0)) != 0:
                     self._prune_orders_1s(ts_ms)
                     if len(self._order_times_ms) >= mops:
-                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'throttle_guard', 'max_orders_per_sec': mops}}
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.THROTTLE, 'max_orders_per_sec': mops}}
             except Exception:
                 pass
             # ADV per-order cap: estimate this order's notional and cap per controls.adv_order_cap (fraction of ADV)
@@ -260,7 +269,7 @@ class RiskAndExec:
                     est_notional = pos_delta_frac * max(1e-6, float(self.cfg.base_notional))
                     cap_usd = adv_usd * order_cap_frac
                     if est_notional > cap_usd:
-                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'adv_order_cap', 'est_usd': est_notional, 'cap_usd': cap_usd}}
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.ADV_ORDER_CAP, 'est_usd': est_notional, 'cap_usd': cap_usd}}
             except Exception:
                 pass
             # ADV per-hour cap: estimate notional and cap total per hour
@@ -276,7 +285,7 @@ class RiskAndExec:
                     pos_delta_frac = abs(float(tgt) - float(self._pos))
                     est_notional = pos_delta_frac * max(1e-6, float(self.cfg.base_notional))
                     if used + est_notional > cap_usd:
-                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': 'adv_hour_cap', 'used_usd': used, 'cap_usd': cap_usd}}
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {**details_prev, 'mode': GuardReasonCode.ADV_HOUR_CAP, 'used_usd': used, 'cap_usd': cap_usd}}
             except Exception:
                 pass
             return d
@@ -367,52 +376,18 @@ class RiskAndExec:
         except (KeyError, TypeError, ValueError, AttributeError):
             pass
 
-    def calculate_precision(self, qty: float, price: float) -> float:
-        """Calculate appropriate precision for the exchange"""
-        # Ensure exchange filters are loaded
-        self.ensure_exchange_filters()
-        
-        # Start with the quantity
+    def clamp_qty(self, qty: float, price: float) -> float:
         q = abs(qty)
-        
-        # Apply minimum quantity requirement
+        # Min qty
         if self._min_qty > 0:
             q = max(q, self._min_qty)
-        
-        # Apply minimum notional requirement
+        # Min notional
         if self._min_notional > 0 and price > 0:
-            min_qty_from_notional = self._min_notional / price
-            q = max(q, min_qty_from_notional)
-        
-        # Apply step size (lot size) precision
-        if self._step_size and self._step_size > 0:
-            # Calculate how many steps fit into the quantity
-            steps = q / self._step_size
-            # Round down to nearest step to avoid precision errors
-            steps = math.floor(steps)
-            q = steps * self._step_size
-        
-        # Apply tick size precision if needed (for price)
-        if self._tick_size and self._tick_size > 0 and price > 0:
-            # This is mainly for price precision, but can affect quantity calculation
-            pass
-        
-        # Ensure we don't return zero quantity if original was non-zero
-        if q == 0 and abs(qty) > 0:
-            # Fall back to a reasonable minimum if all else fails
-            q = max(self._min_qty if self._min_qty > 0 else 0.000001,
-                   self._min_notional / price if self._min_notional > 0 and price > 0 else 0.000001)
-            # Apply step size one more time
-            if self._step_size and self._step_size > 0:
-                steps = q / self._step_size
-                steps = math.floor(steps)
-                q = steps * self._step_size
-        
+            q = max(q, self._min_notional / price)
+        # Step size
+        step = self._step_size or 0.000001
+        q = math.floor(q / step) * step
         return q if qty >= 0 else -q
-
-    def clamp_qty(self, qty: float, price: float) -> float:
-        """Legacy method - delegates to calculate_precision for better precision handling"""
-        return self.calculate_precision(qty, price)
 
     # ---------- Paper simulation helpers ----------
     def _apply_slippage(self, side: str, price: float) -> float:
@@ -602,34 +577,6 @@ class RiskAndExec:
                 "raw": resp,
             }
         except ClientError as e:
-            # QW2: Log rejection details for debugging
-            if self.emitter and hasattr(self.emitter, 'emit_rejection'):
-                try:
-                    rejection_data = {
-                        'reason': 'client_error',
-                        'message': str(e),
-                        'order_params': {
-                            'symbol': self.symbol,
-                            'side': side,
-                            'type': 'MARKET',
-                            'quantity': qty,
-                        },
-                        'market_state': {
-                            'last_price': last_price,
-                            'bid_estimate': last_price * 0.9999,
-                            'ask_estimate': last_price * 1.0001,
-                            'spread_estimate_bps': 1.0,
-                        },
-                        'retry_attempt': 0,
-                    }
-                    self.emitter.emit_rejection(
-                        ts=None,  # Will use current time
-                        symbol=self.symbol,
-                        rejection=rejection_data
-                    )
-                except Exception:
-                    pass  # Never crash bot if rejection logging fails
-            
             return {"error": f"order_failed: {e}", "side": side, "qty": qty}
 
     def mirror_passive_then_cross(

@@ -1,20 +1,15 @@
-import sys
-import os
-# Add project root to Python path - ensure it's at the beginning
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-sys.path.insert(0, project_root)
-print(f"DEBUG: project_root={project_root}")
-print(f"DEBUG: sys.path[0]={sys.path[0]}")
-
 import asyncio
 import json
+import os
+import requests
+import time
 from typing import Dict
 import importlib
 from datetime import datetime, timezone, timedelta
 from collections import deque
 import aiohttp
 import gspread
-
+import pandas as pd
 from live_demo.market_data import MarketData
 from live_demo.hyperliquid_listener import HyperliquidListener
 from live_demo.funding_hl import FundingHL
@@ -26,9 +21,7 @@ from live_demo.risk_and_exec import RiskConfig, RiskAndExec
 from live_demo.sheets_logger import SheetsLogger
 from live_demo.state import JSONState
 from ops.log_emitter import get_emitter
-from ops.heartbeat import write_heartbeat
 from live_demo.health_monitor import HealthMonitor
-from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
 from live_demo.repro_tracker import ReproTracker
 from live_demo.execution_tracker import ExecutionTracker
 from live_demo.pnl_attribution import PnLAttributionTracker
@@ -39,8 +32,10 @@ from live_demo.unified_overlay_system import UnifiedOverlaySystem, OverlaySystem
 from live_demo.alerts.alert_router import get_alert_router
 from ops.llm_logging import write_jsonl
 from live_demo.ops.log_router import LogRouter
-from ops.manifest_writer import ManifestWriter
-
+from live_demo.ops.bma import bma_weights, rolling_ic, series_vol
+from live_demo.generate_health import save_health_snapshot
+from live_demo.reason_codes import GuardReasonCode
+from live_demo.ops.manifest_writer import ManifestWriter
 
 def _deep_merge(base: Dict, override: Dict) -> Dict:
     out = dict(base or {})
@@ -80,16 +75,18 @@ def load_config(path: str) -> Dict:
     return cfg
 
 
-async def run_live(config_path: str, dry_run: bool = None):
+async def run_live(config_path: str, dry_run: bool = False):
     cfg = load_config(config_path)
-    # If dry_run not explicitly passed, read from config (default True for safety)
-    if dry_run is None:
-        dry_run = bool(cfg.get('execution', {}).get('dry_run', True))
     sym = cfg['data']['symbol']
     interval = cfg['data']['interval']
     warmup_bars = int(cfg['data'].get('warmup_bars', 1000))
-    one_shot = bool(cfg.get('execution', {}).get('one_shot', False) or os.environ.get('LIVE_DEMO_ONE_SHOT'))
-    offline = bool(os.environ.get('LIVE_DEMO_OFFLINE')) or bool(cfg.get('execution', {}).get('offline', False))
+    one_shot = cfg.get('execution', {}).get('one_shot', False)
+    if os.environ.get('LIVE_DEMO_ONE_SHOT'):
+        one_shot = os.environ.get('LIVE_DEMO_ONE_SHOT') == '1'
+        
+    offline = cfg.get('execution', {}).get('offline', False)
+    if os.environ.get('LIVE_DEMO_OFFLINE'):
+        offline = os.environ.get('LIVE_DEMO_OFFLINE') == '1'
     force_validation = bool(cfg.get('execution', {}).get('force_validation_trade', False))
     try:
         if not os.environ.get('PAPER_TRADING_ROOT'):
@@ -104,10 +101,6 @@ async def run_live(config_path: str, dry_run: bool = None):
             os.environ['PAPER_TRADING_ROOT'] = tf_root
     except Exception:
         pass
-
-    # DEBUG: Confirm main loop is running and not stalled
-    import sys as _sys
-    print("[DEBUG][main] Entered run_live main loop, config loaded, starting bar processing...", file=_sys.stderr, flush=True)
     # Project root and path helper
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 
@@ -117,22 +110,6 @@ async def run_live(config_path: str, dry_run: bool = None):
             if (p and os.path.isabs(p))
             else (os.path.join(project_root, p) if p else None)
         )
-
-    # Initialize manifest writer
-    try:
-        tf_root_for_manifest = os.environ.get('PAPER_TRADING_ROOT') or os.path.join(project_root, 'paper_trading_outputs', '5m')
-        run_id = f"{interval}_{sym}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        manifest_writer = ManifestWriter(
-            run_id=run_id,
-            asset=sym,
-            output_dir=tf_root_for_manifest,
-            interval=interval
-        )
-        manifest_writer.initialize(config_path=config_path)
-        print(f"[INFO] Manifest writer initialized: {manifest_writer.manifest_path}")
-    except Exception as e:
-        print(f"[WARN] Failed to initialize manifest writer: {e}")
-        manifest_writer = None
 
     # Exchange client: support Binance (testnet/mainnet) or Hyperliquid
     # Select exchange environment for data. We always respect dry_run for execution.
@@ -144,10 +121,6 @@ async def run_live(config_path: str, dry_run: bool = None):
         
         class HyperliquidClientAdapter:
             """Adapter to make Hyperliquid API compatible with MarketData interface"""
-            _cache = {}  # Shared cache across all instances
-            _last_request_time = {}  # Rate limiting tracker
-            _min_request_interval = 2.0  # Minimum 2 seconds between requests per endpoint
-            
             def __init__(self, base_url: str, symbol: str):
                 self.base_url = base_url
                 self.symbol = symbol
@@ -158,37 +131,13 @@ async def run_live(config_path: str, dry_run: bool = None):
                 }
             
             def klines(self, symbol: str, interval: str, limit: int = 1000):
-                """Get candles from Hyperliquid API with caching and rate limiting"""
-                import requests
-                import time
-                from datetime import datetime, timezone
+                """Get candles from Hyperliquid API"""
                 
                 # Map interval
                 hl_interval = self.interval_map.get(interval, interval)
                 
                 # Hyperliquid uses coin name (BTC) not symbol (BTCUSDT)
                 coin = symbol.replace("USDT", "").replace("USD", "")
-                
-                # Cache key
-                cache_key = f"{coin}_{hl_interval}_{limit}"
-                now = time.time()
-                
-                # Check cache first (5 second TTL for warmup, fresh data for polling)
-                if cache_key in self._cache:
-                    cached_time, cached_data = self._cache[cache_key]
-                    # For limit=2 (polling), cache for 2 seconds
-                    # For limit>100 (warmup), cache for 30 seconds
-                    cache_ttl = 2.0 if limit <= 2 else 30.0
-                    if now - cached_time < cache_ttl:
-                        return cached_data
-                
-                # Rate limiting: ensure minimum interval between requests
-                request_key = f"{self.base_url}_candleSnapshot"
-                if request_key in self._last_request_time:
-                    elapsed = now - self._last_request_time[request_key]
-                    if elapsed < self._min_request_interval:
-                        sleep_time = self._min_request_interval - elapsed
-                        time.sleep(sleep_time)
                 
                 # Calculate start time (limit * interval in seconds)
                 interval_seconds = {
@@ -200,7 +149,9 @@ async def run_live(config_path: str, dry_run: bool = None):
                 start_time = end_time - (limit * seconds_per_candle * 1000)
                 
                 # Hyperliquid API endpoint for candles
-                url = self.base_url
+                # Hyperliquid uses POST to base_url with type-based requests
+                # Requires startTime and endTime (epoch milliseconds), not n
+                url = self.base_url  # e.g., https://api.hyperliquid.xyz/info
                 payload = {
                     "type": "candleSnapshot",
                     "req": {
@@ -212,31 +163,14 @@ async def run_live(config_path: str, dry_run: bool = None):
                 }
                 
                 try:
-                    # Retry logic with exponential backoff for 429
-                    max_retries = 3
-                    for attempt in range(max_retries):
-                        response = requests.post(url, json=payload, timeout=30)
-                        
-                        if response.status_code == 429:
-                            if attempt < max_retries - 1:
-                                # Exponential backoff: 5s, 15s, 45s
-                                backoff = 5 * (3 ** attempt)
-                                time.sleep(backoff)
-                                continue
-                            else:
-                                raise RuntimeError(f"Hyperliquid API rate limited (429) after {max_retries} retries")
-                        
-                        response.raise_for_status()
-                        break
-                    
-                    self._last_request_time[request_key] = time.time()
-                    
+                    response = requests.post(url, json=payload, timeout=30)
+                    response.raise_for_status()
                     data = response.json()
                     
                     if not data:
                         raise ValueError("Invalid Hyperliquid API response")
                     
-                    # Hyperliquid returns array directly
+                    # Hyperliquid returns array directly: [{"t": start_ms, "T": end_ms, "s": "BTC", "i": "5m", "o": open, "c": close, "h": high, "l": low, "v": volume, "n": count}, ...]
                     if isinstance(data, list):
                         candles = data
                     elif isinstance(data, dict):
@@ -246,10 +180,10 @@ async def run_live(config_path: str, dry_run: bool = None):
                     
                     if not candles:
                         raise ValueError("No candle data in response")
-                    
-                    # Convert to Binance-like format
+                    # Convert to Binance-like format: [timestamp, open, high, low, close, volume, ...]
                     result = []
                     for candle in candles:
+                        # Hyperliquid uses: t (start time), T (end time), o (open), c (close), h (high), l (low), v (volume)
                         result.append([
                             int(candle["t"]),  # timestamp (start time)
                             float(candle["o"]),  # open
@@ -259,15 +193,8 @@ async def run_live(config_path: str, dry_run: bool = None):
                             float(candle.get("v", 0)),  # volume
                             int(candle["T"]),  # close time (end time)
                         ])
-                    
-                    # Cache the result
-                    self._cache[cache_key] = (time.time(), result)
                     return result
                 except Exception as e:
-                    # If we have stale cache, return it as fallback
-                    if cache_key in self._cache:
-                        _, cached_data = self._cache[cache_key]
-                        return cached_data
                     raise RuntimeError(f"Hyperliquid API error: {e}") from e
             
             def new_order(self, **kwargs):
@@ -327,43 +254,68 @@ async def run_live(config_path: str, dry_run: bool = None):
     md = MarketData(client, sym, interval)
 
     # Warmup
-    try:
-        kl = md.get_klines(limit=warmup_bars)
-    except Exception:
-        # Fallback: attempt to seed warmup from local CSV (if available)
+    # --- Warmup from CSV (Replacing the API call) ---
+
+
+    # --- Updated Warmup from CSV (First 195 bars) ---
+    if offline:
+        # MODE 1: OFFLINE (Local CSV)
         try:
-            import pandas as pd  # local import to avoid hard dependency at top
-
-            local_ohlc = abspath("ohlc_btc_5m.csv")
-            if local_ohlc and os.path.exists(local_ohlc):
+            local_ohlc = abspath("live_demo/snapshot.csv") 
+            if os.path.exists(local_ohlc):
+                print(f"📂 OFFLINE WARMUP: Loading CSV {local_ohlc}")
                 df = pd.read_csv(local_ohlc)
-                # Expect columns: ts,open,high,low,close,volume (or a superset)
                 cols = ["ts", "open", "high", "low", "close", "volume"]
-                if all(c in df.columns for c in cols):
-                    kl = df[cols].tail(min(len(df), warmup_bars)).copy()
-                else:
-                    raise RuntimeError("Local OHLC missing required columns")
+                # Use the first 1000 bars for warmup
+                kl = df[cols].head(1000).copy()
+                print(f"✅ Warmup context seeded with {len(kl)} historical bars.")
             else:
-                raise RuntimeError("Local OHLC CSV not found")
+                raise RuntimeError(f"CSV for offline warmup not found: {local_ohlc}")
         except Exception as e:
-            # Re-raise original warmup failure if local fallback unavailable
-            raise e
-    if kl is None or len(kl) == 0:
-        raise RuntimeError("No klines returned for warmup")
-
-    # HL funding and fills (only if using HyperLiquid)
-    if ex_active == "hyperliquid":
-        hl_base = cfg["exchanges"]["hyperliquid"]["base_url"]
-        hl_ws = cfg["exchanges"]["hyperliquid"]["ws_url"]
-        hl_f_cfg = cfg["exchanges"]["hyperliquid"].get("funding", {})
+            print(f"❌ Offline Warmup Failed: {e}")
+            raise SystemExit(1)
     else:
-        # For Binance, we don't need HL websocket - set to None
-        hl_base = None
-        hl_ws = None
-        hl_f_cfg = {}
-    
+        # MODE 2: ONLINE (Hyperliquid API)
+        try:
+            print(f"🌐 ONLINE WARMUP: Fetching {warmup_bars} bars from Exchange...")
+            kl = md.get_klines(limit=warmup_bars)
+            if kl is None or len(kl) == 0:
+                raise RuntimeError("Exchange returned empty warmup data.")
+            print(f"✅ Warmup context seeded with {len(kl)} live bars.")
+        except Exception as e:
+            print(f"❌ Online Warmup Failed: {e}")
+            # If live warmup fails, we stop to prevent trading with no history
+            raise SystemExit(1)
+    # try:
+    #     kl = md.get_klines(limit=warmup_bars)
+    # except Exception:
+    #     # Fallback: attempt to seed warmup from local CSV (if available)
+    #     try:
+    #         import pandas as pd  # local import to avoid hard dependency at top
+
+    #         local_ohlc = abspath("ohlc_btc_5m.csv")
+    #         if local_ohlc and os.path.exists(local_ohlc):
+    #             df = pd.read_csv(local_ohlc)
+    #             # Expect columns: ts,open,high,low,close,volume (or a superset)
+    #             cols = ["ts", "open", "high", "low", "close", "volume"]
+    #             if all(c in df.columns for c in cols):
+    #                 kl = df[cols].tail(min(len(df), warmup_bars)).copy()
+    #             else:
+    #                 raise RuntimeError("Local OHLC missing required columns")
+    #         else:
+    #             raise RuntimeError("Local OHLC CSV not found")
+    #     except Exception as e:
+    #         # Re-raise original warmup failure if local fallback unavailable
+    #         raise e
+    # if kl is None or len(kl) == 0:
+    #     raise RuntimeError("No klines returned for warmup")
+
+    # HL funding and fills
+    hl_base = cfg["exchanges"]["hyperliquid"]["base_url"]
+    hl_ws = cfg["exchanges"]["hyperliquid"]["ws_url"]
+    hl_f_cfg = cfg["exchanges"]["hyperliquid"].get("funding", {})
     funding_client = FundingHL(
-        rest_url=hl_base if hl_base else "https://api.hyperliquid.xyz/info",  # fallback URL
+        rest_url=hl_base,
         coin="BTC",
         path=hl_f_cfg.get("path", "/v1/funding"),
         key_time=hl_f_cfg.get("key_time", "time"),
@@ -393,7 +345,6 @@ async def run_live(config_path: str, dry_run: bool = None):
     top_set = set()
     bottom_set = set()
     try:
-        import pandas as pd
 
         top_path = cfg["cohorts"]["top_file"]
         bot_path = cfg["cohorts"]["bottom_file"]
@@ -515,6 +466,11 @@ async def run_live(config_path: str, dry_run: bool = None):
     except Exception:
         emitter = None
 
+    # Initialize ManifestWriter
+    run_id = f"run_{int(time.time())}"
+    mw = ManifestWriter(run_id=run_id, asset=sym, output_dir=tf_root, interval=interval)
+    mw.initialize(config_path=config_path, code_path=abspath('live_demo/main.py'), model_manifest_path=manifest)
+
     # Output root helper: prefer PAPER_TRADING_ROOT when it is a subfolder of the repo paper_trading_outputs
     def paper_root() -> str:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
@@ -533,7 +489,6 @@ async def run_live(config_path: str, dry_run: bool = None):
     _ = JSONState(os.path.join(paper_root(), 'runtime_state.json'))
     # Initialize tracking systems
     health_monitor = HealthMonitor()
-    health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
     repro_tracker = ReproTracker()
     execution_tracker = ExecutionTracker()
     pnl_attribution = PnLAttributionTracker()
@@ -732,20 +687,18 @@ async def run_live(config_path: str, dry_run: bool = None):
         except Exception:
             overlay_sys = None
 
-    # Define stub class for non-HyperLiquid modes (offline or Binance)
-    class _HLStub:
-        def __init__(self, *args, **kwargs):
-            pass
-        async def __aenter__(self):
-            return self
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-        async def stream(self):
-            if False:
-                yield {}
-    
     # If offline mode is enabled, stub network-dependent components
     if offline:
+        class _HLStub:
+            def __init__(self, *args, **kwargs):
+                pass
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+            async def stream(self):
+                if False:
+                    yield {}
         local_HL = _HLStub
         # Stub funding client
         async def _fetch_latest_stub():
@@ -774,17 +727,12 @@ async def run_live(config_path: str, dry_run: bool = None):
             pass
         async def _fallback_public_mood_binance(ts_end_ms: int, interval_ms: int) -> float:  # type: ignore[func-redecl]
             return 0.0
-    elif ex_active == "hyperliquid":
-        local_HL = HyperliquidListener
     else:
-        # Binance mode - use stub since we don't have HL websocket, and stub mood to 0.0
-        local_HL = _HLStub
-        async def _fallback_public_mood_binance(ts_end_ms: int, interval_ms: int) -> float:  # type: ignore[func-redecl]
-            return 0.0
+        local_HL = HyperliquidListener
 
-    # Switch to public trades to drive 'mood' from market-wide flow (or stub for Binance)
+    # Switch to public trades to drive 'mood' from market-wide flow (or stub in offline)
     async with local_HL(
-        hl_ws if hl_ws else "wss://stub", addresses=addresses, coin="BTC", mode="public_trades"
+        hl_ws, addresses=addresses, coin="BTC", mode="public_trades"
     ) as hl:
         used_force = False
         # Background consumer to continuously read WS messages
@@ -816,7 +764,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 except Exception:
                     pass
         async def _poll_user_fills_by_time(ts_end_ms: int, interval_ms: int):
-            if offline or not hl_base or ex_active != "hyperliquid":
+            if offline:
                 return []
             # Poll userFillsByTime for cohort addresses and return processed fill dicts for BTC
             url = hl_base  # e.g., https://api.hyperliquid.xyz/info
@@ -904,66 +852,92 @@ async def run_live(config_path: str, dry_run: bool = None):
 
         # Start background consumer task to process Hyperliquid public trades
         _consumer_task = asyncio.create_task(_consume_ws())
-
+        csv_iterator = 1000
+        error_count = 0 # Initialize this before the while loop starts
         while True:
-            print(f"[DEBUG][main] Top of bar-processing loop, waiting for/processing new bar...", file=_sys.stderr, flush=True)
-            # 1) Poll last closed kline (resilient to transient API errors)
-            try:
-                row = md.poll_last_closed_kline()
-            except Exception as e:
-                # Log and retry without crashing the run
+            row = None
+            
+            if not offline:
                 try:
-                    err_log_path = os.path.join(paper_root(), 'live_errors.log')
-                    os.makedirs(os.path.dirname(err_log_path), exist_ok=True)
-                    with open(err_log_path, "a", encoding="utf-8") as err_log_fh:
-                        err_log_fh.write("\n=== poll_last_closed_kline error ===\n")
-                        err_log_fh.write("Type: " + type(e).__name__ + "\n")
-                        err_log_fh.write("Message: " + str(e) + "\n")
-                except OSError:
-                    pass
-                # Smart backoff - if 429 detected, wait longer
-                error_text = str(e).lower()
-                if "429" in error_text or "too many requests" in error_text or "rate limit" in error_text:
-                    await asyncio.sleep(60)  # Wait 60s on rate limit
-                else:
-                    await asyncio.sleep(2)
-                continue
-            if row is None:
-                await asyncio.sleep(2)
-                continue
-            # DEBUG: Print fetched bar data or error
-            import sys as _sys
-            print(f"[DEBUG][main] Fetched bar row: {row}", file=_sys.stderr, flush=True)
+                    row = md.poll_last_closed_kline()
+                    if row is None:
+                        await asyncio.sleep(2)
+                        continue
+                    # If we reach here, poll was successful
+                    error_count = 0 
+                except Exception as e:
+                    error_count += 1
+                    mw.track_event('errors')
+                    print(f"❌ ONLINE DATA ERROR: {e}. Retry #{error_count}...")
+                    
+                    # Emit health snapshot every 10 errors (~50 seconds of downtime)
+                    if error_count % 10 == 0:
+                        try:
+                            save_health_snapshot(log_dir=os.path.join(tf_root, 'logs')) 
+                        except:
+                            pass
+                            
+                    await asyncio.sleep(5)
+                    continue
+            else:
+                # 2. OFFLINE MODE: Forced to use local CSV
+                try:
+                    if csv_iterator < len(df):
+                        row_data = df.iloc[csv_iterator]
+                        row = (
+                            int(row_data['ts']), 
+                            float(row_data['open']), float(row_data['high']), 
+                            float(row_data['low']), float(row_data['close']), 
+                            float(row_data['volume'])
+                        )
+                        print(f"🔄 OFFLINE REPLAY: Bar {csv_iterator + 1}/{len(df)} | Price: {row[4]}")
+                        csv_iterator += 1
+                    else:
+                        print("🏁 REPLAY COMPLETE: End of CSV reached.")
+                        # Objective 1.3: Generate health summary before exiting replay
+                        save_health_snapshot(log_dir=os.path.join(tf_root, 'logs')) 
+                        break # Exit the script after finishing the 5-bar replay
+                except Exception as csv_err:
+                    print(f"❌ OFFLINE DATA ERROR: {csv_err}")
+                    break
+
             ts, o, h, l, c, v = row
+            
+            # Standard safety check (don't skip since we are replaying)
             if last_ts is not None and ts <= last_ts:
-                # Smart polling: Calculate time until next bar close + 30s buffer
-                # Instead of polling every 1s, wait until we're near the next bar
-                interval_map = {
-                    "1m": 60, "3m": 180, "5m": 300, "15m": 900,
-                    "30m": 1800, "1h": 3600, "2h": 7200,
-                    "4h": 14400, "12h": 43200, "1d": 86400,
-                }
-                interval_seconds = interval_map.get(interval, 300)
-                import time as _time
-                now_seconds = int(_time.time())
-                last_close_seconds = ts // 1000
-                next_close_seconds = last_close_seconds + interval_seconds
-                seconds_until_next = next_close_seconds - now_seconds + 30  # 30s buffer
-                # Cap wait time (min 5s, max 60s) to avoid excessive delays or hammering
-                wait_seconds = max(5, min(seconds_until_next, 60))
-                await asyncio.sleep(wait_seconds)
                 continue
-            # Update returns and last_close
-            if last_close is not None:
-                risk.update_returns(last_close, c)
+                
             last_close = c
             last_ts = ts
-
-            # Write heartbeat
-            try:
-                write_heartbeat(paper_root(), bot_version='5m', last_bar_id=ts, last_trade_ts=last_ts)
-            except Exception:
-                pass
+        # while True:
+        #     # 1) Poll last closed kline (resilient to transient API errors)
+        #     try:
+        #         row = md.poll_last_closed_kline()
+        #     except Exception as e:
+        #         # Log and retry without crashing the run
+        #         try:
+        #             err_log_path = os.path.join(paper_root(), 'live_errors.log')
+        #             os.makedirs(os.path.dirname(err_log_path), exist_ok=True)
+        #             with open(err_log_path, "a", encoding="utf-8") as err_log_fh:
+        #                 err_log_fh.write("\n=== poll_last_closed_kline error ===\n")
+        #                 err_log_fh.write("Type: " + type(e).__name__ + "\n")
+        #                 err_log_fh.write("Message: " + str(e) + "\n")
+        #         except OSError:
+        #             pass
+        #         await asyncio.sleep(2)
+        #         continue
+        #     if row is None:
+        #         await asyncio.sleep(2)
+        #         continue
+        #     ts, o, h, l, c, v = row
+        #     if last_ts is not None and ts <= last_ts:
+        #         await asyncio.sleep(1)
+        #         continue
+        #     # Update returns and last_close
+        #     if last_close is not None:
+        #         risk.update_returns(last_close, c)
+        #     last_close = c
+        #     last_ts = ts
 
             # Update BMA histories with previous bar's aligned data (prev preds vs last realized)
             try:
@@ -990,11 +964,6 @@ async def run_live(config_path: str, dry_run: bool = None):
             # Drain up to a reasonable cap to avoid blocking too long
             max_drains = 5000
             public_count = 0
-            # Aggregate public trades per bar (Oct 2025 approach for strong S_mood)
-            public_buy_volume = 0.0
-            public_sell_volume = 0.0
-            last_public_price = c  # Use close price as reference
-            
             while fill_queue and max_drains > 0:
                 fill = fill_queue.popleft()
                 src = str(fill.get("source") or "")
@@ -1012,44 +981,12 @@ async def run_live(config_path: str, dry_run: bool = None):
                         cohort.update_from_fill(fill, weights=w)
                         drained_fills.append(fill)  # keep user-fill logging to Sheets
                 elif src == "public" and str(fill.get("coin") or "").upper() == "BTC":
-                    # Aggregate public trades instead of processing individually
-                    # This concentrates the signal: 398 tiny trades -> 1 large impact
-                    side = str(fill.get("side", "")).lower()
-                    size = float(fill.get("size", 0.0))
-                    if side in ("buy", "b", "bid"):
-                        public_buy_volume += size
-                    elif side in ("sell", "s", "ask", "a"):
-                        public_sell_volume += size
-                    last_public_price = float(fill.get("price", last_public_price))
+                    # Update only 'mood' from public trades; no Sheets logging per-trade to avoid noise
+                    cohort.update_from_fill(
+                        fill, weights={"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
+                    )
                     public_count += 1
                 max_drains -= 1
-            
-            # Apply aggregated public trades as ONE fill per bar (Oct 2025 fix)
-            # Mood uses directional ratio, NOT volume normalization
-            if public_count > 0:
-                net_volume = public_buy_volume - public_sell_volume
-                total_volume = public_buy_volume + public_sell_volume
-                if total_volume > 0:
-                    # Mood = net directional pressure as ratio (-1 to +1)
-                    # Amplify by 80× to reach 0.5-1.0 range (Oct 2025 calibration)
-                    # This bypasses adv20 normalization which is designed for individual trader fills
-                    mood_ratio = net_volume / total_volume
-                    mood_amplified = mood_ratio * 80.0  # Target: ~0.5-0.8 range for typical market imbalance
-                    
-                    # Create synthetic fill with amplified mood (bypassing adv20 normalization)
-                    # We multiply by adv20 so when cohort divides by it, we get our amplified value
-                    aggregated_fill = {
-                        "ts": ts,
-                        "address": "",
-                        "coin": "BTC",
-                        "side": "buy" if net_volume > 0 else "sell",
-                        "price": last_public_price,
-                        "size": abs(mood_amplified * cohort.adv20),  # Pre-multiply to bypass normalization
-                        "source": "public",
-                    }
-                    cohort.update_from_fill(
-                        aggregated_fill, weights={"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
-                    )
 
             # Fallback: if no public prints captured for this bar, derive mood from Binance aggTrades
             if public_count == 0:
@@ -1170,6 +1107,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                 raw_preds2['bma_w_prob'] = float(w_prob)
                 raw_preds2['ensemble_source'] = source
                 log_router.emit_ensemble(ts=ts, asset=sym, raw_preds=raw_preds2, meta={'manifest': manifest_rel})
+                mw.track_event('signals', ts)
                 # Store current predictions for next-bar alignment
                 prev_base_pred_bps = base_pred_bps
                 prev_prob_pred_bps = prob_pred_bps
@@ -1300,6 +1238,7 @@ async def run_live(config_path: str, dry_run: bool = None):
             else:
                 d = gate_and_score(cohort.snapshot(), decision_model_out, th)
             decision = d
+            mw.track_event('decisions', ts)
             # Annotate decision details with source info when BMA is enabled
             try:
                 ens_cfg = cfg.get('ensemble', {}) or {}
@@ -1431,9 +1370,6 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
                 if order_intent:
                     emitter.emit_order_intent(order_intent)
-                    # Track decision event in manifest
-                    if manifest_writer:
-                        manifest_writer.track_event('decisions', ts)
             except Exception:
                 pass
 
@@ -1511,14 +1447,16 @@ async def run_live(config_path: str, dry_run: bool = None):
                     }, asset=sym)
                 except Exception:
                     pass
+
                 if abs(pred_cal_bps) <= band_bps:
                     details_prev = decision.get('details', {}) if isinstance(decision, dict) else {}
                     decision = {
                         **decision,
                         'dir': 0,
                         'alpha': 0.0,
-                        'details': {**details_prev, 'mode': 'calibration_band_gate', 'pred_cal_bps': pred_cal_bps, 'band_bps': band_bps}
+                        'details': {**details_prev, 'mode': GuardReasonCode.CALIBRATION_BAND.value, 'pred_cal_bps': pred_cal_bps, 'band_bps': band_bps}
                     }
+                    mw.track_event('risk_veto', ts)
             except Exception:
                 pass
             except Exception:
@@ -1526,11 +1464,13 @@ async def run_live(config_path: str, dry_run: bool = None):
 
             # 7) Risk + execution
             # Warm-up skip: avoid trading for the first N bars
+            is_current_trade_forced = False
             warm_skip = int(getattr(risk.cfg, "warmup_skip_bars", 0) or 0)
             if bar_count < warm_skip:
                 exec_resp = None
             else:
                 # Optionally force a small validation trade once if neutral decision
+                is_current_trade_forced = False
                 if decision["dir"] == 0 and force_validation and not used_force:
                     decision = {
                         **decision,
@@ -1538,6 +1478,7 @@ async def run_live(config_path: str, dry_run: bool = None):
                         "alpha": max(0.05, abs(model_out.get("s_model", 0.1))),
                     }
                     used_force = True
+                    is_current_trade_forced = True
                 # If daily stop triggered, enforce flat
                 if stopped_for_day:
                     tgt = 0.0
@@ -1582,6 +1523,7 @@ async def run_live(config_path: str, dry_run: bool = None):
 
             # 7.5) Execution tracking and PnL attribution
             if exec_resp:
+                mw.track_event('executions', ts)
                 try:
                     # Track execution details
                     # Update risk state with executed notional and flip timing
@@ -1780,10 +1722,15 @@ async def run_live(config_path: str, dry_run: bool = None):
                     ],
                 )
                 # Routed execution emission (emitter and/or llm based on config)
-                log_router.emit_execution(ts=ts, asset=sym, exec_resp=exec_resp, risk_state={'position': risk.get_position()}, bar_id=bar_count)
-                # Track execution event in manifest
-                if manifest_writer:
-                    manifest_writer.track_event('executions', ts)
+                log_router.emit_execution(
+                    ts=ts, 
+                    asset=sym, 
+                    exec_resp=exec_resp, 
+                    risk_state={'position': risk.get_position()}, 
+                    bar_id=bar_count,
+                    is_forced=is_current_trade_forced,
+                    is_dry_run=dry_run
+                )
                 # health exec counter
                 try:
                     _health_exec_count += 1
@@ -1889,15 +1836,13 @@ async def run_live(config_path: str, dry_run: bool = None):
             try:
                 emitter = get_emitter()
                 emitter.emit_signals(ts=ts, symbol=sym, features=x, model_out=model_out, decision=decision, cohort={'pros': cohort.pros, 'amateurs': cohort.amateurs, 'mood': cohort.mood})
-                # Track signal event in manifest
-                if manifest_writer:
-                    manifest_writer.track_event('signals', ts)
             except Exception:
                 pass
 
             # Periodic health emission
             try:
                 if (bar_count % _health_emit_every) == 0:
+                    mw.track_event('health', ts)
                     # compute simple rolling health metrics
                     p_downs = [p[0] for p in _health_preds if isinstance(p, tuple)]
                     p_ups = [p[1] for p in _health_preds if isinstance(p, tuple)]
@@ -1974,30 +1919,11 @@ async def run_live(config_path: str, dry_run: bool = None):
                         # Emit health once (enhanced metrics included) via router (config-driven sinks)
                         try:
                             log_router.emit_health(ts=ts, asset=sym, health=health)
-                            # Track health event in manifest
-                            if manifest_writer:
-                                manifest_writer.track_event('health', ts)
                         except Exception:
                             # Fallback to direct emitter to avoid losing health logs if router misconfigured
                             try:
                                 emitter = get_emitter()
                                 emitter.emit_health(ts=ts, symbol=sym, health=health)
-                                # Track health event in manifest (fallback path)
-                                if manifest_writer:
-                                    manifest_writer.track_event('health', ts)
-                                # Emit periodic health snapshot
-                                try:
-                                    snapshot = HealthSnapshot(
-                                        equity_value=health.get('equity'),
-                                        drawdown_current=health.get('drawdown'),
-                                        daily_pnl=health.get('daily_pnl'),
-                                        rolling_sharpe=health.get('sharpe'),
-                                        trade_count=health.get('exec_count_recent'),
-                                        win_rate=health.get('win_rate'),
-                                    )
-                                    health_snapshot_emitter.maybe_emit(snapshot)
-                                except Exception:
-                                    pass
                             except Exception:
                                 pass
                         # Also buffer health metrics to Sheets if configured
@@ -2038,6 +1964,12 @@ async def run_live(config_path: str, dry_run: bool = None):
                     except Exception:
                         pass
                     
+                    # Periodic Health Snapshot (using the same interval as health metrics)
+                    try:
+                        save_health_snapshot(log_dir=os.path.join(tf_root, 'logs'))
+                    except Exception:
+                        pass
+
                     # WS staleness alert (simple threshold: 60s)
                     try:
                         stale_thr_ms = int(cfg.get('health', {}).get('ws_staleness_ms_threshold', 60000))
@@ -2188,14 +2120,8 @@ async def run_live(config_path: str, dry_run: bool = None):
             if one_shot:
                 break
             await asyncio.sleep(1)
+            mw.update()
             bar_count += 1
-            
-            # Periodic manifest update (adaptive interval based on timeframe)
-            try:
-                if manifest_writer and (bar_count % manifest_writer.update_interval == 0):
-                    manifest_writer.update()
-            except Exception:
-                pass
 
         # Clean up consumer task on exit (e.g., one-shot mode)
         try:
@@ -2214,13 +2140,13 @@ async def run_live(config_path: str, dry_run: bool = None):
     except (AttributeError, RuntimeError):
         pass
 
-    # Finalize manifest on shutdown
+    # Final health snapshot on exit
     try:
-        if manifest_writer:
-            manifest_writer.finalize()
-            print(f"[INFO] Manifest finalized: {manifest_writer.manifest_path}")
+        save_health_snapshot(log_dir=os.path.join(tf_root, 'logs'))
     except Exception:
         pass
+
+    mw.finalize()
 
 
 if __name__ == "__main__":
