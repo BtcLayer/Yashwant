@@ -35,5 +35,11 @@ top_cohort.csv
 models_backup_*/
 */models/backup/
 
+# Google Cloud credentials (security)
+*-*.json
+hyperliquid-*.json
+*.key.json
+secrets/
+
 # Markdown files
 *.md

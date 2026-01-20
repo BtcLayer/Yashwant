@@ -11,8 +11,8 @@
   "exchanges": {
     "active": "hyperliquid",
     "binance_testnet": {
-      "api_key": "gFrgI8OzdTcidWK4ZPTC2IRtE0LSUt9mgOFCWLwAt201QaHPZ4vOzpvJwwxYepfM",
-      "api_secret": "emufRzRzZpI8CU1fEi5lElnOMTXRRpGADzWylhYKSFktZqBbMIm3rnZLETlrG3ba",
+      "api_key": "j4KIRgyqByoD7FkrrJk2YupNtDJwNObfmOxFpcUdY7fZUJIOSRIgZo7PtxxSq0yv",
+      "api_secret": "CGE76pUF8Z5AJN98MCsHpzBg9JW9LjtbbLx3JrdIQRfEQq4Tobhx6fnmFj5hfeLD",
       "base_url": "https://testnet.binancefuture.com"
     },
     "binance_mainnet": {
@@ -34,33 +34,20 @@
     }
   },
   "cohorts": {
-    "top_file": "live_demo/assets/top_cohort.csv",
-    "bottom_file": "live_demo/assets/bottom_cohort.csv",
+    "top_file": "live_demo/top_cohort.csv",
+    "bottom_file": "live_demo/bottom_cohort.csv",
     "weights_file": "paper_trading_outputs/models/weights_daily.csv",
     "smoothing_gamma": 0.6,
     "adv_window_days": 20
   },
   "thresholds": {
-    "S_MIN": 0.05,
+    "S_MIN": 0.12,
     "M_MIN": 0.12,
-    "CONF_MIN": 0.60,
+    "CONF_MIN": 0.55,
     "ALPHA_MIN": 0.02,
     "flip_mood": true,
     "flip_model": true,
-    "allow_model_only_when_mood_neutral": true,
-    "require_consensus": false,
-    "costs": {
-      "taker_fee_bps": 5.0,
-      "slippage_bps": 1.0,
-      "min_net_edge_buffer_bps": 2.0
-    },
-    "dynamic_abstain": {
-      "enable": true,
-      "volatility_threshold": 0.015,
-      "spread_threshold_bps": 10.0,
-      "conf_multiplier": 1.15,
-      "s_min_multiplier": 1.2
-    }
+    "allow_model_only_when_mood_neutral": true
   },
   "alerts": {
     "ic_drift": {
@@ -103,8 +90,8 @@
     "daily_stop_dd_pct": 1.5,
     "warmup_skip_bars": 0,
     "cost_bps": 5.0,
-    "slippage_bps": 1.0,
-    "impact_k": 0.1
+    "slippage_bps": 2.0,
+    "impact_k": 0.5
   },
   "costs": {
     "cost_bps": 5.0,
@@ -115,11 +102,11 @@
     "dry_run": true,
     "one_shot": false,
     "force_validation_trade": true,
-    "health_emit_every_bars": 60,
+    "health_emit_every_bars": 3,
     "health_pred_window": 60,
     "mode": "market",
     "passive_timeout_s": 10,
-    "use_overlay": false,
+    "use_overlay": true,
     "bandit": {
       "enabled": true,
       "state_path": "paper_trading_outputs/runtime_bandit.json",
@@ -128,7 +115,7 @@
     }
   },
   "overlay": {
-    "enabled": false,
+    "enabled": true,
     "timeframes": [
       "15m",
       "1h"
@@ -167,8 +154,8 @@
         "neutral_band": 0.10
       },
       "1h": {
-        "min_confidence": 0.60,
-        "min_alpha": 0.10,
+        "min_confidence": 0.55,
+        "min_alpha": 0.02,
         "neutral_band": 0.10
       }
     }
@@ -179,8 +166,8 @@
     "min_book_qty": 0.0
   },
   "sheets": {
-    "sheet_id": "1Fk9HGfUKaEOcN3DIqZOBQkTYuMzDFdAqE9eUOijKPLs",
-    "creds_json": "live_demo/metastackerbandit1-478b6face97d.json",
+    "sheet_id": "1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls",
+    "creds_json": "C:/Users/yashw/secrets/gcp-sheets.json",
     "tabs": {
       "hyperliquid": "hyperliquid_sheet",
       "signals": "signals",
@@ -196,7 +183,7 @@
   },
   "logging": {
     "retention_days": 30,
-    "base_dir": "paper_trading_outputs/logs",
+    "base_dir": "../paper_trading_outputs/logs",
     "formats": {
       "market": [
         "ts_ist",
