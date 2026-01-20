@@ -1,0 +1,509 @@
+{
+  "version": "1.0",
+  "generated_at": "now",
+  "streams": {
+    "calibration": {
+      "required_fields": [
+        "a",
+        "asset",
+        "b",
+        "band_bps",
+        "band_hit_rate",
+        "bar_id",
+        "calibration_score",
+        "in_band_flag",
+        "pred_cal_bps",
+        "pred_raw_bps",
+        "prediction_accuracy",
+        "prediction_error",
+        "realized_bps",
+        "schema_version",
+        "strategy_id",
+        "ts_ist"
+      ],
+      "fields": {
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "bar_id": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "asset": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "a": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "b": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "pred_raw_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "pred_cal_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "in_band_flag": {
+          "types": [
+            "boolean"
+          ],
+          "is_optional": false
+        },
+        "band_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "realized_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "prediction_error": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "calibration_score": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "band_hit_rate": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "prediction_accuracy": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "feature_log": {
+      "required_fields": [
+        "adv20",
+        "asset",
+        "bar_id",
+        "funding_delta",
+        "liquidity_score",
+        "mom_3",
+        "mr_ema20",
+        "obi_10",
+        "price_change_bps",
+        "regime_bucket",
+        "rv_1h",
+        "schema_version",
+        "spread_bps",
+        "strategy_id",
+        "ts_ist",
+        "volatility_regime",
+        "volume_ratio"
+      ],
+      "fields": {
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "bar_id": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "asset": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "mom_3": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "mr_ema20": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "obi_10": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "spread_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "rv_1h": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "regime_bucket": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "funding_delta": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "adv20": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "volume_ratio": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "price_change_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "volatility_regime": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "liquidity_score": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "order_intent": {
+      "required_fields": [
+        "asset",
+        "bar_id_decision",
+        "intent_notional",
+        "intent_qty",
+        "market_conditions",
+        "model_confidence",
+        "reason_codes",
+        "risk_score",
+        "schema_version",
+        "side",
+        "signal_strength",
+        "strategy_id",
+        "ts_ist"
+      ],
+      "fields": {
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "bar_id_decision": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "asset": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "side": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "intent_qty": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "intent_notional": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "reason_codes": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "signal_strength": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "model_confidence": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "risk_score": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "market_conditions": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "repro": {
+      "required_fields": [
+        "repro",
+        "schema_version",
+        "strategy_id",
+        "symbol",
+        "ts",
+        "ts_ist"
+      ],
+      "fields": {
+        "ts": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "symbol": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "repro": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "signals": {
+      "required_fields": [
+        "cohort",
+        "decision",
+        "features",
+        "model_out",
+        "schema_version",
+        "strategy_id",
+        "symbol",
+        "ts",
+        "ts_ist"
+      ],
+      "fields": {
+        "ts": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "symbol": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "features": {
+          "types": [
+            "array"
+          ],
+          "is_optional": false
+        },
+        "model_out": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "decision": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "cohort": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "health": {
+      "required_fields": [
+        "metrics",
+        "symbol",
+        "ts",
+        "ts_ist"
+      ],
+      "fields": {
+        "ts": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "symbol": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "metrics": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "ts_ist": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "strategy_id": {
+          "types": [
+            "string"
+          ],
+          "is_optional": true
+        },
+        "schema_version": {
+          "types": [
+            "string"
+          ],
+          "is_optional": true
+        }
+      }
+    }
+  }
+}

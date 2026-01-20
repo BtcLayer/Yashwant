@@ -69,7 +69,7 @@ def main() -> None:
             repo_root = live_demo_root.parent
             root = str((repo_root / "paper_trading_outputs" / "logs").resolve())
     out = os.environ.get("LLM_PACK_OUT") or str(
-        (Path(root).parent / "llm_context" / "context_pack.json.gz").resolve()
+        (Path(root).parent / "llm_context" / "context_pack.json").resolve()
     )
     path = build_llm_context_pack(root=root, hours=hours, top_k=top_k, out=out)
     print({"status": "ok", "out": path, "hours": hours, "top_k": top_k, "root": root})

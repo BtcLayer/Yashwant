@@ -1,0 +1,128 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Overlay Status Log Schema",
+    "description": "Schema for multi-timeframe overlay signal tracking",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "bar_id",
+        "confidence",
+        "alignment_rule"
+    ],
+    "properties": {
+        "ts": {
+            "type": "number",
+            "description": "Unix timestamp (milliseconds)"
+        },
+        "ts_iso": {
+            "type": "string",
+            "description": "ISO8601 timestamp"
+        },
+        "symbol": {
+            "type": "string",
+            "description": "Trading symbol (e.g., BTCUSDT)"
+        },
+        "bar_id": {
+            "type": "integer",
+            "description": "Bar ID when overlay was calculated"
+        },
+        "confidence": {
+            "type": "number",
+            "description": "Overall overlay confidence (0-1)"
+        },
+        "alignment_rule": {
+            "type": "string",
+            "description": "Rule used for alignment (e.g., 'agreement', 'majority', 'weighted')"
+        },
+        "chosen_timeframes": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of timeframes used in overlay (e.g., ['5m', '15m', '1h'])"
+        },
+        "overlay_dir": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "enum": [
+                -1,
+                0,
+                1,
+                null
+            ],
+            "description": "Overlay direction: -1=SELL, 0=NEUTRAL, 1=BUY"
+        },
+        "overlay_alpha": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Overlay alpha/strength (0-1)"
+        },
+        "num_timeframes": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "description": "Number of timeframes in overlay"
+        },
+        "agreement_pct": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Percentage of timeframes in agreement (0-100)"
+        },
+        "individual_signals": {
+            "type": "object",
+            "description": "Individual signals per timeframe",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "dir": {
+                        "type": "integer",
+                        "enum": [
+                            -1,
+                            0,
+                            1
+                        ]
+                    },
+                    "alpha": {
+                        "type": "number"
+                    },
+                    "conf": {
+                        "type": "number"
+                    }
+                }
+            }
+        },
+        "strongest_timeframe": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Timeframe with strongest signal"
+        },
+        "weakest_timeframe": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Timeframe with weakest signal"
+        },
+        "conflicting_timeframes": {
+            "type": [
+                "array",
+                "null"
+            ],
+            "items": {
+                "type": "string"
+            },
+            "description": "Timeframes with conflicting signals"
+        }
+    },
+    "additionalProperties": true
+}

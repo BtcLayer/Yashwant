@@ -7,8 +7,6 @@ import numpy as np
 class Thresholds:
     S_MIN: float = 0.12
     M_MIN: float = 0.12
-    # Stricter threshold for social arms (pros/amateurs) to reduce noise
-    S_MIN_SOCIAL: float = 0.15 
     CONF_MIN: float = 0.60
     ALPHA_MIN: float = 0.10
     flip_mood: bool = True
@@ -17,74 +15,21 @@ class Thresholds:
     flip_model_bma: bool = True
     # If true, allow trading on model signal alone when cohort mood is neutral (< M_MIN)
     allow_model_only_when_mood_neutral: bool = True
-    # If true, require consensus between mood and model (can block SELL trades)
-    require_consensus: bool = True
-    # Cost configuration for net-edge safety check (default to safe/conservative values)
-    costs: Dict = None
-    # Dynamic abstain band configuration
-    dynamic_abstain: Dict = None
-    
-    def apply_dynamic_abstain(self, market_state: Dict) -> 'Thresholds':
-        """
-        Adjust thresholds based on market conditions.
-        Returns a new Thresholds instance with adjusted values.
-        
-        market_state should contain:
-        - 'realized_vol': Recent realized volatility (annualized)
-        - 'spread_bps': Current bid-ask spread in basis points
-        """
-        if not self.dynamic_abstain or not self.dynamic_abstain.get('enable', False):
-            return self
-        
-        cfg = self.dynamic_abstain
-        vol_threshold = float(cfg.get('volatility_threshold', 0.015))
-        spread_threshold = float(cfg.get('spread_threshold_bps', 10.0))
-        conf_mult = float(cfg.get('conf_multiplier', 1.15))
-        s_min_mult = float(cfg.get('s_min_multiplier', 1.2))
-        
-        # Check if we're in a "messy" market condition
-        realized_vol = float(market_state.get('realized_vol', 0.0))
-        spread_bps = float(market_state.get('spread_bps', 0.0))
-        
-        is_volatile = realized_vol > vol_threshold
-        is_wide_spread = spread_bps > spread_threshold
-        
-        if is_volatile or is_wide_spread:
-            # Create adjusted thresholds
-            from dataclasses import replace
-            return replace(
-                self,
-                CONF_MIN=min(0.95, self.CONF_MIN * conf_mult),
-                S_MIN=min(0.50, self.S_MIN * s_min_mult),
-                S_MIN_SOCIAL=min(0.50, self.S_MIN_SOCIAL * s_min_mult)
-            )
-        
-        return self
-
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, market_state: Dict = None) -> Dict:
+def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds) -> Dict:
     """
     Inputs:
       - cohort_snapshot: {'pros','amateurs','mood'}
       - model_out: {'s_model', 'p_up','p_down','p_neutral'}
       - th: thresholds config
-      - market_state: Optional dict with {'realized_vol', 'spread_bps'} for dynamic abstain
     Output:
       - {'dir': -1|0|1, 'alpha': [0,1], 'details': {...}}
     """
-    import sys
-    
-    # Apply dynamic abstain band if market state is provided
-    if market_state:
-        th = th.apply_dynamic_abstain(market_state)
-        if market_state.get('realized_vol', 0) > th.dynamic_abstain.get('volatility_threshold', 0.015) if th.dynamic_abstain else False:
-            print(f"[DEBUG][gate_and_score] Dynamic Abstain ACTIVE: vol={market_state.get('realized_vol', 0):.4f}, spread={market_state.get('spread_bps', 0):.2f}bps, CONF_MIN={th.CONF_MIN:.2f}", file=sys.stderr)
-
     s_pros = float(cohort_snapshot.get("pros", 0.0))
     s_am = float(cohort_snapshot.get("amateurs", 0.0))
     s_mood = float(cohort_snapshot.get("mood", 0.0))
@@ -100,70 +45,11 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
     mood_ok = abs(s_mood) >= th.M_MIN
     model_ok = abs(s_model) >= th.S_MIN
 
-    # DEBUG LOGGING: Trace gating variables
-    print(f"[DEBUG][gate_and_score] s_pros={s_pros:.4f} s_am={s_am:.4f} s_mood={s_mood:.4f} s_model={s_model:.4f} mood_ok={mood_ok} model_ok={model_ok} M_MIN={th.M_MIN} S_MIN={th.S_MIN}", file=sys.stderr)
-
-    # --- COST-BASED GATING (New Logic) ---
-    # We apply this check *before* final direction is chosen to veto unprofitable trades early.
-    # We use 's_model' as the primary signal strength proxy or 'conf' later?
-    # Let's check estimated edge based on current model confidence/strength.
-    
-    cost_cfg = th.costs or {}
-    taker_fee = float(cost_cfg.get('taker_fee_bps', 5.0))
-    slippage = float(cost_cfg.get('slippage_bps', 1.0))
-    buffer_bps = float(cost_cfg.get('min_net_edge_buffer_bps', 2.0))
-    
-    total_hurdle_bps = taker_fee + slippage + buffer_bps
-    
-    # Estimate Edge:
-    # Option A: Use probability spread (alpha). Alpha=1.0 (100% conf) => implies we expect a significant move.
-    # We need a scaler. Let's assume Alpha=0.1 (min) targets ~10bps? This is a heuristic that needs tuning.
-    # For safe start: estimated_edge_bps = alpha * 50.0 (i.e. if 60% vs 40% -> alpha=0.2 -> 10bps edge)
-    
-    # Calculate prelim confidence/alpha for edge check
-    p_up = float(model_out.get('p_up', 0.0))
-    p_down = float(model_out.get('p_down', 0.0))
-    conf_raw = max(p_up, p_down)
-    alpha_raw = abs(p_up - p_down)
-    
-    # Note: s_model is often clipped or scaled. alpha_raw is cleaner [0,1].
-    # Use alpha_raw for edge estimation.
-    estimated_expectancy_bps = alpha_raw * 50.0 
-    
-    net_edge = estimated_expectancy_bps - total_hurdle_bps
-    
-    print(f"[DEBUG][gate_and_score] Cost Check: alpha={alpha_raw:.4f} est_bps={estimated_expectancy_bps:.2f} hurdle={total_hurdle_bps:.2f} net={net_edge:.2f}", file=sys.stderr)
-    
-    # If using model_only logic, we might be stricter.
-    # We apply this veto if we are about to allow a trade.
-    
-    if net_edge <= 0:
-        # VETO - only if we would have traded based on model.
-        # But wait, mood trades valid too? 
-        # For now, apply safe gate to ALL trades.
-        print(f"[DEBUG][gate_and_score] Blocked: Insufficient net edge ({net_edge:.2f} bps)", file=sys.stderr)
-        return {
-            "dir": 0,
-            "alpha": 0.0,
-            "details": {
-                "s_model": s_model,
-                "s_mood": s_mood,
-                "conf": conf_raw,
-                "alpha": alpha_raw,
-                "mode": "negative_expectancy",
-                "net_edge": net_edge
-            }
-        }
-    
-    # --- END COST GATING ---
-
     if not (mood_ok and model_ok):
         # Optional: allow model-only trading when mood is neutral and model is strong
         if (not mood_ok) and model_ok and th.allow_model_only_when_mood_neutral:
             conf_model = clamp(abs(s_model), 0.0, 1.0)
-            print(f"[DEBUG][gate_and_score] Model-only path: conf_model={conf_model:.4f} CONF_MIN={th.CONF_MIN}", file=sys.stderr)
             if conf_model < th.CONF_MIN:
-                print(f"[DEBUG][gate_and_score] Blocked: model-only rejected due to low confidence", file=sys.stderr)
                 return {
                     "dir": 0,
                     "alpha": 0.0,
@@ -180,7 +66,6 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
                 }
             alpha = clamp(conf_model, th.ALPHA_MIN, 1.0)
             direction = 1 if s_model > 0 else -1
-            print(f"[DEBUG][gate_and_score] Model-only trade allowed: direction={direction} alpha={alpha:.4f}", file=sys.stderr)
             return {
                 "dir": direction,
                 "alpha": alpha,
@@ -195,7 +80,6 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
                     "mode": "model_only",
                 },
             }
-        print(f"[DEBUG][gate_and_score] Blocked: mood_ok={mood_ok}, model_ok={model_ok}", file=sys.stderr)
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -213,10 +97,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
     sign_mood = 1 if s_mood > 0 else -1
     sign_model = 1 if s_model > 0 else -1
     consensus = sign_mood == sign_model
-    print(f"[DEBUG][gate_and_score] sign_mood={sign_mood} sign_model={sign_model} consensus={consensus}", file=sys.stderr)
-    # Only enforce consensus if required by config
-    if not consensus and th.require_consensus:
-        print(f"[DEBUG][gate_and_score] Blocked: consensus failure", file=sys.stderr)
+    if not consensus:
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -231,9 +112,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
 
     # Confidence: blend of magnitudes (cap to [0,1])
     conf = clamp(0.5 * (abs(s_mood) + abs(s_model)), 0.0, 1.0)
-    print(f"[DEBUG][gate_and_score] conf={conf:.4f} CONF_MIN={th.CONF_MIN}", file=sys.stderr)
     if conf < th.CONF_MIN:
-        print(f"[DEBUG][gate_and_score] Blocked: confidence below threshold", file=sys.stderr)
         return {
             "dir": 0,
             "alpha": 0.0,
@@ -248,7 +127,7 @@ def gate_and_score(cohort_snapshot: Dict, model_out: Dict, th: Thresholds, marke
 
     alpha = clamp(conf, th.ALPHA_MIN, 1.0)
     direction = 1 if s_model > 0 else -1
-    print(f"[DEBUG][gate_and_score] Trade allowed: direction={direction} alpha={alpha:.4f}", file=sys.stderr)
+
     return {
         "dir": direction,
         "alpha": alpha,
@@ -315,14 +194,14 @@ def compute_signals_and_eligibility(
         'S_model_bma': s_model_bma,
     }
     eligible = {
-        'pros': abs(s_top) >= th.S_MIN_SOCIAL,
-        'amateurs': abs(s_bot) >= th.S_MIN_SOCIAL,
+        'pros': abs(s_top) >= th.S_MIN,
+        'amateurs': abs(s_bot) >= th.S_MIN,
         # Both model arms share the same probability-derived gating
         'model_meta': (conf_model >= th.CONF_MIN) and (alpha_model >= th.ALPHA_MIN),
         'model_bma': (conf_model >= th.CONF_MIN) and (alpha_model >= th.ALPHA_MIN),
     }
-    # Per-arm thresholds: pros, amateurs use S_MIN_SOCIAL; model arms use ALPHA_MIN
-    side_eps_vec = (th.S_MIN_SOCIAL, th.S_MIN_SOCIAL, th.ALPHA_MIN, th.ALPHA_MIN)
+    # Per-arm thresholds: pros, amateurs use S_MIN; model arms use ALPHA_MIN
+    side_eps_vec = (th.S_MIN, th.S_MIN, th.ALPHA_MIN, th.ALPHA_MIN)
     extras = {'conf_model': conf_model, 'alpha_model': alpha_model}
     return signals, eligible, side_eps_vec, extras
 

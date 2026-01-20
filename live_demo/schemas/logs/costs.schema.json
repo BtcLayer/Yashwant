@@ -1,0 +1,74 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "costs",
+    "description": "Trading costs breakdown (fees, slippage, impact) per trade",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "total_cost_usd",
+        "notional_usd"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts": {
+            "type": "string",
+            "minLength": 10,
+            "description": "ISO8601 timestamp in UTC"
+        },
+        "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading symbol"
+        },
+        "notional_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Trade notional value in USD"
+        },
+        "fee_usd": {
+            "type": "number",
+            "description": "Exchange fees in USD"
+        },
+        "slippage_usd": {
+            "type": "number",
+            "description": "Slippage cost in USD"
+        },
+        "impact_usd": {
+            "type": "number",
+            "description": "Market impact cost in USD"
+        },
+        "total_cost_usd": {
+            "type": "number",
+            "description": "Total cost (fee + slippage + impact)"
+        },
+        "fee_bps": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Fee in basis points"
+        },
+        "slippage_bps": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Slippage in basis points"
+        },
+        "impact_bps": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Impact in basis points"
+        },
+        "cost_bps": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Total cost in basis points"
+        },
+        "cost_model_version": {
+            "type": "string",
+            "description": "Version of cost model used"
+        },
+        "cost_gt_notional": {
+            "type": "boolean",
+            "description": "Sanity flag: true if cost exceeds notional (error)"
+        }
+    }
+}

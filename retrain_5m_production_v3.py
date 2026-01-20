@@ -531,10 +531,29 @@ with open(Path(MODEL_DIR, model_files['training_meta']), 'w') as f:
     json.dump(training_meta, f, indent=2)
 print(f"[OK] Saved {model_files['training_meta']}")
 
-# Update LATEST.json
-with open(Path(MODEL_DIR, 'LATEST.json'), 'w') as f:
-    json.dump(model_files, f, indent=2)
-print(f"[OK] Updated LATEST.json")
+# Update LATEST.json with enhanced metadata
+try:
+    from live_demo.models.manifest_utils import enhance_manifest
+    
+    # Enhance with metadata (git_commit, trained_at_utc, feature_dim)
+    enhanced_manifest = enhance_manifest(
+        model_files,
+        feature_file_path=str(Path(MODEL_DIR, model_files['feature_columns']))
+    )
+    
+    with open(Path(MODEL_DIR, 'LATEST.json'), 'w') as f:
+        json.dump(enhanced_manifest, f, indent=2)
+    
+    print(f"[OK] Updated LATEST.json with enhanced metadata:")
+    print(f"     - git_commit: {enhanced_manifest.get('git_commit')}")
+    print(f"     - trained_at_utc: {enhanced_manifest.get('trained_at_utc')}")
+    print(f"     - feature_dim: {enhanced_manifest.get('feature_dim')}")
+    
+except ImportError:
+    # Fallback if manifest_utils not available
+    with open(Path(MODEL_DIR, 'LATEST.json'), 'w') as f:
+        json.dump(model_files, f, indent=2)
+    print(f"[OK] Updated LATEST.json (basic manifest)")
 
 print("\n" + "="*80)
 print("DEPLOYMENT COMPLETE")

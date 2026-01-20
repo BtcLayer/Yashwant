@@ -167,13 +167,6 @@ class OverlaySignalGenerator:
             alpha = 0.0
 
         return direction, alpha, confidence
-    
-    def _calculate_signal_components(self, p_up: float, p_down: float,
-                                   p_neutral: float, s_model: float) -> Tuple[int, float, float]:
-        """Calculate signal direction, alpha, and confidence (legacy method)"""
-        return self._calculate_signal_components_with_thresholds(
-            p_up, p_down, p_neutral, s_model, self.thresholds_default
-        )
 
     def _create_neutral_signal(
         self, timeframe: str, overlay_features: OverlayFeatures

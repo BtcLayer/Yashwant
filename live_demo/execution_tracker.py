@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 from collections import deque
 import pytz
-from dataclasses import dataclass
+from dataclasses import dataclass,asdict
 import json
 
 IST = pytz.timezone("Asia/Kolkata")

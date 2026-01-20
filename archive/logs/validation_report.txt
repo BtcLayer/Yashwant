@@ -1,0 +1,80 @@
+﻿[OK] Loaded schema: costs
+[OK] Loaded schema: execution
+[OK] Loaded schema: health
+[OK] Loaded schema: signals
+
+Found 6 log file(s) to validate
+
+Validating: calibration\calibration.jsonl
+[WARN] No schema defined for stream type: calibration
+Validating: costs\costs.jsonl
+Validating: ensemble\ensemble.jsonl
+Validating: execution\execution.jsonl
+Validating: health\health.jsonl
+Validating: signals\signals.jsonl
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+
+Files validated: 6
+Total records: 11
+Valid records: 0 (0.0%)
+Files with errors: 5
+
+[OK]   calibration     - 1 file(s), 0 records, 0 valid (0.0%)
+[FAIL] costs           - 1 file(s), 2 records, 0 valid (0.0%)
+  Missing fields:
+    - total_cost_usd: 2 record(s)
+    - notional_usd: 2 record(s)
+
+  Sample errors from costs.jsonl:
+    Line 1: 'total_cost_usd' is a required property
+    Line 1: 'notional_usd' is a required property
+    Line 1: 1764565695615 is not of type 'string'
+[FAIL] ensemble        - 1 file(s), 2 records, 0 valid (0.0%)
+  Missing fields:
+    - p_up: 2 record(s)
+    - p_down: 2 record(s)
+    - p_neutral: 2 record(s)
+    - selected_arm: 2 record(s)
+    - final_action: 2 record(s)
+
+  Sample errors from ensemble.jsonl:
+    Line 1: 'p_up' is a required property
+    Line 1: 'p_down' is a required property
+    Line 1: 'p_neutral' is a required property
+[FAIL] execution       - 1 file(s), 2 records, 0 valid (0.0%)
+  Missing fields:
+    - is_dry_run: 2 record(s)
+    - is_forced: 2 record(s)
+    - side: 2 record(s)
+    - qty: 2 record(s)
+
+  Sample errors from execution.jsonl:
+    Line 1: 'is_dry_run' is a required property
+    Line 1: 'is_forced' is a required property
+    Line 1: 'side' is a required property
+[FAIL] health          - 1 file(s), 2 records, 0 valid (0.0%)
+  Missing fields:
+    - loop_alive: 2 record(s)
+
+  Sample errors from health.jsonl:
+    Line 1: 'loop_alive' is a required property
+    Line 1: 1764565695615 is not of type 'string'
+    Line 2: 'loop_alive' is a required property
+[FAIL] signals         - 1 file(s), 3 records, 0 valid (0.0%)
+  Missing fields:
+    - p_up: 3 record(s)
+    - p_down: 3 record(s)
+    - p_neutral: 3 record(s)
+    - selected_arm: 3 record(s)
+    - final_action: 3 record(s)
+
+  Sample errors from signals.jsonl:
+    Line 1: 'p_up' is a required property
+    Line 1: 'p_down' is a required property
+    Line 1: 'p_neutral' is a required property
+
+================================================================================
+[FAIL] VALIDATION FAILED - Some files have errors

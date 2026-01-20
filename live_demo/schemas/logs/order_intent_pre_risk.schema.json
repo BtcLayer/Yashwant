@@ -1,0 +1,201 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Order Intent Pre-Risk Log Schema",
+    "description": "Schema for order intent logs (pre-trade decision before risk sizing)",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "intent_action",
+        "intent_dir",
+        "intent_strength"
+    ],
+    "properties": {
+        "ts": {
+            "type": "number",
+            "description": "Unix timestamp (milliseconds)"
+        },
+        "ts_iso": {
+            "type": "string",
+            "description": "ISO8601 timestamp"
+        },
+        "symbol": {
+            "type": "string",
+            "description": "Trading symbol (e.g., BTCUSDT)"
+        },
+        "intent_action": {
+            "type": "string",
+            "enum": [
+                "BUY",
+                "SELL",
+                "HOLD"
+            ],
+            "description": "Intended action before risk checks"
+        },
+        "intent_dir": {
+            "type": "integer",
+            "enum": [
+                -1,
+                0,
+                1
+            ],
+            "description": "Intended direction: -1=SELL, 0=HOLD, 1=BUY"
+        },
+        "intent_strength": {
+            "type": "number",
+            "description": "Signal strength / alpha value"
+        },
+        "selected_arm": {
+            "type": "string",
+            "description": "Which arm was selected (model_meta, pros, amateurs, etc.)"
+        },
+        "checks_passed": {
+            "type": "object",
+            "description": "Dictionary of guard checks and their pass/fail status",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "vetoes_triggered": {
+            "type": "object",
+            "description": "Dictionary of vetoes that were triggered",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "veto_reason_primary": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Primary veto reason (if any)"
+        },
+        "veto_reason_secondary": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Secondary veto reason (if any)"
+        },
+        "guard_details": {
+            "type": "object",
+            "description": "Detailed information about failed guards",
+            "additionalProperties": true
+        },
+        "thresholds_used": {
+            "type": "object",
+            "description": "Thresholds used for decision making",
+            "properties": {
+                "PNN_MIN": {
+                    "type": "number"
+                },
+                "CONF_DIR_MIN": {
+                    "type": "number"
+                },
+                "ALPHA_MIN": {
+                    "type": "number"
+                },
+                "S_MIN": {
+                    "type": "number"
+                }
+            }
+        },
+        "p_non_neutral": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Probability of non-neutral (p_up + p_down)"
+        },
+        "conf_dir": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Confidence in direction (max of p_up, p_down)"
+        },
+        "strength": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Signal strength (abs(p_up - p_down))"
+        },
+        "mood_dir": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "enum": [
+                -1,
+                0,
+                1,
+                null
+            ],
+            "description": "Cohort mood direction"
+        },
+        "overlay_dir": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "enum": [
+                -1,
+                0,
+                1,
+                null
+            ],
+            "description": "Overlay signal direction (if applicable)"
+        },
+        "bar_id_decision": {
+            "type": "integer",
+            "description": "Bar ID when decision was made"
+        },
+        "intent_qty": {
+            "type": "number",
+            "description": "Intended quantity"
+        },
+        "intent_notional": {
+            "type": "number",
+            "description": "Intended notional value (USD)"
+        },
+        "signal_strength": {
+            "type": "number",
+            "description": "Overall signal strength"
+        },
+        "model_confidence": {
+            "type": "number",
+            "description": "Model confidence score"
+        },
+        "risk_score": {
+            "type": "number",
+            "description": "Risk score"
+        },
+        "market_conditions": {
+            "type": "object",
+            "description": "Market conditions at decision time",
+            "properties": {
+                "spread_bps": {
+                    "type": "number"
+                },
+                "volatility": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "funding_rate": {
+                    "type": "number"
+                }
+            }
+        },
+        "reason_codes": {
+            "type": "object",
+            "description": "Reason codes for decision",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        }
+    },
+    "additionalProperties": true
+}

@@ -35,8 +35,8 @@
   "exchanges": {
     "active": "mainnet",
     "binance_testnet": {
-      "api_key": "0ZkZfT8bqHtOCKUDyIPe1z4Ynca6VVumZ8RQOywI7dDSLRt9Bq18SsRWXHkk25T5",
-      "api_secret": "wYAYD0xjRK7XXYanT1cZP4waqKynJv4Io8F8fBDcCobsI8rfVjZ1QLfsPYJFyEVF",
+      "api_key": "j4KIRgyqByoD7FkrrJk2YupNtDJwNObfmOxFpcUdY7fZUJIOSRIgZo7PtxxSq0yv",
+      "api_secret": "CGE76pUF8Z5AJN98MCsHpzBg9JW9LjtbbLx3JrdIQRfEQq4Tobhx6fnmFj5hfeLD",
       "base_url": "https://testnet.binancefuture.com"
     },
     "binance_mainnet": {
@@ -153,8 +153,8 @@
     "min_book_qty": 0.0
   },
   "sheets": {
-    "sheet_id": "1Fk9HGfUKaEOcN3DIqZOBQkTYuMzDFdAqE9eUOijKPLs",
-    "creds_json": "live_demo/metastackerbandit1-478b6face97d.json",
+    "sheet_id": "1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls",
+    "creds_json": "live_demo/hyperliquid-473106-b11ba8ae73b4.json",
     "tabs": {
       "hyperliquid": "hyperliquid_sheet",
       "signals": "signals",

@@ -27,7 +27,7 @@ from live_demo.state import JSONState
 from ops.log_emitter import get_emitter
 from ops.heartbeat import write_heartbeat
 from live_demo.health_monitor import HealthMonitor
-from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
+# HealthSnapshotEmitter removed - using generate_health.py approach instead
 from live_demo.repro_tracker import ReproTracker
 from live_demo.execution_tracker import ExecutionTracker
 from live_demo.pnl_attribution import PnLAttributionTracker
@@ -39,6 +39,8 @@ from live_demo.alerts.alert_router import get_alert_router
 from ops.llm_logging import write_jsonl
 from live_demo.ops.log_router import LogRouter
 from live_demo.ops.bma import bma_weights, rolling_ic, series_vol
+from live_demo_12h.ops.manifest_writer import ManifestWriter
+from live_demo_12h.generate_health import save_health_snapshot
 
 
 def _deep_merge(base: Dict, override: Dict) -> Dict:
@@ -508,13 +510,27 @@ async def run_live(config_path: str, dry_run: bool = None):
     _ = JSONState(os.path.join(paper_root(), 'runtime_state.json'))
     # Initialize tracking systems
     health_monitor = HealthMonitor()
-    health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
+    # health_snapshot_emitter removed - using generate_health.py approach instead
     repro_tracker = ReproTracker()
     execution_tracker = ExecutionTracker()
     pnl_attribution = PnLAttributionTracker()
     order_intent_tracker = OrderIntentTracker()
     feature_logger = FeatureLogger()
     calibration_enhancer = CalibrationEnhancer()
+    
+    # Initialize manifest writer for 12h bot observability
+    import time as _manifest_time
+    manifest_writer = ManifestWriter(
+        run_id=f"run_{int(_manifest_time.time())}",
+        asset=sym,
+        output_dir=tf_root,
+        interval=interval
+    )
+    manifest_writer.initialize(
+        config_path=config_path,
+        code_path=os.path.join(os.path.dirname(__file__), 'main.py'),
+        model_manifest_path=manifest
+    )
 
     # Thresholds and risk
     th_cfg = cfg['thresholds']
@@ -549,6 +565,8 @@ async def run_live(config_path: str, dry_run: bool = None):
     last_close = None
     last_ts = None
     bar_count = 0
+    manifest_update_counter = 0  # Track bars for manifest updates
+    health_snapshot_counter = 0  # Track bars for health snapshot generation
     
     equity = None
     # Health tracking
@@ -1185,6 +1203,11 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
                 if calibration_log:
                     emitter.emit_calibration(calibration_log)
+                    # Track calibration event in manifest
+                    try:
+                        manifest_writer.track_event('calibration', ts=ts)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -1624,6 +1647,11 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
                 # Routed execution emission (emitter and/or llm based on config)
                 log_router.emit_execution(ts=ts, asset=sym, exec_resp=exec_resp, risk_state={'position': risk.get_position()}, bar_id=bar_count)
+                # Track execution event in manifest
+                try:
+                    manifest_writer.track_event('executions', ts=ts)
+                except Exception:
+                    pass
                 # health exec counter
                 try:
                     _health_exec_count += 1
@@ -1684,7 +1712,21 @@ async def run_live(config_path: str, dry_run: bool = None):
                             "slip_usd": round((trade_notional * float(slip_bps) / 10000.0), 2) if (slip_bps is not None and trade_notional > 0) else None,
                             "impact_usd": round(impact_usd, 2),
                         }
+                        try:
+                            log_router.emit_order_intent(ts=ts, asset=sym, intent=intent_payload)
+                            # Track order_intent event in manifest
+                            try:
+                                manifest_writer.track_event('order_intent', ts=ts)
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                         log_router.emit_costs(ts=ts, asset=sym, costs=costs_payload)
+                        # Track costs event in manifest
+                        try:
+                            manifest_writer.track_event('costs', ts=ts)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
 
@@ -1715,7 +1757,15 @@ async def run_live(config_path: str, dry_run: bool = None):
             # Emit signals JSONL for observability (best-effort)
             try:
                 emitter = get_emitter()
-                emitter.emit_signals(ts=ts, symbol=sym, features=x, model_out=model_out, decision=decision, cohort={'pros': cohort.pros, 'amateurs': cohort.amateurs, 'mood': cohort.mood})
+                try:
+                    log_router.emit_signals(ts=ts, asset=sym, features=x, model_out=model_out, decision=decision, cohort=cohort.snapshot())
+                    # Track signals event in manifest
+                    try:
+                        manifest_writer.track_event('signals', ts=ts)
+                    except Exception:
+                        pass
+                except Exception:
+                    emitter.emit_signals(ts=ts, symbol=sym, features=x, model_out=model_out, decision=decision, cohort={'pros': cohort.pros, 'amateurs': cohort.amateurs, 'mood': cohort.mood})
             except Exception:
                 pass
 
@@ -1742,6 +1792,27 @@ async def run_live(config_path: str, dry_run: bool = None):
                     'ws_reconnects': int(ws_reconnects),
                     'ws_staleness_ms': ws_stale_ms,
                 }
+                # Increment bar counter and update manifest periodically
+                bar_count += 1
+                manifest_update_counter += 1
+                health_snapshot_counter += 1
+                
+                # Update manifest every N bars (adaptive to timeframe)
+                # For 12h: update every 7 bars (~3.5 days)
+                if manifest_update_counter >= manifest_writer.update_interval:
+                    try:
+                        manifest_writer.update()
+                        manifest_update_counter = 0
+                    except Exception:
+                        pass
+                
+                # Generate health snapshot every 24 bars (~12 days for 12h)
+                if health_snapshot_counter >= 24:
+                    try:
+                        save_health_snapshot(log_dir=os.path.join(tf_root, 'logs'))
+                        health_snapshot_counter = 0
+                    except Exception:
+                        pass
                 # reset short counters
                 _health_exec_count = 0
                 # Enhanced health metrics
@@ -1791,23 +1862,15 @@ async def run_live(config_path: str, dry_run: bool = None):
                     # Emit health once (enhanced metrics included) via router (config-driven sinks)
                     try:
                         log_router.emit_health(ts=ts, asset=sym, health=health)
+                        # Track health event in manifest
+                        try:
+                            manifest_writer.track_event('health', ts=ts)
+                        except Exception:
+                            pass
                     except Exception:
                         # Fallback to direct emitter to avoid losing health logs if router misconfigured
                         try:
                             emitter.emit_health(ts=ts, symbol=sym, health=health)
-                            # Emit periodic health snapshot
-                            try:
-                                snapshot = HealthSnapshot(
-                                    equity_value=health.get('equity'),
-                                    drawdown_current=health.get('drawdown'),
-                                    daily_pnl=health.get('daily_pnl'),
-                                    rolling_sharpe=health.get('sharpe'),
-                                    trade_count=health.get('exec_count_recent'),
-                                    win_rate=health.get('win_rate'),
-                                )
-                                health_snapshot_emitter.maybe_emit(snapshot)
-                            except Exception:
-                                pass
                         except Exception:
                             pass
                     # Also buffer health metrics to Sheets if configured
@@ -2007,6 +2070,12 @@ async def run_live(config_path: str, dry_run: bool = None):
                 except asyncio.CancelledError:
                     pass
         except NameError:
+            pass
+        
+        # Finalize manifest on shutdown
+        try:
+            manifest_writer.finalize()
+        except Exception:
             pass
 
     # Graceful close of funding client session

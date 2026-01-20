@@ -1,0 +1,86 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "execution",
+    "description": "Order execution details including fills, rejections, and dry-run status",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "is_dry_run",
+        "is_forced",
+        "side",
+        "qty"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts": {
+            "type": "string",
+            "minLength": 10,
+            "description": "ISO8601 timestamp in UTC"
+        },
+        "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading symbol"
+        },
+        "is_dry_run": {
+            "type": "boolean",
+            "description": "True if paper trading, false if live"
+        },
+        "is_forced": {
+            "type": "boolean",
+            "description": "True if forced/smoke test trade, false if organic model trade"
+        },
+        "order_id": {
+            "type": "string",
+            "description": "Order identifier (exchange or synthetic)"
+        },
+        "side": {
+            "type": "string",
+            "enum": [
+                "BUY",
+                "SELL"
+            ],
+            "description": "Order side"
+        },
+        "qty": {
+            "type": "number",
+            "description": "Order quantity"
+        },
+        "price": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Execution price"
+        },
+        "ref_price": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Reference price (mark/mid)"
+        },
+        "notional_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Notional value in USD"
+        },
+        "target_position": {
+            "type": "number",
+            "description": "Target position after this order"
+        },
+        "result": {
+            "type": "string",
+            "description": "Execution result (PLACED/FILLED/REJECTED/SKIPPED)"
+        },
+        "decision_ts": {
+            "type": "string",
+            "description": "When decision was made"
+        },
+        "order_sent_ts": {
+            "type": "string",
+            "description": "When order was sent to exchange"
+        },
+        "fill_ts": {
+            "type": "string",
+            "description": "When order was filled"
+        }
+    }
+}

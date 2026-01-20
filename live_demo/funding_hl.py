@@ -71,13 +71,6 @@ class FundingHL:
                 fresh["stale"] = False
                 return fresh
 
-        # PRIORITY FIX: If Binance client is available and rest_url is Hyperliquid default,
-        # skip Hyperliquid API calls entirely (they timeout when not accessible)
-        if self._binance_client is not None and "hyperliquid" in self.rest_url.lower():
-            fb = await self._fetch_binance_fallback()
-            if fb is not None:
-                return fb
-
         await self._ensure_session()
         # 1) Try GET on configured path (legacy) with retries
         url = f"{self.rest_url}{self.path}?coin={self.coin}"
@@ -108,23 +101,6 @@ class FundingHL:
                             self._next_refresh_ts_ms = self._compute_next_refresh(ts)
                             self._last_good = out
                             return out
-                    elif r.status == 429:
-                        # Rate limit - back off exponentially (60s base)
-                        backoff_s = min(60.0 * (2 ** attempt), 300.0)
-                        self._write_debug(
-                            {
-                                "source": "GET",
-                                "attempt": attempt,
-                                "url": url,
-                                "status": 429,
-                                "note": "rate_limited",
-                                "backoff_s": backoff_s,
-                            }
-                        )
-                        if attempt < self._retries:
-                            await asyncio.sleep(backoff_s)
-                            continue
-                        break
                     else:
                         self._write_debug(
                             {
@@ -172,25 +148,7 @@ class FundingHL:
                 async with self._session.post(
                     self.rest_url, json=payload, timeout=self._request_timeout_s
                 ) as r:
-                    if r.status == 429:
-                        # Rate limit - exponential backoff (60s base)
-                        backoff_s = min(60.0 * (2 ** attempt), 300.0)
-                        self._write_debug(
-                            {
-                                "source": "POST",
-                                "attempt": attempt,
-                                "url": self.rest_url,
-                                "payload": payload,
-                                "status": 429,
-                                "note": "rate_limited",
-                                "backoff_s": backoff_s,
-                            }
-                        )
-                        if attempt < self._retries:
-                            await asyncio.sleep(backoff_s)
-                            continue
-                        break
-                    elif r.status != 200:
+                    if r.status != 200:
                         self._write_debug(
                             {
                                 "source": "POST",

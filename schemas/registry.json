@@ -1,13 +1,14 @@
 {
   "version": "1.0",
-  "generated_at": "2026-01-10 12:12:17.739261",
+  "generated_at": "2026-01-15 17:24:43.937494",
   "streams": {
-    "costs": {
+    "snapshot_health": {
       "required_fields": [
-        "costs",
-        "symbol",
+        "connectivity",
+        "staleness_ms",
+        "streams",
         "ts",
-        "ts_ist"
+        "vetos"
       ],
       "fields": {
         "ts": {
@@ -16,35 +17,29 @@
           ],
           "is_optional": false
         },
-        "symbol": {
+        "connectivity": {
           "types": [
             "string"
           ],
           "is_optional": false
         },
-        "costs": {
+        "streams": {
           "types": [
             "object"
           ],
           "is_optional": false
         },
-        "ts_ist": {
+        "vetos": {
           "types": [
-            "string"
+            "object"
           ],
           "is_optional": false
         },
-        "strategy_id": {
+        "staleness_ms": {
           "types": [
-            "string"
+            "number"
           ],
-          "is_optional": true
-        },
-        "schema_version": {
-          "types": [
-            "string"
-          ],
-          "is_optional": true
+          "is_optional": false
         }
       }
     },
@@ -152,112 +147,55 @@
         }
       }
     },
-    "feature_log": {
+    "costs": {
       "required_fields": [
-        "adv20",
-        "asset",
-        "bar_id",
-        "funding_delta",
-        "liquidity_score",
-        "mom_3",
-        "mr_ema20",
-        "obi_10",
-        "price_change_bps",
-        "regime_bucket",
-        "rv_1h",
-        "spread_bps",
-        "ts_ist",
-        "volatility_regime",
-        "volume_ratio"
+        "sanitized",
+        "ts",
+        "ts_iso"
       ],
       "fields": {
-        "ts_ist": {
+        "sanitized": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "ts_iso": {
           "types": [
             "string"
           ],
           "is_optional": false
         },
-        "bar_id": {
+        "ts": {
           "types": [
             "number"
           ],
           "is_optional": false
+        }
+      }
+    },
+    "feature_log": {
+      "required_fields": [
+        "sanitized",
+        "ts",
+        "ts_iso"
+      ],
+      "fields": {
+        "sanitized": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
         },
-        "asset": {
+        "ts_iso": {
           "types": [
             "string"
           ],
           "is_optional": false
         },
-        "mom_3": {
+        "ts": {
           "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "mr_ema20": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "obi_10": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "spread_bps": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "rv_1h": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "regime_bucket": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "funding_delta": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "adv20": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "volume_ratio": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "price_change_bps": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "volatility_regime": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "liquidity_score": {
-          "types": [
-            "number"
+            "null"
           ],
           "is_optional": false
         }
@@ -265,82 +203,26 @@
     },
     "order_intent": {
       "required_fields": [
-        "asset",
-        "bar_id_decision",
-        "intent_notional",
-        "intent_qty",
-        "market_conditions",
-        "model_confidence",
-        "reason_codes",
-        "risk_score",
-        "side",
-        "signal_strength",
-        "ts_ist"
+        "sanitized",
+        "ts",
+        "ts_iso"
       ],
       "fields": {
-        "ts_ist": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "bar_id_decision": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "asset": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "side": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "intent_qty": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "intent_notional": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "reason_codes": {
+        "sanitized": {
           "types": [
             "object"
           ],
           "is_optional": false
         },
-        "signal_strength": {
+        "ts_iso": {
           "types": [
-            "number"
+            "string"
           ],
           "is_optional": false
         },
-        "model_confidence": {
+        "ts": {
           "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "risk_score": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "market_conditions": {
-          "types": [
-            "object"
+            "null"
           ],
           "is_optional": false
         }
@@ -348,33 +230,26 @@
     },
     "repro": {
       "required_fields": [
-        "repro",
-        "symbol",
+        "sanitized",
         "ts",
-        "ts_ist"
+        "ts_iso"
       ],
       "fields": {
-        "ts": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "symbol": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "repro": {
+        "sanitized": {
           "types": [
             "object"
           ],
           "is_optional": false
         },
-        "ts_ist": {
+        "ts_iso": {
           "types": [
             "string"
+          ],
+          "is_optional": false
+        },
+        "ts": {
+          "types": [
+            "number"
           ],
           "is_optional": false
         }
@@ -382,54 +257,26 @@
     },
     "signals": {
       "required_fields": [
-        "cohort",
-        "decision",
-        "features",
-        "model_out",
-        "symbol",
+        "sanitized",
         "ts",
-        "ts_ist"
+        "ts_iso"
       ],
       "fields": {
+        "sanitized": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        },
+        "ts_iso": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
         "ts": {
           "types": [
             "number"
-          ],
-          "is_optional": false
-        },
-        "symbol": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "features": {
-          "types": [
-            "array"
-          ],
-          "is_optional": false
-        },
-        "model_out": {
-          "types": [
-            "object"
-          ],
-          "is_optional": false
-        },
-        "decision": {
-          "types": [
-            "object"
-          ],
-          "is_optional": false
-        },
-        "cohort": {
-          "types": [
-            "object"
-          ],
-          "is_optional": false
-        },
-        "ts_ist": {
-          "types": [
-            "string"
           ],
           "is_optional": false
         }
@@ -437,47 +284,193 @@
     },
     "health": {
       "required_fields": [
-        "metrics",
-        "symbol",
+        "sanitized",
         "ts",
-        "ts_ist"
+        "ts_iso"
       ],
       "fields": {
-        "ts": {
-          "types": [
-            "number"
-          ],
-          "is_optional": false
-        },
-        "symbol": {
-          "types": [
-            "string"
-          ],
-          "is_optional": false
-        },
-        "metrics": {
+        "sanitized": {
           "types": [
             "object"
           ],
           "is_optional": false
         },
-        "ts_ist": {
+        "ts_iso": {
           "types": [
             "string"
           ],
           "is_optional": false
         },
-        "strategy_id": {
+        "ts": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "kpi_scorecard": {
+      "required_fields": [
+        "Sharpe_1w",
+        "asset",
+        "event",
+        "gates",
+        "in_band_share",
+        "max_DD_pct",
+        "turnover_bps_day"
+      ],
+      "fields": {
+        "asset": {
           "types": [
             "string"
           ],
-          "is_optional": true
+          "is_optional": false
         },
-        "schema_version": {
+        "event": {
           "types": [
             "string"
           ],
-          "is_optional": true
+          "is_optional": false
+        },
+        "Sharpe_1w": {
+          "types": [
+            "null"
+          ],
+          "is_optional": false
+        },
+        "max_DD_pct": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "turnover_bps_day": {
+          "types": [
+            "null"
+          ],
+          "is_optional": false
+        },
+        "in_band_share": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "gates": {
+          "types": [
+            "object"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "market_ingest": {
+      "required_fields": [
+        "asset",
+        "hour_bucket",
+        "mid",
+        "range_bps",
+        "spread_bps",
+        "weekday"
+      ],
+      "fields": {
+        "asset": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "mid": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "spread_bps": {
+          "types": [
+            "null"
+          ],
+          "is_optional": false
+        },
+        "hour_bucket": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "weekday": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "range_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        }
+      }
+    },
+    "sizing_risk": {
+      "required_fields": [
+        "adv_cap_hit",
+        "asset",
+        "forecast_vol_20",
+        "notional_usd",
+        "overlay_conf",
+        "position_after",
+        "raw_score_bps",
+        "target_vol_ann"
+      ],
+      "fields": {
+        "asset": {
+          "types": [
+            "string"
+          ],
+          "is_optional": false
+        },
+        "forecast_vol_20": {
+          "types": [
+            "null"
+          ],
+          "is_optional": false
+        },
+        "target_vol_ann": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "raw_score_bps": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "position_after": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
+        },
+        "notional_usd": {
+          "types": [
+            "null"
+          ],
+          "is_optional": false
+        },
+        "adv_cap_hit": {
+          "types": [
+            "boolean"
+          ],
+          "is_optional": false
+        },
+        "overlay_conf": {
+          "types": [
+            "number"
+          ],
+          "is_optional": false
         }
       }
     }

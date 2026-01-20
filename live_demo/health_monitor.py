@@ -6,7 +6,7 @@ Tracks performance metrics, risk indicators, and system health
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from collections import deque
 import pytz
 from dataclasses import dataclass
@@ -70,15 +70,6 @@ class HealthMonitor:
         self._inband_flags = deque(maxlen=window_1d)
         self._inband_total = 0
         self._inband_hits = 0
-
-        # Connection health tracking
-        self.rest_consecutive_failures = 0
-        self.rest_total_calls = 0
-        self.rest_failed_calls = 0
-        self.last_successful_rest_call = None
-        self.reconnect_attempts = 0
-        self.last_reconnect_ts = None
-        self.connection_status = "connected"  # connected, reconnecting, degraded
 
     def update_returns(self, returns: float, timestamp: float):
         """Update returns history"""
@@ -370,15 +361,5 @@ class HealthMonitor:
                 "roundtrip_events": self.roundtrip_events,
                 "total_predictions": len(self.predictions_history),
                 "total_returns": len(self.returns_history),
-            },
-            "connection_health": {
-                "status": self.connection_status,
-                "rest_consecutive_failures": self.rest_consecutive_failures,
-                "rest_total_calls": self.rest_total_calls,
-                "rest_failed_calls": self.rest_failed_calls,
-                "rest_success_rate": (self.rest_total_calls - self.rest_failed_calls) / max(self.rest_total_calls, 1),
-                "reconnect_attempts": self.reconnect_attempts,
-                "last_reconnect_ts": self.last_reconnect_ts,
-                "seconds_since_last_success": (datetime.now(timezone.utc).timestamp() - self.last_successful_rest_call) if self.last_successful_rest_call else None,
             },
         }

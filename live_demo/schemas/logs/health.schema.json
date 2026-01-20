@@ -1,0 +1,56 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "health",
+    "description": "System health heartbeat - loop alive, data freshness, queue status",
+    "type": "object",
+    "required": [
+        "ts",
+        "loop_alive"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts": {
+            "type": "string",
+            "minLength": 10,
+            "description": "ISO8601 timestamp in UTC"
+        },
+        "loop_alive": {
+            "type": "boolean",
+            "description": "True if main loop is running"
+        },
+        "last_kline_ts": {
+            "type": "string",
+            "description": "Timestamp of most recent kline/bar received"
+        },
+        "funding_ts": {
+            "type": "string",
+            "description": "Timestamp of most recent funding rate update"
+        },
+        "fills_queue_depth": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of pending fills in queue"
+        },
+        "latency_ms": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Loop iteration duration in milliseconds"
+        },
+        "component_status": {
+            "type": "object",
+            "description": "Status of individual components (data_feed, model, risk, execution)"
+        },
+        "data_freshness_ok": {
+            "type": "boolean",
+            "description": "True if data is fresh (within expected lag)"
+        },
+        "model_loaded": {
+            "type": "boolean",
+            "description": "True if model is loaded and ready"
+        },
+        "exchange_connected": {
+            "type": "boolean",
+            "description": "True if connected to exchange"
+        }
+    }
+}

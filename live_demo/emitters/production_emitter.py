@@ -21,22 +21,6 @@ import random
 
 IST = pytz.timezone("Asia/Kolkata")
 
-REQUIRED_FIELDS = (
-    "ts_ist",
-    "equity_value",
-    "decision_time_ist",
-    "exec_time_ist",
-    "side",
-    "fill_qty",
-    "fill_price",
-    "fee",
-    "cost_bps",
-    "pred_stack_bps",
-    "S_top",
-    "S_bot",
-    "adv20",
-)
-
 
 class LogLevel(Enum):
     DEBUG = "DEBUG"
@@ -108,7 +92,6 @@ class ProductionLogEmitter:
             "order_intent",
             "feature_log",
             "calibration",
-            "trade_summary",
         ]:
             self._queues[log_type] = queue.Queue(maxsize=10000)
             self._writers[log_type] = threading.Thread(
@@ -155,12 +138,12 @@ class ProductionLogEmitter:
 
             # Write records
             with self._lock:
-                mode = self._get_file_mode(file_path)
+                mode = "a" if os.path.exists(file_path) else "w"
                 open_func = gzip.open if self.config.compression else open
 
                 with open_func(file_path, mode, encoding="utf-8") as f:
                     for record in records:
-                        self._write_json_line(f, record)
+                        f.write(json.dumps(record, separators=(",", ":")) + "\n")
 
                 # Update file size
                 self._file_sizes[log_type] = os.path.getsize(file_path)
@@ -183,11 +166,11 @@ class ProductionLogEmitter:
                     file_path = self._get_file_path(log_type)
 
                 with self._lock:
-                    mode = self._get_file_mode(file_path)
+                    mode = "a" if os.path.exists(file_path) else "w"
                     open_func = gzip.open if self.config.compression else open
 
                     with open_func(file_path, mode, encoding="utf-8") as f:
-                        self._write_json_line(f, record)
+                        f.write(json.dumps(record, separators=(",", ":")) + "\n")
 
                     self._file_sizes[log_type] = os.path.getsize(file_path)
                     self._last_flush[log_type] = time.time()
@@ -290,36 +273,18 @@ class ProductionLogEmitter:
         return random.random() < self.config.sampling_rate
 
     def _add_metadata(self, record: Dict[str, Any], log_type: str) -> Dict[str, Any]:
-        """Ensure record is flat, has required fields, and includes metadata."""
-        normalized = dict(record)
-        normalized["ts_ist"] = normalized.get("ts_ist") or datetime.now(IST).isoformat()
+        """Add metadata to record"""
+        if "ts_ist" not in record:
+            record["ts_ist"] = datetime.now(IST).isoformat()
 
-        for field in REQUIRED_FIELDS:
-            normalized.setdefault(field, None)
+        record["_emitter_metadata"] = {
+            "log_type": log_type,
+            "emitter_version": "1.0.0",
+            "sampled": self._should_sample(log_type),
+            "timestamp_utc": datetime.utcnow().isoformat() + "Z",
+        }
 
-        normalized["log_type"] = log_type
-        normalized["emitter_version"] = "1.0.0"
-        normalized["sampled"] = self._should_sample(log_type)
-        normalized["timestamp_utc"] = datetime.utcnow().isoformat() + "Z"
-
-        # Ensure no nested emitter metadata structure sneaks in
-        normalized.pop("_emitter_metadata", None)
-
-        return normalized
-
-    def _write_json_line(self, file_obj: Any, record: Dict[str, Any]) -> None:
-        """Write a single JSON line and flush immediately."""
-        file_obj.write(json.dumps(record, separators=(",", ":")) + "\n")
-        flush = getattr(file_obj, "flush", None)
-        if callable(flush):
-            flush()
-
-    def _get_file_mode(self, file_path: str) -> str:
-        """Return correct text mode for gzip/plain writers."""
-        base = "a" if os.path.exists(file_path) else "w"
-        if self.config.compression:
-            return f"{base}t"
-        return base
+        return record
 
     def emit_market_data(self, record: Dict[str, Any]):
         """Emit market data log"""
@@ -408,14 +373,6 @@ class ProductionLogEmitter:
             self._queues["calibration"].put(record)
         else:
             self._write_single_with_retry("calibration", record)
-
-    def emit_trade_summary(self, record: Dict[str, Any]):
-        """Emit trade summary log"""
-        record = self._add_metadata(record, "trade_summary")
-        if self.config.enable_async:
-            self._queues["trade_summary"].put(record)
-        else:
-            self._write_single_with_retry("trade_summary", record)
 
     def flush_all(self):
         """Flush all pending records"""

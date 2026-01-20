@@ -1,0 +1,154 @@
+# LATEST.json Connection Summary
+## Quick Reference Guide
+
+**Total Files Connected**: 50+
+
+---
+
+## File Categories & Counts
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ LATEST.json Dependency Overview                         │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  📁 Core Infrastructure (2 files)                       │
+│     ├─ manifest_loader.py ────────────── [PARSER]       │
+│     └─ model_runtime.py ──────────────── [LOADER]       │
+│                                                          │
+│  📝 Training Scripts (10 files)                         │
+│     ├─ train_model.py ───────────────── [WRITE]         │
+│     ├─ retrain_5m_production_v3.py ──── [BACKUP+WRITE]  │
+│     ├─ retrain_5m_production_v2.py ──── [BACKUP+WRITE]  │
+│     ├─ retrain_5m_production.py ─────── [BACKUP+WRITE]  │
+│     ├─ retrain_5m_banditv3.py ───────── [BACKUP+WRITE]  │
+│     ├─ retrain_5m_automated.py ──────── [BACKUP+WRITE]  │
+│     └─ retrain_*_production.py (4+) ─── [BACKUP+WRITE]  │
+│                                                          │
+│  🤖 Main Trading Bots (8 files)                         │
+│     ├─ live_demo/main.py ────────────── [READ]          │
+│     ├─ live_demo_1h/main.py ─────────── [READ]          │
+│     ├─ live_demo_12h/main.py ────────── [READ]          │
+│     ├─ live_demo_24h/main.py ────────── [READ]          │
+│     ├─ live_demo_1h/main_overlay.py ── [READ]          │
+│     └─ live_demo_24h/main_overlay.py ─ [READ]          │
+│                                                          │
+│  🎯 Overlay Systems (8 files)                           │
+│     ├─ overlay_signal_generator.py (4x) ─ [READ]        │
+│     └─ unified_overlay_system.py (2x) ─── [READ]        │
+│                                                          │
+│  🧪 Test Scripts (15+ files)                            │
+│     ├─ test_5m_trading.py ───────────── [READ]          │
+│     ├─ test_5m_simple.py ────────────── [READ]          │
+│     ├─ test_model_fix.py ────────────── [READ]          │
+│     ├─ validate_1h_model.py ─────────── [READ]          │
+│     ├─ verify_12h_independence.py ───── [READ]          │
+│     ├─ truth_check_models.py ────────── [READ]          │
+│     └─ smoke tests (6+) ─────────────── [READ]          │
+│                                                          │
+│  🔧 Utility Scripts (10+ files)                         │
+│     ├─ status_check_41min.py ────────── [READ]          │
+│     ├─ summary_5m_model.py ──────────── [READ]          │
+│     └─ run_shadow_overlays.py ───────── [READ]          │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Critical Flow
+
+```
+┌──────────────┐
+│ LATEST.json  │
+└──────┬───────┘
+       │
+       ├─── WRITERS (10 files) ───────────────┐
+       │    All retrain_*.py scripts          │
+       │    ↓ BACKUP → WRITE → VERIFY         │
+       │                                       │
+       ├─── PARSER (1 file) ──────────────────┤
+       │    manifest_loader.py                │
+       │    ↓ normalize_manifest()            │
+       │                                       │
+       ├─── LOADER (1 file) ──────────────────┤
+       │    model_runtime.py                  │
+       │    ↓ ModelRuntime.__init__()         │
+       │                                       │
+       └─── CONSUMERS (38+ files) ────────────┘
+            ├─ Trading bots (8)
+            ├─ Overlay systems (8)
+            ├─ Test scripts (15+)
+            └─ Utilities (10+)
+```
+
+---
+
+## Manifest Locations
+
+```
+MetaStackerBandit/
+├── live_demo/models/LATEST.json          ← 5m timeframe
+├── live_demo_1h/models/LATEST.json       ← 1h timeframe
+├── live_demo_12h/models/LATEST.json      ← 12h timeframe
+├── live_demo_24h/models/LATEST.json      ← 24h timeframe
+└── test_models/LATEST.json               ← Test models
+```
+
+---
+
+## Interaction Types
+
+| Type | Count | Files |
+|------|-------|-------|
+| **WRITE** | 10 | All retrain_*.py scripts |
+| **BACKUP** | 10 | All retrain_*.py scripts |
+| **READ (Direct)** | 10+ | Validation/utility scripts |
+| **READ (Via Loader)** | 30+ | Trading bots, overlays, tests |
+| **MOCK** | 6+ | Test suites |
+
+---
+
+## Key Takeaways
+
+1. **50+ files** depend on LATEST.json
+2. **Only 10 files** write to it (training scripts)
+3. **40+ files** read from it (via 2 core files)
+4. **Critical path**: LATEST.json → manifest_loader → model_runtime → Everything
+5. **Safe to modify**: Add optional fields with defaults
+6. **Risky to modify**: Change required fields or structure
+
+---
+
+## If You Change LATEST.json
+
+### Must Update:
+1. ✅ `manifest_loader.py` - Add field support
+2. ✅ `model_runtime.py` - Handle new fields
+3. ✅ All training scripts - Generate new fields
+
+### Must Test:
+1. ✅ Load manifest with manifest_loader
+2. ✅ Initialize ModelRuntime
+3. ✅ Run main.py (all timeframes)
+4. ✅ Run test_5m_trading.py
+5. ✅ Verify backward compatibility
+
+---
+
+## Current Enhancement Status
+
+### ✅ Completed (Phase 1-2)
+- Change tracking system
+- Backup/rollback utilities
+- Manifest utility functions
+
+### 🔄 Pending (Phase 3-6)
+- Update manifest_loader.py
+- Update model_runtime.py
+- Update training scripts
+- Enhance existing LATEST.json files
+
+---
+
+**For Full Details**: See `LATEST_json_dependency_map.md`

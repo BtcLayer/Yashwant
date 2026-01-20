@@ -1,9 +1,7 @@
-import gc
 import json
 import os
 import sys
-import threading
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 import joblib
 import numpy as np
 import pandas as pd
@@ -37,58 +35,9 @@ except ImportError:
     EnhancedMetaClassifier = None  # type: ignore
     CustomClassificationCalibrator = None  # type: ignore
 
-try:
-    from features import FeaturePipeline  # type: ignore
-except ImportError:  # pragma: no cover
-    from .features import FeaturePipeline  # type: ignore
-
-_ARTIFACT_CACHE: Dict[str, Any] = {}
-_CACHE_DISABLED = os.environ.get("MODEL_DISABLE_CACHE", "").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-)
-_LOAD_LOCK = threading.Lock()
-
-
-def _mmap_modes() -> List[Optional[str]]:
-    requested = os.environ.get("MODEL_MMAP_MODE", "r").strip().lower()
-    modes: List[Optional[str]] = []
-    if requested and requested not in ("off", "none", "disable"):
-        modes.append(requested)
-    modes.append(None)
-    return modes
-
-
-def _load_artifact(path: Optional[str], label: str):
-    if not path:
-        return None
-    abs_path = os.path.abspath(path)
-    cached = _ARTIFACT_CACHE.get(abs_path)
-    if cached is not None:
-        return cached
-    last_err: Optional[BaseException] = None
-    try:
-        with _LOAD_LOCK:
-            obj = joblib.load(abs_path)
-        if not _CACHE_DISABLED:
-            _ARTIFACT_CACHE[abs_path] = obj
-        return obj
-    except MemoryError as err:
-        last_err = err
-        gc.collect()
-    except Exception as err:  # noqa: BLE001
-        print(
-            f"[ModelRuntime] Warning: unable to load {label} '{abs_path}': {err}"
-        )
-        return None
-    print(f"[ModelRuntime] Warning: unable to load {label} '{abs_path}': {last_err}")
-    return None
-
 
 class ModelRuntime:
     def __init__(self, manifest_path: str):
-        manifest_meta: Dict[str, Any]
         # Support both legacy and versioned manifests via loader
         try:
             try:
@@ -96,18 +45,28 @@ class ModelRuntime:
             except ImportError:  # pragma: no cover
                 from .models.manifest_loader import normalize_manifest  # type: ignore
             nm = normalize_manifest(manifest_path)
-            manifest_meta = dict(nm or {})
             self.feature_schema_path = nm.get('feature_schema_path')
             self.model_path = nm.get('model_path')
             self.calibrator_path = nm.get('calibrator_path')
             cal = nm.get('calibration') or {}
             self.cal_a = float(cal.get('a', 0.0))
             self.cal_b = float(cal.get('b', 1.0))
+            
+            # Extract new metadata fields (optional)
+            self.git_commit = nm.get('git_commit')
+            self.trained_at_utc = nm.get('trained_at_utc')
+            self.expected_feature_dim = nm.get('feature_dim')
+            
+            # Log metadata if available
+            if self.git_commit:
+                print(f"[ModelRuntime] Model git commit: {self.git_commit}")
+            if self.trained_at_utc:
+                print(f"[ModelRuntime] Model trained at: {self.trained_at_utc}")
+                
         except Exception:
             # Fallback to direct JSON with legacy keys
             with open(manifest_path, 'r', encoding='utf-8') as f:
                 m = json.load(f)
-            manifest_meta = dict(m)
             base_dir = os.path.dirname(os.path.abspath(manifest_path))
             def abs_path(p: str) -> str:
                 return p if os.path.isabs(p) else os.path.join(base_dir, p)
@@ -116,7 +75,11 @@ class ModelRuntime:
             self.feature_schema_path = abs_path(m['feature_columns'])
             self.cal_a = 0.0
             self.cal_b = 1.0
-        self.feature_pipeline_config: Optional[Dict[str, Any]] = manifest_meta.get("feature_pipeline")
+            
+            # Metadata fields not available in fallback mode
+            self.git_commit = None
+            self.trained_at_utc = None
+            self.expected_feature_dim = None
         # Load feature column names for inference-time DataFrame construction
         try:
             with open(self.feature_schema_path, "r", encoding="utf-8") as f:
@@ -129,87 +92,91 @@ class ModelRuntime:
                 self.columns = payload
             else:
                 raise ValueError("Invalid feature schema payload")
+                
+            # Validate feature dimension if expected_feature_dim is set
+            if self.expected_feature_dim is not None:
+                actual_dim = len(self.columns)
+                if actual_dim != self.expected_feature_dim:
+                    print(
+                        f"[ModelRuntime] WARNING: Feature dimension mismatch! "
+                        f"Expected {self.expected_feature_dim}, got {actual_dim}"
+                    )
+                else:
+                    print(f"[ModelRuntime] Feature dimension validated: {actual_dim} features")
+                    
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # Fallback to empty; inference will raise if lengths mismatch
             self.columns = []
-        self.model = _load_artifact(self.model_path, "model")
-        if self.model is None and self.model_path:
+        try:
+            self.model = joblib.load(self.model_path)
+        except (ValueError, TypeError, AttributeError, ImportError) as e:
             # Degrade gracefully if custom class from notebook cannot be unpickled
+            self.model = None
             print(
-                f"[ModelRuntime] Warning: failed to load model '{self.model_path}'"
+                f"[ModelRuntime] Warning: failed to load model '{self.model_path}': {e}"
             )
-        self.calibrator = _load_artifact(self.calibrator_path, "calibrator")
+        try:
+            self.calibrator = (
+                joblib.load(self.calibrator_path) if self.calibrator_path else None
+            )
+        except (ValueError, TypeError, AttributeError, ImportError) as e:
+            self.calibrator = None
+            print(
+                f"[ModelRuntime] Warning: failed to load calibrator '{self.calibrator_path}': {e}"
+            )
         # class order {down:0, neutral:1, up:2}
         self.class_order = [0, 1, 2]
-        self.feature_pipeline = FeaturePipeline(self.columns, self.feature_pipeline_config)
 
     def infer(self, x: List[float]) -> Dict:
-        try:
-            features = list(x)
-            if self.feature_pipeline is not None:
-                features = self.feature_pipeline.transform(features)
-            # Build DataFrame with proper feature names to avoid sklearn warnings
-            if self.columns and len(features) == len(self.columns):
-                X_df = pd.DataFrame([features], columns=self.columns)
+        # Build DataFrame with proper feature names to avoid sklearn warnings
+        if self.columns and len(x) == len(self.columns):
+            X_df = pd.DataFrame([x], columns=self.columns)
+        else:
+            # Fallback to numpy array if schema missing/mismatch
+            X_df = None
+        X = np.array(x, dtype=float).reshape(1, -1)
+        if self.model is None:
+            # Neutral, no model available
+            proba = np.array([[0.33, 0.34, 0.33]], dtype=float)
+        else:
+            proba = None
+            if hasattr(self.model, "predict_proba"):
+                proba = self.model.predict_proba(X_df if X_df is not None else X)
+            elif hasattr(self.model, "decision_function"):
+                # Fallback: map decision function to 3-class via heuristic (shouldn't happen)
+                df = self.model.decision_function(X_df if X_df is not None else X)
+                # naive softmax
+                ex = np.exp(df - np.max(df))
+                proba = ex / np.sum(ex)
             else:
-                # Fallback to numpy array if schema missing/mismatch
-                X_df = None
-            X = np.array(features, dtype=float).reshape(1, -1)
-            if self.model is None:
-                # Neutral, no model available
-                proba = np.array([[0.33, 0.34, 0.33]], dtype=float)
-            else:
-                proba = None
-                if hasattr(self.model, "predict_proba"):
-                    proba = self.model.predict_proba(X_df if X_df is not None else X)
-                elif hasattr(self.model, "decision_function"):
-                    # Fallback: map decision function to 3-class via heuristic (shouldn't happen)
-                    df = self.model.decision_function(X_df if X_df is not None else X)
-                    # naive softmax
-                    ex = np.exp(df - np.max(df))
-                    proba = ex / np.sum(ex)
-                else:
-                    raise RuntimeError("Model lacks predict_proba/decision_function")
-                if self.calibrator is not None:
-                    # Calibrator exposes predict_proba(X) taking feature matrix; however our
-                    # CustomClassificationCalibrator expects raw features to call base_estimator
-                    # internally. If the loaded calibrator is our custom class, call predict_proba
-                    # with the original feature vector; otherwise, try transform(proba) as fallback.
-                    try:
-                        if hasattr(self.calibrator, "predict_proba"):
-                            proba = self.calibrator.predict_proba(
-                                X_df if X_df is not None else X
-                            )
-                        else:
-                            proba = self.calibrator.transform(proba)  # type: ignore[attr-defined]
-                    except (ValueError, TypeError, AttributeError):
-                        # If calibrator application fails, keep uncalibrated probabilities
-                        pass
-            # Ensure shape (1,3)
-            proba = np.asarray(proba).reshape(1, -1)
-            if proba.shape[1] != 3:
-                raise RuntimeError(f"Expected 3-class probabilities, got {proba.shape}")
-            p_down, p_neutral, p_up = proba[0].tolist()
-            s_model = float(p_up - p_down)
-            return {
-                'p_down': float(p_down),
-                'p_neutral': float(p_neutral),
-                'p_up': float(p_up),
-                's_model': s_model,
-                # Expose calibration params from artifacts (read-only)
-                'a': float(getattr(self, 'cal_a', 0.0)),
-                'b': float(getattr(self, 'cal_b', 1.0)),
-            }
-        except Exception as err:  # noqa: BLE001
-            print(f"[ModelRuntime] Warning: inference failed, returning neutral: {err}")
-            return self._neutral_output()
-
-    def _neutral_output(self) -> Dict[str, float]:
+                raise RuntimeError("Model lacks predict_proba/decision_function")
+            if self.calibrator is not None:
+                # Calibrator exposes predict_proba(X) taking feature matrix; however our
+                # CustomClassificationCalibrator expects raw features to call base_estimator
+                # internally. If the loaded calibrator is our custom class, call predict_proba
+                # with the original feature vector; otherwise, try transform(proba) as fallback.
+                try:
+                    if hasattr(self.calibrator, "predict_proba"):
+                        proba = self.calibrator.predict_proba(
+                            X_df if X_df is not None else X
+                        )
+                    else:
+                        proba = self.calibrator.transform(proba)  # type: ignore[attr-defined]
+                except (ValueError, TypeError, AttributeError):
+                    # If calibrator application fails, keep uncalibrated probabilities
+                    pass
+        # Ensure shape (1,3)
+        proba = np.asarray(proba).reshape(1, -1)
+        if proba.shape[1] != 3:
+            raise RuntimeError(f"Expected 3-class probabilities, got {proba.shape}")
+        p_down, p_neutral, p_up = proba[0].tolist()
+        s_model = float(p_up - p_down)
         return {
-            'p_down': 0.33,
-            'p_neutral': 0.34,
-            'p_up': 0.33,
-            's_model': 0.0,
-            'a': float(getattr(self, 'cal_a', 0.0)),
-            'b': float(getattr(self, 'cal_b', 1.0)),
+        'p_down': float(p_down),
+        'p_neutral': float(p_neutral),
+        'p_up': float(p_up),
+        's_model': s_model,
+        # Expose calibration params from artifacts (read-only)
+        'a': float(getattr(self, 'cal_a', 0.0)),
+        'b': float(getattr(self, 'cal_b', 1.0)),
         }

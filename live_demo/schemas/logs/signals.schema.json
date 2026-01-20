@@ -1,0 +1,116 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "signals",
+    "description": "Model predictions, arm selection, and final trading decision for each bar",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "p_up",
+        "p_down",
+        "p_neutral",
+        "selected_arm",
+        "final_action"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts": {
+            "type": "string",
+            "minLength": 10,
+            "description": "ISO8601 timestamp in UTC"
+        },
+        "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading symbol (e.g., BTCUSDT)"
+        },
+        "decision_tf": {
+            "type": "string",
+            "description": "Decision timeframe (e.g., 5m, 1h, 12h)"
+        },
+        "bar_close_ts": {
+            "type": "string",
+            "description": "Bar close timestamp"
+        },
+        "p_up": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Probability of upward movement"
+        },
+        "p_down": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Probability of downward movement"
+        },
+        "p_neutral": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Probability of neutral/no movement"
+        },
+        "s_model": {
+            "type": "number",
+            "description": "Model strength/confidence score"
+        },
+        "strength": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Signal strength (explicit)"
+        },
+        "p_non_neutral": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Probability of non-neutral (p_up + p_down)"
+        },
+        "conf_dir": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Confidence in direction"
+        },
+        "eligible_arms": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of arms eligible for selection"
+        },
+        "selected_arm": {
+            "type": "string",
+            "description": "Which arm was selected (model_meta, pros, amateurs, hold)"
+        },
+        "raw_action": {
+            "type": "string",
+            "enum": [
+                "BUY",
+                "SELL",
+                "HOLD"
+            ],
+            "description": "Raw action before overlays/guards"
+        },
+        "final_action": {
+            "type": "string",
+            "enum": [
+                "BUY",
+                "SELL",
+                "HOLD"
+            ],
+            "description": "Final action after all guards/overlays"
+        },
+        "config_hash": {
+            "type": "string",
+            "description": "Hash of config used for this decision"
+        },
+        "model_id": {
+            "type": "string",
+            "description": "Model identifier from manifest"
+        },
+        "manifest_id": {
+            "type": "string",
+            "description": "Manifest identifier"
+        }
+    }
+}

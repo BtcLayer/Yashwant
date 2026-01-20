@@ -1,0 +1,140 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "PnL and Equity Log Schema",
+    "description": "Schema for PnL and equity tracking logs",
+    "type": "object",
+    "required": [
+        "ts",
+        "symbol",
+        "equity_value",
+        "pnl_total_usd"
+    ],
+    "properties": {
+        "ts": {
+            "type": "number",
+            "description": "Unix timestamp (milliseconds)"
+        },
+        "ts_iso": {
+            "type": "string",
+            "description": "ISO8601 timestamp"
+        },
+        "symbol": {
+            "type": "string",
+            "description": "Trading symbol (e.g., BTCUSDT)"
+        },
+        "equity_value": {
+            "type": "number",
+            "description": "Current equity value (USD)"
+        },
+        "pnl_total_usd": {
+            "type": "number",
+            "description": "Total PnL (realized + unrealized) in USD"
+        },
+        "realized_pnl_usd": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Realized PnL in USD"
+        },
+        "unrealized_pnl_usd": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Unrealized PnL in USD"
+        },
+        "realized_return_bps": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Realized return in basis points"
+        },
+        "position_qty": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Current position quantity"
+        },
+        "position_avg_px": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Average entry price for position"
+        },
+        "current_price": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Current market price"
+        },
+        "starting_equity": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Starting equity for the session"
+        },
+        "peak_equity": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Peak equity reached in session"
+        },
+        "drawdown_pct": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Current drawdown from peak (%)"
+        },
+        "drawdown_usd": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Current drawdown from peak (USD)"
+        },
+        "return_pct": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Return from starting equity (%)"
+        },
+        "return_usd": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Return from starting equity (USD)"
+        },
+        "win_rate": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Win rate (0-1)"
+        },
+        "sharpe_ratio": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Sharpe ratio (if calculated)"
+        },
+        "max_drawdown_pct": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Maximum drawdown seen (%)"
+        }
+    },
+    "additionalProperties": true
+}

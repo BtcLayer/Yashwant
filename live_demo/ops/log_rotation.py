@@ -11,7 +11,7 @@ def delete_old_logs(root: str, days: int = 30):
     cutoff = time.time() - float(days) * 86400.0
     for dirpath, _, filenames in os.walk(root, topdown=False):
         for fn in filenames:
-            if not (fn.endswith('.jsonl') or fn.endswith('.jsonl.gz')):
+            if not (fn.endswith('.jsonl') or fn.endswith('.jsonl')):
                 continue
             fp = os.path.join(dirpath, fn)
             try:

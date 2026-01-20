@@ -11,6 +11,8 @@ import pytz
 IST = pytz.timezone("Asia/Kolkata")
 
 
+from live_demo.reason_codes import VetoReasonCode
+
 @dataclass
 class OrderIntent:
     """Order intent data structure"""
@@ -64,12 +66,12 @@ class OrderIntentTracker:
 
         # Determine reason codes
         reason_codes = {
-            "threshold": abs(decision.get("alpha", 0.0)) >= 0.12,
-            "band": self._check_band_conditions(model_out, market_data),
-            "spread_guard": self._check_spread_conditions(market_data),
-            "volatility_ok": self._check_volatility_conditions(market_data),
-            "liquidity_ok": self._check_liquidity_conditions(market_data),
-            "risk_ok": self._check_risk_conditions(risk_state),
+            VetoReasonCode.THRESHOLD.value: abs(decision.get("alpha", 0.0)) >= 0.12,
+            VetoReasonCode.BAND.value: self._check_band_conditions(model_out, market_data),
+            VetoReasonCode.SPREAD.value: self._check_spread_conditions(market_data),
+            VetoReasonCode.VOLATILITY.value: self._check_volatility_conditions(market_data),
+            VetoReasonCode.LIQUIDITY.value: self._check_liquidity_conditions(market_data),
+            VetoReasonCode.RISK.value: self._check_risk_conditions(risk_state),
         }
 
         # Create order intent
@@ -101,6 +103,98 @@ class OrderIntentTracker:
             self.intent_history = self.intent_history[-1000:]
 
         return intent
+
+    def _extract_veto_reasons(self, reason_codes: Dict[str, bool]) -> tuple:
+        """Extract primary and secondary veto reasons from failed guards
+        
+        Returns:
+            tuple: (primary_veto, secondary_veto) - guard names that failed
+        """
+        # Get all guards that failed (False = failed)
+        failed_guards = [k for k, v in reason_codes.items() if v is False]
+        
+        # Sort for consistency (alphabetical)
+        failed_guards.sort()
+        
+        primary = failed_guards[0] if len(failed_guards) > 0 else None
+        secondary = failed_guards[1] if len(failed_guards) > 1 else None
+        
+        return primary, secondary
+
+    def _build_guard_details(
+        self,
+        reason_codes: Dict[str, bool],
+        decision: Dict[str, Any],
+        model_out: Dict[str, Any],
+        market_data: Dict[str, Any],
+        risk_state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Build detailed guard information with actual values vs thresholds
+        
+        Only includes details for guards that FAILED (returned False)
+        
+        Returns:
+            dict: Guard details with actual values and thresholds
+        """
+        details = {}
+        
+        # Threshold guard - signal strength check
+        if not reason_codes.get(VetoReasonCode.THRESHOLD.value, True):
+            signal_strength = abs(decision.get("alpha", 0.0))
+            details['threshold'] = {
+                "signal_strength": round(signal_strength, 4),
+                "required": 0.12,
+                "gap": round(0.12 - signal_strength, 4)
+            }
+        
+        # Band guard - model prediction strength
+        if not reason_codes.get(VetoReasonCode.BAND.value, True):
+            s_model = abs(model_out.get("s_model", 0.0))
+            details['band'] = {
+                "s_model": round(s_model, 4),
+                "required": 0.12,
+                "gap": round(0.12 - s_model, 4)
+            }
+        
+        # Spread guard - market spread check
+        if not reason_codes.get(VetoReasonCode.SPREAD.value, True):
+            spread_bps = market_data.get("spread_bps", 0.0)
+            details['spread_guard'] = {
+                "spread_bps": round(spread_bps, 2),
+                "threshold_bps": 10.0,
+                "excess_bps": round(spread_bps - 10.0, 2) if spread_bps > 10.0 else 0.0
+            }
+        
+        # Volatility guard - volatility range check
+        if not reason_codes.get(VetoReasonCode.VOLATILITY.value, True):
+            volatility = market_data.get("rv_1h", 0.0)
+            details['volatility'] = {
+                "rv_1h": round(volatility, 4),
+                "min_threshold": 0.01,
+                "max_threshold": 0.50,
+                "out_of_range": "too_low" if volatility < 0.01 else "too_high" if volatility > 0.50 else "in_range"
+            }
+        
+        # Liquidity guard - volume check
+        if not reason_codes.get(VetoReasonCode.LIQUIDITY.value, True):
+            volume = market_data.get("volume", 0.0)
+            details['liquidity'] = {
+                "volume": round(volume, 2),
+                "min_threshold": 100.0,
+                "shortfall": round(100.0 - volume, 2) if volume < 100.0 else 0.0
+            }
+        
+        # Risk guard - position limit check
+        if not reason_codes.get(VetoReasonCode.RISK.value, True):
+            position = risk_state.get("position", 0.0)
+            max_position = risk_state.get("max_position", 1.0)
+            details['risk'] = {
+                "position": round(position, 4),
+                "max_position": round(max_position, 4),
+                "utilization_pct": round(abs(position) / max_position * 100, 2) if max_position > 0 else 0.0
+            }
+        
+        return details
 
     def _check_band_conditions(
         self, model_out: Dict[str, Any], market_data: Dict[str, Any]
@@ -153,6 +247,56 @@ class OrderIntentTracker:
             "market_conditions": intent.market_conditions,
         }
 
+    def get_intent_log_enhanced(
+        self,
+        ts: float,
+        asset: str,
+        bar_id: int,
+        decision: Dict[str, Any],
+        model_out: Dict[str, Any],
+        market_data: Dict[str, Any],
+        risk_state: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Get enhanced order intent log with veto reason details
+        
+        This is the new method that includes veto_reason_primary,
+        veto_reason_secondary, and guard_details.
+        """
+        if not self.current_intent:
+            return None
+
+        intent = self.current_intent
+        
+        # Extract veto reasons
+        primary_veto, secondary_veto = self._extract_veto_reasons(intent.reason_codes)
+        
+        # Build guard details
+        guard_details = self._build_guard_details(
+            intent.reason_codes,
+            decision,
+            model_out,
+            market_data,
+            risk_state
+        )
+
+        return {
+            "ts_ist": intent.decision_time_ist,
+            "bar_id_decision": intent.bar_id_decision,
+            "asset": intent.asset,
+            "side": intent.side,
+            "intent_qty": intent.intent_qty,
+            "intent_notional": intent.intent_notional,
+            "reason_codes": intent.reason_codes,
+            "signal_strength": intent.signal_strength,
+            "model_confidence": intent.model_confidence,
+            "risk_score": intent.risk_score,
+            "market_conditions": intent.market_conditions,
+            # Enhanced veto tracking fields
+            "veto_reason_primary": primary_veto,
+            "veto_reason_secondary": secondary_veto,
+            "guard_details": guard_details
+        }
+
     def log_order_intent_dict(
         self,
         ts: float,
@@ -163,11 +307,23 @@ class OrderIntentTracker:
         market_data: Dict[str, Any],
         risk_state: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
-        """Log order intent and return dictionary directly"""
+        """Log order intent and return dictionary directly with enhanced veto tracking"""
         intent = self.log_order_intent(
             ts, bar_id, asset, decision, model_out, market_data, risk_state
         )
         if intent:
+            # Extract veto reasons
+            primary_veto, secondary_veto = self._extract_veto_reasons(intent.reason_codes)
+            
+            # Build guard details
+            guard_details = self._build_guard_details(
+                intent.reason_codes,
+                decision,
+                model_out,
+                market_data,
+                risk_state
+            )
+            
             return {
                 "ts_ist": intent.decision_time_ist,
                 "bar_id_decision": intent.bar_id_decision,
@@ -180,6 +336,10 @@ class OrderIntentTracker:
                 "model_confidence": intent.model_confidence,
                 "risk_score": intent.risk_score,
                 "market_conditions": intent.market_conditions,
+                # Enhanced veto tracking fields
+                "veto_reason_primary": primary_veto,
+                "veto_reason_secondary": secondary_veto,
+                "guard_details": guard_details
             }
         return None
 

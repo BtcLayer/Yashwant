@@ -1,58 +1,20 @@
+#Every time a new 5-minute candle closes, this sequence occurs:
+
+#1. Ingestion: New OHLCV data is added to the historical deques
+
+#2. State Update: The EMA20 (Exponential Moving Average) is updated using a recursive formula
+# # ($Value_t = \alpha \cdot Price_t + (1-\alpha) \cdot Value_{t-1}$).
+
+#3.Complex Calculation: It calculates advanced metrics like price_efficiency (how much the price moved relative to its total range).
+
+#4. Cohort Integration: It calculates the flow_diff between "Pros" (top traders) and "Amateurs" (bottom traders).
+
+#5 Final Alignment: It filters all these calculated values through the FeatureBuilder to ensure the list of numbers matches the model's expected input perfectly.
+
+
 import json
 from collections import deque
-from typing import Any, Deque, Dict, List, Optional
-
-
-class FeaturePipeline:
-    """Simple, manifest-driven preprocessing pipeline for model features."""
-
-    def __init__(self, columns: List[str], config: Optional[Dict[str, Any]] = None):
-        self.columns = columns or []
-        cfg = dict(config or {})
-        self.pipeline_type = str(cfg.get("type", "identity")).lower()
-        stats = cfg.get("stats") or {}
-        mean_map = stats.get("mean") or {}
-        std_map = stats.get("std") or {}
-        self._mean = {k: float(v) for k, v in mean_map.items() if v is not None}
-        self._std = {k: (float(v) if float(v or 0.0) != 0.0 else 1.0) for k, v in std_map.items() if v is not None}
-        clip = cfg.get("clip")
-        if isinstance(clip, (list, tuple)) and clip:
-            lo = clip[0] if len(clip) > 0 else None
-            hi = clip[1] if len(clip) > 1 else None
-            self._clip: Optional[tuple] = (
-                float(lo) if lo is not None else None,
-                float(hi) if hi is not None else None,
-            )
-        else:
-            self._clip = None
-
-    def transform(self, values: List[float]) -> List[float]:
-        """Apply the configured preprocessing in a defensive, copy-on-write manner."""
-
-        out = list(values)
-        if self.pipeline_type == "standardize" and self.columns:
-            for idx, name in enumerate(self.columns):
-                if idx >= len(out):
-                    break
-                mean = self._mean.get(name, 0.0)
-                std = self._std.get(name, 1.0)
-                try:
-                    out[idx] = (float(out[idx]) - mean) / (std if std != 0 else 1.0)
-                except (TypeError, ValueError):
-                    out[idx] = 0.0
-        if self._clip is not None:
-            lo, hi = self._clip
-            for idx, val in enumerate(out):
-                try:
-                    v = float(val)
-                except (TypeError, ValueError):
-                    v = 0.0
-                if lo is not None and v < lo:
-                    v = lo
-                if hi is not None and v > hi:
-                    v = hi
-                out[idx] = v
-        return out
+from typing import Deque, Dict, List
 
 
 class FeatureBuilder:

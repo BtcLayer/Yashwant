@@ -60,6 +60,9 @@ def normalize_manifest(latest_path: str) -> Dict[str, Any]:
       - ensemble (optional)
       - training_meta_path (optional)
       - raw (the original manifest JSON)
+      - git_commit (optional, new)
+      - trained_at_utc (optional, new)
+      - feature_dim (optional, new)
     """
     latest_path = os.path.abspath(latest_path)
     base_dir = os.path.dirname(latest_path)
@@ -91,6 +94,12 @@ def normalize_manifest(latest_path: str) -> Dict[str, Any]:
         calibrator_path = _abspath(base_dir, obj.get('calibrator')) if obj.get('calibrator') else None
         feature_schema_path = _abspath(base_dir, obj.get('feature_columns'))
         training_meta_path = _abspath(base_dir, obj.get('training_meta')) if obj.get('training_meta') else None
+        
+        # Extract new metadata fields (optional, for enhanced manifests)
+        git_commit = obj.get('git_commit')
+        trained_at_utc = obj.get('trained_at_utc')
+        feature_dim = obj.get('feature_dim')
+        
         out = {
             'feature_schema_path': feature_schema_path,
             'model_path': model_path,
@@ -100,6 +109,10 @@ def normalize_manifest(latest_path: str) -> Dict[str, Any]:
             'ensemble': {},
             'raw': obj,
             'manifest_path': manifest_path,
+            # New metadata fields (optional)
+            'git_commit': git_commit,
+            'trained_at_utc': trained_at_utc,
+            'feature_dim': feature_dim,
         }
         return out
 

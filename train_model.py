@@ -287,17 +287,42 @@ with open(os.path.join(OUTPUT_DIR, meta_meta_file), 'w') as f:
     json.dump(metadata, f, indent=2)
 print(f"✅ Saved: {meta_meta_file}")
 
-# Create LATEST.json
-latest = {
-    'meta_classifier': meta_file,
-    'calibrator': cal_file,
-    'feature_columns': feat_file,
-    'training_meta': meta_meta_file
-}
+# Create LATEST.json with enhanced metadata
+try:
+    from live_demo.models.manifest_utils import enhance_manifest
+    
+    # Base manifest
+    latest = {
+        'meta_classifier': meta_file,
+        'calibrator': cal_file,
+        'feature_columns': feat_file,
+        'training_meta': meta_meta_file
+    }
+    
+    # Enhance with metadata (git_commit, trained_at_utc, feature_dim)
+    latest = enhance_manifest(
+        latest,
+        feature_file_path=os.path.join(OUTPUT_DIR, feat_file)
+    )
+    print(f"✅ Enhanced manifest with metadata:")
+    print(f"   - git_commit: {latest.get('git_commit')}")
+    print(f"   - trained_at_utc: {latest.get('trained_at_utc')}")
+    print(f"   - feature_dim: {latest.get('feature_dim')}")
+    
+except ImportError:
+    # Fallback if manifest_utils not available
+    latest = {
+        'meta_classifier': meta_file,
+        'calibrator': cal_file,
+        'feature_columns': feat_file,
+        'training_meta': meta_meta_file
+    }
+    print(f"⚠️  manifest_utils not available, using basic manifest")
 
 with open(os.path.join(OUTPUT_DIR, 'LATEST.json'), 'w') as f:
     json.dump(latest, f, indent=2)
 print(f"✅ Saved: LATEST.json")
+
 
 print()
 print("=" * 70)

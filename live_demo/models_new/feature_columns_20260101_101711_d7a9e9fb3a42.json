@@ -1,1 +1,0 @@
-{"feature_cols": ["mom_1", "mom_3", "mr_ema20_z", "rv_1h", "regime_high_vol", "gk_volatility", "jump_magnitude", "volume_intensity", "price_efficiency", "price_volume_corr", "vwap_momentum", "depth_proxy", "funding_rate", "funding_momentum_1h", "flow_diff", "S_top", "S_bot"], "schema_hash": "d7a9e9fb3a42"}
