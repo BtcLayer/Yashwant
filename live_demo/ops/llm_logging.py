@@ -50,26 +50,49 @@ def _prune_record(rec: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def write_jsonl(kind: str, record: Dict[str, Any], asset: Optional[str] = None) -> None:
-    """Write a single JSONL record to live_demo/logs/<kind>/date=YYYY-MM-DD/<kind>.jsonl.
+def write_jsonl(kind: str, record: Dict[str, Any], asset: Optional[str] = None, root: Optional[str] = None) -> None:
+    """Write a single JSONL record to canonical partitioned path:
+    paper_trading_outputs/{timeframe}/logs/{kind}/date=YYYY-MM-DD/asset={symbol}/{kind}.jsonl
+    
     - Applies small field/size caps to keep lines LLM-friendly.
     - Best-effort: swallows IO errors to avoid impacting the trading loop.
     """
     try:
-        base = _logs_dir()
+        # Use provided root or fall back to _logs_dir()
+        if root:
+            base = root
+        else:
+            base = _logs_dir()
+        
         # Normalize kind names: e.g., ensemble_log -> ensemble
         sub = str(kind).lower().replace('_log', '')
+        
+        # Date partition
         date_dir = datetime.utcnow().strftime('date=%Y-%m-%d')
-        out_dir = os.path.join(base, sub, date_dir)
+        
+        # Asset partition (default to UNKNOWN if not provided)
+        rec = dict(record) if isinstance(record, dict) else {"value": record}
+        if asset:
+            symbol = asset
+            if 'asset' not in rec:
+                rec['asset'] = asset
+        else:
+            # Try to extract from record
+            symbol = rec.get('asset') or rec.get('symbol') or 'UNKNOWN'
+        
+        asset_dir = f"asset={symbol}"
+        
+        # Build canonical path: logs/{stream}/date=.../asset=.../{stream}.jsonl
+        out_dir = os.path.join(base, sub, date_dir, asset_dir)
         os.makedirs(out_dir, exist_ok=True)
+        
         fname = f"{sub}.jsonl"
         path = os.path.join(out_dir, fname)
-        rec = dict(record) if isinstance(record, dict) else {"value": record}
-        if asset and 'asset' not in rec:
-            rec['asset'] = asset
+        
         pruned = _prune_record(rec)
         with open(path, 'a', encoding='utf-8') as fh:
             fh.write(json.dumps(pruned, ensure_ascii=False) + "\n")
     except OSError:
         # Non-fatal: logging should not break the loop
         return
+
