@@ -1,0 +1,46 @@
+name: Validate Logs
+
+on:
+  push:
+    paths:
+      - 'paper_trading_outputs/**/*.jsonl'
+      - 'scripts/validate_logs.py'
+  pull_request:
+    paths:
+      - 'paper_trading_outputs/**/*.jsonl'
+      - 'scripts/validate_logs.py'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  validate-logs:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        timeframe: ['5m', '1h', '12h', '24h']
+      fail-fast: false  # Continue even if one timeframe fails
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Validate ${{ matrix.timeframe }} logs
+        run: |
+          if [ -d "paper_trading_outputs/${{ matrix.timeframe }}/logs" ]; then
+            python scripts/validate_logs.py --root paper_trading_outputs/${{ matrix.timeframe }}
+          else
+            echo "⚠️  No logs found for ${{ matrix.timeframe }} timeframe"
+          fi
+      
+      - name: Upload validation report
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: validation-report-${{ matrix.timeframe }}
+          path: |
+            paper_trading_outputs/${{ matrix.timeframe }}/logs/**/*.jsonl
+          retention-days: 7
