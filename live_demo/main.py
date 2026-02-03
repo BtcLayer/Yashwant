@@ -131,7 +131,7 @@ async def run_live(config_path: str, dry_run: bool = False):
                 }
             
             def klines(self, symbol: str, interval: str, limit: int = 1000):
-                """Get candles from Hyperliquid API"""
+                """Get candles from Hyperliquid API with rate limiting and retry logic"""
                 
                 # Map interval
                 hl_interval = self.interval_map.get(interval, interval)
@@ -149,8 +149,6 @@ async def run_live(config_path: str, dry_run: bool = False):
                 start_time = end_time - (limit * seconds_per_candle * 1000)
                 
                 # Hyperliquid API endpoint for candles
-                # Hyperliquid uses POST to base_url with type-based requests
-                # Requires startTime and endTime (epoch milliseconds), not n
                 url = self.base_url  # e.g., https://api.hyperliquid.xyz/info
                 payload = {
                     "type": "candleSnapshot",
@@ -162,40 +160,90 @@ async def run_live(config_path: str, dry_run: bool = False):
                     }
                 }
                 
-                try:
-                    response = requests.post(url, json=payload, timeout=30)
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    if not data:
-                        raise ValueError("Invalid Hyperliquid API response")
-                    
-                    # Hyperliquid returns array directly: [{"t": start_ms, "T": end_ms, "s": "BTC", "i": "5m", "o": open, "c": close, "h": high, "l": low, "v": volume, "n": count}, ...]
-                    if isinstance(data, list):
-                        candles = data
-                    elif isinstance(data, dict):
-                        candles = data.get("data", [])
-                    else:
-                        raise ValueError("Unexpected Hyperliquid response format")
-                    
-                    if not candles:
-                        raise ValueError("No candle data in response")
-                    # Convert to Binance-like format: [timestamp, open, high, low, close, volume, ...]
-                    result = []
-                    for candle in candles:
-                        # Hyperliquid uses: t (start time), T (end time), o (open), c (close), h (high), l (low), v (volume)
-                        result.append([
-                            int(candle["t"]),  # timestamp (start time)
-                            float(candle["o"]),  # open
-                            float(candle["h"]),  # high
-                            float(candle["l"]),  # low
-                            float(candle["c"]),  # close
-                            float(candle.get("v", 0)),  # volume
-                            int(candle["T"]),  # close time (end time)
-                        ])
-                    return result
-                except Exception as e:
-                    raise RuntimeError(f"Hyperliquid API error: {e}") from e
+                # Retry logic with exponential backoff for rate limiting
+                max_retries = 5
+                base_delay = 3.0  # Increased from 2.0 to 3.0 for more conservative approach
+                
+                # Add initial delay to avoid immediate rate limiting
+                time.sleep(1.0)
+                
+                for attempt in range(max_retries):
+                    try:
+                        # Add delay between requests to avoid rate limiting
+                        if attempt > 0:
+                            delay = base_delay * (2 ** (attempt - 1))  # Exponential backoff
+                            delay = min(delay, 120.0)  # Cap at 120 seconds (increased from 60)
+                            print(f"⏳ Rate limit backoff: waiting {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(delay)
+                        
+                        response = requests.post(url, json=payload, timeout=30)
+                        
+                        # Handle rate limiting
+                        if response.status_code == 429:
+                            if attempt < max_retries - 1:
+                                retry_after = response.headers.get('Retry-After', base_delay * (2 ** attempt))
+                                try:
+                                    retry_after = float(retry_after)
+                                except (ValueError, TypeError):
+                                    retry_after = base_delay * (2 ** attempt)
+                                print(f"⚠️  Rate limited (429). Retry #{attempt + 1} after {retry_after:.1f}s")
+                                time.sleep(retry_after)
+                                continue
+                            else:
+                                raise RuntimeError(f"Hyperliquid API rate limit exceeded after {max_retries} attempts")
+                        
+                        response.raise_for_status()
+                        data = response.json()
+                        
+                        if not data:
+                            raise ValueError("Invalid Hyperliquid API response")
+                        
+                        # Hyperliquid returns array directly
+                        if isinstance(data, list):
+                            candles = data
+                        elif isinstance(data, dict):
+                            candles = data.get("data", [])
+                        else:
+                            raise ValueError("Unexpected Hyperliquid response format")
+                        
+                        if not candles:
+                            raise ValueError("No candle data in response")
+                        
+                        # Convert to Binance-like format
+                        result = []
+                        for candle in candles:
+                            result.append([
+                                int(candle["t"]),  # timestamp (start time)
+                                float(candle["o"]),  # open
+                                float(candle["h"]),  # high
+                                float(candle["l"]),  # low
+                                float(candle["c"]),  # close
+                                float(candle.get("v", 0)),  # volume
+                                int(candle["T"]),  # close time (end time)
+                            ])
+                        
+                        # Success - add longer delay before next request (increased from 0.5s to 2s)
+                        print(f"✅ Successfully fetched {len(result)} candles. Waiting 2s before next request...")
+                        time.sleep(2.0)  # 2 second delay to stay well under rate limits
+                        return result
+                        
+                    except requests.exceptions.HTTPError as e:
+                        if e.response.status_code == 429 and attempt < max_retries - 1:
+                            # Already handled above, but catch here for safety
+                            continue
+                        raise RuntimeError(f"Hyperliquid API HTTP error: {e}") from e
+                    except requests.exceptions.RequestException as e:
+                        if attempt < max_retries - 1:
+                            print(f"⚠️  Request failed: {e}. Retrying... ({attempt + 1}/{max_retries})")
+                            continue
+                        raise RuntimeError(f"Hyperliquid API request error: {e}") from e
+                    except Exception as e:
+                        if attempt < max_retries - 1 and '429' in str(e):
+                            continue
+                        raise RuntimeError(f"Hyperliquid API error: {e}") from e
+                
+                raise RuntimeError(f"Hyperliquid API failed after {max_retries} attempts")
+            
             
             def new_order(self, **kwargs):
                 # Placeholder for order execution (not used in dry_run mode)
@@ -330,12 +378,25 @@ async def run_live(config_path: str, dry_run: bool = False):
         retry_backoff_s=float(hl_f_cfg.get("retry_backoff_s", 0.75)),
     )
 
-    # Cohort state
-    cohort = CohortState(window=12)
-    # ADV20 from warmup volume
+    # Cohort state - 5m optimized configuration
+    cohort = CohortState(
+        window=50,                      # 50 bars = 4.17 hours
+        use_adv20_normalization=False,  # Raw signals for 5m
+        use_signal_decay=False,         # Preserve momentum
+        timeframe_hours=0.0833,         # 5min = 0.0833h
+        signal_half_life_minutes=15.0,  # 3x bar if decay needed
+        bar_interval_ms=300000          # 5m = 300000ms (per-bar fix)
+    )
+    # Calculate bars per day based on interval
+    bars_per_day = {
+        "1m": 1440, "3m": 480, "5m": 288, "15m": 96, "30m": 48,
+        "1h": 24, "2h": 12, "4h": 6, "12h": 2, "1d": 1
+    }
+    bpd = bars_per_day.get(interval, 288)  # Default to 5m (288 bars/day)
+    adv20_window = bpd * 20  # 20 days worth of bars
     adv20 = (
-        kl["volume"].tail(12 * 20).mean()
-        if len(kl) >= 12 * 20
+        kl["volume"].tail(adv20_window).mean()
+        if len(kl) >= adv20_window
         else max(1.0, kl["volume"].mean())
     )
     cohort.set_adv20(float(adv20))
@@ -1479,6 +1540,31 @@ async def run_live(config_path: str, dry_run: bool = False):
                     }
                     used_force = True
                     is_current_trade_forced = True
+                
+                # NEW: Check if current position should be closed before entering new trade
+                try:
+                    exit_thresholds = {
+                        'exit_conf_min': float(cfg.get('thresholds', {}).get('exit_conf_min', 0.40)),
+                        'exit_alpha_min': float(cfg.get('thresholds', {}).get('exit_alpha_min', 0.30)),
+                        'max_position_duration_bars': int(cfg.get('thresholds', {}).get('max_position_duration_bars', 288)),
+                        'stop_loss_bps': float(cfg.get('risk', {}).get('stop_loss_bps', 200.0)),
+                        'take_profit_bps': float(cfg.get('risk', {}).get('take_profit_bps', 300.0)),
+                    }
+                    should_close, close_reason = risk.should_close_position(
+                        current_bar=bar_count,
+                        current_price=c,
+                        decision=decision,
+                        exit_thresholds=exit_thresholds
+                    )
+                    if should_close:
+                        # Override decision to close position (target = 0)
+                        decision = risk.get_exit_decision(decision)
+                        decision['details']['exit_reason'] = close_reason
+                        mw.track_event('forced_exits', ts)
+                except Exception as e:
+                    # If exit logic fails, continue with normal flow
+                    pass
+                
                 # If daily stop triggered, enforce flat
                 if stopped_for_day:
                     tgt = 0.0
@@ -1525,6 +1611,18 @@ async def run_live(config_path: str, dry_run: bool = False):
             if exec_resp:
                 mw.track_event('executions', ts)
                 try:
+                    # Update position tracking for exit management
+                    try:
+                        new_pos = float(exec_resp.get('target_qty', 0.0)) if 'target_qty' in exec_resp else float(tgt if 'tgt' in locals() else 0.0)
+                        risk.update_position_tracking(
+                            new_pos=new_pos,
+                            current_bar=bar_count,
+                            current_price=float(exec_resp.get('price', c)),
+                            ts_ms=ts
+                        )
+                    except Exception:
+                        pass
+                    
                     # Track execution details
                     # Update risk state with executed notional and flip timing
                     try:

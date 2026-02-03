@@ -35,6 +35,29 @@ except ImportError:
     EnhancedMetaClassifier = None  # type: ignore
     CustomClassificationCalibrator = None  # type: ignore
 
+# Import EnsembleWrapper for 1h model compatibility
+try:
+    try:
+        from live_demo_1h.ensemble_wrapper import EnsembleWrapper  # type: ignore
+    except ImportError:
+        import sys
+        import os
+        # Try adding live_demo_1h to path
+        live_demo_1h_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'live_demo_1h')
+        if os.path.exists(live_demo_1h_path):
+            sys.path.insert(0, live_demo_1h_path)
+            from ensemble_wrapper import EnsembleWrapper  # type: ignore
+    globals().setdefault("EnsembleWrapper", EnsembleWrapper)
+    # Register in __main__ for pickle compatibility
+    try:
+        main_mod = sys.modules.get("__main__")
+        if main_mod is not None:
+            setattr(main_mod, "EnsembleWrapper", EnsembleWrapper)
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+except ImportError:
+    EnsembleWrapper = None  # type: ignore
+
 
 class ModelRuntime:
     def __init__(self, manifest_path: str):
@@ -128,23 +151,26 @@ class ModelRuntime:
         self.class_order = [0, 1, 2]
 
     def infer(self, x: List[float]) -> Dict:
-        # Build DataFrame with proper feature names to avoid sklearn warnings
+        # Build DataFrame with proper feature names if columns are available
+        # October model (with calibration) expects DataFrames with feature names
+        # Jan model (no calibration) expects numpy arrays
         if self.columns and len(x) == len(self.columns):
             X_df = pd.DataFrame([x], columns=self.columns)
+            X = X_df  # Use DataFrame for models trained with feature names
         else:
             # Fallback to numpy array if schema missing/mismatch
-            X_df = None
-        X = np.array(x, dtype=float).reshape(1, -1)
+            X = np.array(x, dtype=float).reshape(1, -1)
+        
         if self.model is None:
             # Neutral, no model available
             proba = np.array([[0.33, 0.34, 0.33]], dtype=float)
         else:
             proba = None
             if hasattr(self.model, "predict_proba"):
-                proba = self.model.predict_proba(X_df if X_df is not None else X)
+                proba = self.model.predict_proba(X)
             elif hasattr(self.model, "decision_function"):
                 # Fallback: map decision function to 3-class via heuristic (shouldn't happen)
-                df = self.model.decision_function(X_df if X_df is not None else X)
+                df = self.model.decision_function(X)
                 # naive softmax
                 ex = np.exp(df - np.max(df))
                 proba = ex / np.sum(ex)
@@ -157,9 +183,7 @@ class ModelRuntime:
                 # with the original feature vector; otherwise, try transform(proba) as fallback.
                 try:
                     if hasattr(self.calibrator, "predict_proba"):
-                        proba = self.calibrator.predict_proba(
-                            X_df if X_df is not None else X
-                        )
+                        proba = self.calibrator.predict_proba(X)
                     else:
                         proba = self.calibrator.transform(proba)  # type: ignore[attr-defined]
                 except (ValueError, TypeError, AttributeError):

@@ -43,3 +43,85 @@ secrets/
 
 # Markdown files
 *.md
+
+# Diagnostic and analysis scripts (temporary)
+analyze_*.py
+check_*.py
+diagnose_*.py
+investigate_*.py
+monitor_*.py
+verify_*.py
+test_*.py
+trace_*.py
+comprehensive_*.py
+debug_*.py
+deep_*.py
+backup_plan_*.py
+compare_*.py
+consolidate_*.py
+engineer_*.py
+explain_*.py
+fetch_*.py
+fix_*.py
+generate_*.py
+retrain_*.py
+rollback_*.py
+simple_*.py
+train_*.py
+validate_*.py
+volume_*.py
+why_*.py
+final_*.py
+
+# Temporary output files
+*.txt
+bot_startup_log.txt
+solution.txt
+validation_*.txt
+current_status.txt
+comparison*.txt
+bias_check.txt
+background_*.txt
+
+# Result/checkpoint files
+*_results.json
+*_checkpoint.json
+ab_test_*.json
+phase*.json
+signal_*.json
+
+# PowerShell deployment scripts
+*.ps1
+
+# Temporary databases
+*.db
+cohort_trades.db
+
+# Charts and images
+*.png
+
+# Temporary folders
+temp_source_*/
+scripts/monitoring/templates/
+
+# Model training backups (keep only LATEST)
+live_demo/models/*_202601*.joblib
+live_demo/models/*_202601*.json
+live_demo_1h/models/*_backup*.json
+live_demo_1h/models/*_202601*.joblib
+live_demo_1h/models/*_202601*.json
+
+# Cohort backup files
+*.csv.backup
+live_demo/assets/*_cohort.csv
+
+# Additional configs
+live_demo/circuit_breaker_config.json
+live_demo/config/rate_limits.json
+live_demo_1h/config_phase2.json
+
+# Workflow files
+cohort_workflow.py
+COHORT_INTEGRATION_COMPLETE.py
+SOLUTION_PLAN.py
+IMPLEMENTATION_STATUS.txt

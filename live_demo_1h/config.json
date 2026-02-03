@@ -2,7 +2,7 @@
   "data": {
     "symbol": "BTCUSDT",
     "interval": "1h",
-    "warmup_bars": 24,
+    "warmup_bars": 200,
     "overlays": [
       "15m",
       "1h"
@@ -34,8 +34,8 @@
     }
   },
   "cohorts": {
-    "top_file": "live_demo_1h/assets/top_cohort.csv",
-    "bottom_file": "live_demo_1h/assets/bottom_cohort.csv",
+    "top_file": "live_demo_1h/top_cohort.csv",
+    "bottom_file": "live_demo_1h/bottom_cohort.csv",
     "weights_file": "paper_trading_outputs/models/weights_daily.csv",
     "smoothing_gamma": 0.6,
     "adv_window_days": 20
@@ -43,12 +43,11 @@
   "thresholds": {
     "S_MIN": 0.05,
     "M_MIN": 0.06,
-    "CONF_MIN": 0.60,
+    "CONF_MIN": 0.20,
     "ALPHA_MIN": 0.10,
     "flip_mood": true,
     "flip_model": true,
-    "allow_model_only_when_mood_neutral": true,
-    "require_consensus": false
+    "allow_model_only_when_mood_neutral": true
   },
   "alerts": {
     "ic_drift": {
@@ -107,7 +106,7 @@
     "health_pred_window": 60,
     "mode": "market",
     "passive_timeout_s": 10,
-    "use_overlay": true,
+    "use_overlay": false,
     "bandit": {
       "enabled": true,
       "state_path": "paper_trading_outputs/runtime_bandit.json",
@@ -116,7 +115,7 @@
     }
   },
   "overlay": {
-    "enabled": true,
+    "enabled": false,
     "timeframes": [
       "15m",
       "1h",

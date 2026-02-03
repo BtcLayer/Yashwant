@@ -5,6 +5,11 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Suppress sklearn feature name warnings (models work correctly with DataFrames)
+import warnings
+warnings.filterwarnings('ignore', message='X does not have valid feature names')
+warnings.filterwarnings('ignore', message='X has feature names')
+
 import asyncio
 import json
 from typing import Dict
@@ -27,7 +32,7 @@ from live_demo.state import JSONState
 from ops.log_emitter import get_emitter
 from ops.heartbeat import write_heartbeat
 from live_demo.health_monitor import HealthMonitor
-from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
+# from live_demo.emitters.health_snapshot_emitter import HealthSnapshotEmitter, HealthSnapshot
 from live_demo.repro_tracker import ReproTracker
 from live_demo.execution_tracker import ExecutionTracker
 from live_demo.pnl_attribution import PnLAttributionTracker
@@ -367,9 +372,20 @@ async def run_live(config_path: str, dry_run: bool = None):
     )
 
     # Cohort state
-    cohort = CohortState(window=12)
-    # ADV20 from warmup volume
-    adv20 = kl['volume'].tail(12 * 20).mean() if len(kl) >= 12 * 20 else max(1.0, kl['volume'].mean())
+    print(f"👥 Loading cohort traders...")
+    # REVERTED TO ORIGINAL (Jan 31, 2026):
+    # After testing Phase 1 and Phase 2, reverting to original conservative settings
+    # This will result in near-zero signals and no trading (equity stays at $10,000)
+    # Original state from before Jan 29 changes
+    cohort = CohortState(
+        window=1,  # ORIGINAL: Single fill (no accumulation)
+        use_adv20_normalization=True,  # ORIGINAL: ADV20 normalized (crushes signals)
+        use_signal_decay=True,  # ORIGINAL: Decay enabled
+        timeframe_hours=1.0,
+        signal_half_life_minutes=10.0
+    )
+    # ADV20 from warmup volume: 24 bars/day * 20 days = 480 bars
+    adv20 = kl['volume'].tail(24 * 20).mean() if len(kl) >= 24 * 20 else max(1.0, kl['volume'].mean())
     cohort.set_adv20(float(adv20))
 
     # Load cohort addresses
@@ -428,12 +444,40 @@ async def run_live(config_path: str, dry_run: bool = None):
         addresses = []
 
     # Artifacts/model
+    print(f"📊 Loading model...")
     manifest_rel = cfg["artifacts"]["latest_manifest"]
     manifest = abspath(manifest_rel)
     mr = ModelRuntime(manifest)
     fb = FeatureBuilder(mr.feature_schema_path)
-    # Use configured interval for feature timeframe (not hardcoded)
-    lf = LiveFeatureComputer(fb.columns, timeframe=interval)
+    print(f"   ✅ Model loaded: {len(mr.columns)} features")
+    print(f"   ✅ Calibrator: {'Yes' if mr.calibrator else 'No'}")
+    
+    # Initialize LiveFeatureComputer with feature columns from model
+    print(f"🔧 Initializing feature computer...")
+    lf = LiveFeatureComputer(
+        columns=mr.columns,
+        rv_window=12,
+        vol_window=50,
+        corr_window=36,
+        timeframe='1h'
+    )
+    print(f"   ✅ Feature computer ready")
+    
+    # Load warmup data into feature computer
+    # Need to also fetch funding data for warmup
+    print(f"📈 Loading {len(kl)} warmup bars...")
+    funding_warmup = 0.0
+    for idx, row in kl.iterrows():
+        bar_row = {
+            'open': row['open'],
+            'high': row['high'],
+            'low': row['low'],
+            'close': row['close'],
+            'volume': row['volume']
+        }
+        cohort_warmup = {'pros': 0.0, 'amateurs': 0.0, 'mood': 0.0}
+        lf.update_and_build(bar_row, cohort_warmup, funding_warmup)
+    print(f"   ✅ Warmup complete")
 
     # Logger
     sheet_id = cfg['sheets']['sheet_id']
@@ -525,7 +569,7 @@ async def run_live(config_path: str, dry_run: bool = None):
 
     # Initialize tracking systems
     health_monitor = HealthMonitor()
-    health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
+    # health_snapshot_emitter = HealthSnapshotEmitter(base_logs_dir=os.path.join(paper_root(), 'health_snapshots'))
     repro_tracker = ReproTracker()
     execution_tracker = ExecutionTracker()
     pnl_attribution = PnLAttributionTracker()
@@ -921,9 +965,20 @@ async def run_live(config_path: str, dry_run: bool = None):
                 import time as _time
                 now_seconds = int(_time.time())
                 last_close_seconds = ts // 1000
-                next_close_seconds = last_close_seconds + interval_seconds
+                # ts is the open time of the last CLOSED candle (k[-2])
+                # Current in-progress candle opened at last_close_seconds + interval_seconds
+                # It will close at last_close_seconds + (2 * interval_seconds)
+                next_close_seconds = last_close_seconds + (2 * interval_seconds)
                 seconds_until_next = next_close_seconds - now_seconds + 30
                 wait_seconds = max(5, min(seconds_until_next, 300))  # Cap at 5min for 1h bot
+                
+                # Print progress message
+                next_candle_time = datetime.fromtimestamp(next_close_seconds, tz=timezone.utc)
+                minutes_to_wait = seconds_until_next // 60
+                print(f"⏳ Waiting for next {interval} candle...")
+                print(f"   Current time: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}")
+                print(f"   Next candle:  {next_candle_time.strftime('%H:%M:%S UTC')} (in ~{minutes_to_wait} min)")
+                
                 await asyncio.sleep(wait_seconds)
                 continue
             # Update returns and last_close
@@ -1004,20 +1059,15 @@ async def run_live(config_path: str, dry_run: bool = None):
                 total_volume = public_buy_volume + public_sell_volume
                 if total_volume > 0:
                     # Mood = net directional pressure as ratio (-1 to +1)
-                    # Amplify by 80× to reach 0.5-1.0 range (Oct 2025 calibration)
-                    # This bypasses adv20 normalization which is designed for individual trader fills
-                    mood_ratio = net_volume / total_volume
-                    mood_amplified = mood_ratio * 80.0  # Target: ~0.5-0.8 range for typical market imbalance
-                    
-                    # Create synthetic fill with amplified mood (bypassing adv20 normalization)
-                    # We multiply by adv20 so when cohort divides by it, we get our amplified value
+                    # With ADV20 normalization removed from cohort, use raw net volume
+                    # Typical: 100-500 BTC net per hour → already in usable range
                     aggregated_fill = {
                         'ts': ts,
                         'address': '',
                         'coin': 'BTC',
                         'side': 'buy' if net_volume > 0 else 'sell',
                         'price': last_public_price,
-                        'size': abs(mood_amplified * cohort.adv20),  # Pre-multiply to bypass normalization
+                        'size': abs(net_volume),  # Use raw net volume
                         'source': 'public',
                     }
                     cohort.update_from_fill(aggregated_fill, weights={'pros': 0.0, 'amateurs': 0.0, 'mood': 1.0})
@@ -1096,7 +1146,18 @@ async def run_live(config_path: str, dry_run: bool = None):
             bar_row = {
                 'open': o, 'high': h, 'low': l, 'close': c, 'volume': v,
             }
-            x = lf.update_and_build(bar_row, cohort.snapshot(), funding_rate)
+            
+            # Get cohort signals
+            cohort_dict = cohort.snapshot()
+            
+            # Build features using LiveFeatureComputer (October model)
+            # This returns features in the correct order for the model
+            x = lf.update_and_build(bar_row, cohort_dict, funding_rate)
+            
+            if len(x) < len(mr.columns):
+                # Not enough history yet, skip this bar
+                await asyncio.sleep(2)
+                continue
 
             # 5) Model inference
             model_out = mr.infer(x)
@@ -1204,6 +1265,8 @@ async def run_live(config_path: str, dry_run: bool = None):
                 pass
 
             # 6) Decision (bandit)
+            # REGIME FILTERS DISABLED - matching backtest conditions
+            
             # Read epsilon and model_optimism from config (defaults 0.0)
             try:
                 eps = float(
@@ -1219,10 +1282,12 @@ async def run_live(config_path: str, dry_run: bool = None):
                 )
             except (ValueError, TypeError):
                 optimism = 0.0
+            
             if 'bandit' in locals() and locals().get('bandit') is not None:
                 d = decide(cohort.snapshot(), decision_model_out, th, bandit=bandit, epsilon=eps, model_optimism=optimism)
             else:
                 d = gate_and_score(cohort.snapshot(), decision_model_out, th)
+            
             decision = d
             # Annotate decision details with source info when BMA is enabled
             try:
@@ -1817,18 +1882,18 @@ async def run_live(config_path: str, dry_run: bool = None):
                                 pass
                         
                         # Emit periodic health snapshot (always)
-                        try:
-                            snapshot = HealthSnapshot(
-                                equity_value=health.get('equity'),
-                                drawdown_current=health.get('drawdown'),
-                                daily_pnl=health.get('daily_pnl'),
-                                rolling_sharpe=health.get('sharpe'),
-                                trade_count=health.get('exec_count_recent'),
-                                win_rate=health.get('win_rate'),
-                            )
-                            health_snapshot_emitter.maybe_emit(snapshot)
-                        except Exception:
-                            pass
+                        # try:
+                        #     snapshot = HealthSnapshot(
+                        #         equity_value=health.get('equity'),
+                        #         drawdown_current=health.get('drawdown'),
+                        #         daily_pnl=health.get('daily_pnl'),
+                        #         rolling_sharpe=health.get('sharpe'),
+                        #         trade_count=health.get('exec_count_recent'),
+                        #         win_rate=health.get('win_rate'),
+                        #     )
+                        #     health_snapshot_emitter.maybe_emit(snapshot)
+                        # except Exception:
+                        #     pass
                         
                         # Buffer health metrics to Sheets if configured (always)
                         try:

@@ -39,20 +39,42 @@ class MarketData:
 
     #This is the method that gets the last 1000 candal data for the ml model to warmup 
     def get_klines(self, limit: int = 1000) -> pd.DataFrame:
-        # Simple retry with backoff to withstand transient API hiccups
+        # Retry with exponential backoff to handle transient API issues and rate limiting
         last_err = None
-        for attempt in range(3):
+        max_retries = 5
+        base_delay = 1.5
+        
+        for attempt in range(max_retries):
             try:
                 k = self.client.klines(
                     symbol=self.symbol, interval=self.interval, limit=limit
                 )
                 break
-            except Exception as e:  # broad catch to avoid crashing; upstream logs error
+            except Exception as e:
                 last_err = e
-                time.sleep(1.5 * (attempt + 1))
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limit error (429)
+                if '429' in error_str or 'rate limit' in error_str:
+                    if attempt < max_retries - 1:
+                        # Exponential backoff for rate limiting
+                        delay = base_delay * (2 ** attempt)
+                        delay = min(delay, 60.0)  # Cap at 60 seconds
+                        print(f"⚠️  Rate limited. Backing off for {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                    else:
+                        raise RuntimeError(f"Rate limit exceeded after {max_retries} attempts") from e
+                else:
+                    # Regular retry with linear backoff for other errors
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (attempt + 1)
+                        time.sleep(delay)
+                    else:
+                        raise
         else:
             # Re-raise last error if all retries failed
             raise last_err
+        
         rows = []
         for r in k:
             rows.append(
@@ -73,9 +95,12 @@ class MarketData:
         """Return the most recently CLOSED kline by inspecting the second-to-last item.
         Many APIs return the last element as the in-progress candle; we use the prior one.
         """
-        # Retry small fetch as well
+        # Retry with exponential backoff for rate limiting
         last_err = None
-        for attempt in range(3):
+        max_retries = 5
+        base_delay = 1.0
+        
+        for attempt in range(max_retries):
             try:
                 k = self.client.klines(
                     symbol=self.symbol, interval=self.interval, limit=2
@@ -83,10 +108,29 @@ class MarketData:
                 break
             except Exception as e:
                 last_err = e
-                time.sleep(1.0 * (attempt + 1))
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limit error (429)
+                if '429' in error_str or 'rate limit' in error_str:
+                    if attempt < max_retries - 1:
+                        # Exponential backoff for rate limiting
+                        delay = base_delay * (2 ** attempt)
+                        delay = min(delay, 60.0)  # Cap at 60 seconds
+                        print(f"⚠️  Rate limited (poll). Backing off for {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                    else:
+                        raise RuntimeError(f"Rate limit exceeded after {max_retries} attempts") from e
+                else:
+                    # Regular retry with linear backoff for other errors
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (attempt + 1)
+                        time.sleep(delay)
+                    else:
+                        raise
         else:
             # Surface last error so caller can decide what to do
             raise last_err
+        
         if not k:
             return None
         # If only one kline, ensure it's closed by comparing close time

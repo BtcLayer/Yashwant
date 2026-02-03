@@ -34,6 +34,11 @@ class RiskConfig:
     cost_bps: float = 5.0
     slippage_bps: float = 0.0
     impact_k: float = 0.0
+    # Position exit management (optional)
+    enable_forced_exits: bool = True
+    max_position_duration_bars: int = 288
+    stop_loss_bps: float = 200.0
+    take_profit_bps: float = 300.0
 
 
 class RiskAndExec:
@@ -55,6 +60,10 @@ class RiskAndExec:
         self._paper_qty: float = 0.0
         self._paper_avg_px: float = 0.0
         self._paper_realized: float = 0.0
+        # Position tracking for exit management
+        self._position_entry_bar: Optional[int] = None
+        self._position_entry_price: Optional[float] = None
+        self._position_entry_ts_ms: Optional[int] = None
         # Pre-trade guard state
         self._order_times_ms = deque(maxlen=100)
         self._hour_execs = deque(maxlen=10_000)  # (ts_ms, notional_usd)
@@ -87,6 +96,120 @@ class RiskAndExec:
         pos = (self.cfg.sigma_target / rv) * alpha
         pos = max(-self.cfg.pos_max, min(self.cfg.pos_max, pos))
         return float(direction) * pos
+
+    def should_close_position(
+        self,
+        current_bar: int,
+        current_price: float,
+        decision: Dict[str, Any],
+        exit_thresholds: Optional[Dict[str, float]] = None,
+    ) -> Tuple[bool, str]:
+        """Determine if current position should be closed.
+        
+        Returns:
+            (should_close, reason) tuple
+        """
+        current_pos = float(self._pos)
+        
+        # No position to close
+        if abs(current_pos) < 1e-9:
+            return False, ""
+        
+        exit_conf_min = 0.40  # Default relaxed threshold
+        exit_alpha_min = 0.30
+        max_duration_bars = 288  # 24 hours at 5m intervals
+        stop_loss_bps = 200.0  # 2% stop loss
+        take_profit_bps = 300.0  # 3% take profit
+        
+        if exit_thresholds:
+            exit_conf_min = float(exit_thresholds.get('exit_conf_min', exit_conf_min))
+            exit_alpha_min = float(exit_thresholds.get('exit_alpha_min', exit_alpha_min))
+            max_duration_bars = int(exit_thresholds.get('max_position_duration_bars', max_duration_bars))
+            stop_loss_bps = float(exit_thresholds.get('stop_loss_bps', stop_loss_bps))
+            take_profit_bps = float(exit_thresholds.get('take_profit_bps', take_profit_bps))
+        
+        direction = int(decision.get('dir', 0))
+        alpha = float(decision.get('alpha', 0.0))
+        conf = float(decision.get('details', {}).get('conf', 0.0)) if isinstance(decision.get('details'), dict) else alpha
+        
+        # Exit Reason 1: Model signal reversal with sufficient confidence
+        # Close LONG if model predicts DOWN with relaxed exit thresholds
+        if current_pos > 0 and direction == -1:
+            if conf >= exit_conf_min or alpha >= exit_alpha_min:
+                return True, "model_reversal_long_to_short"
+        
+        # Close SHORT if model predicts UP with relaxed exit thresholds
+        if current_pos < 0 and direction == 1:
+            if conf >= exit_conf_min or alpha >= exit_alpha_min:
+                return True, "model_reversal_short_to_long"
+        
+        # Exit Reason 2: Maximum position duration exceeded
+        if self._position_entry_bar is not None and max_duration_bars > 0:
+            bars_held = current_bar - self._position_entry_bar
+            if bars_held >= max_duration_bars:
+                return True, f"max_duration_{bars_held}_bars"
+        
+        # Exit Reason 3: Stop loss hit
+        if self._position_entry_price is not None and current_price > 0 and stop_loss_bps > 0:
+            pnl_bps = 0.0
+            if current_pos > 0:  # LONG position
+                pnl_bps = ((current_price - self._position_entry_price) / self._position_entry_price) * 10000.0
+            else:  # SHORT position
+                pnl_bps = ((self._position_entry_price - current_price) / self._position_entry_price) * 10000.0
+            
+            if pnl_bps < -stop_loss_bps:
+                return True, f"stop_loss_{pnl_bps:.1f}bps"
+        
+        # Exit Reason 4: Take profit hit
+        if self._position_entry_price is not None and current_price > 0 and take_profit_bps > 0:
+            pnl_bps = 0.0
+            if current_pos > 0:  # LONG position
+                pnl_bps = ((current_price - self._position_entry_price) / self._position_entry_price) * 10000.0
+            else:  # SHORT position
+                pnl_bps = ((self._position_entry_price - current_price) / self._position_entry_price) * 10000.0
+            
+            if pnl_bps > take_profit_bps:
+                return True, f"take_profit_{pnl_bps:.1f}bps"
+        
+        return False, ""
+
+    def get_exit_decision(self, decision: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a reversal decision into an explicit exit decision.
+        
+        When holding a position and model reverses, we want to close the position
+        (set target to 0) rather than flip to opposite direction.
+        """
+        return {
+            'dir': 0,  # Neutral direction = close position
+            'alpha': 0.0,
+            'details': {
+                **decision.get('details', {}),
+                'mode': 'exit',
+                'original_dir': decision.get('dir', 0),
+                'exit_reason': 'position_close'
+            }
+        }
+    
+    def update_position_tracking(self, new_pos: float, current_bar: int, current_price: float, ts_ms: int):
+        """Update position tracking when position changes."""
+        old_pos = float(self._pos)
+        self._pos = new_pos
+        
+        # Position opened or increased
+        if abs(new_pos) > abs(old_pos) + 1e-9:
+            self._position_entry_bar = current_bar
+            self._position_entry_price = current_price
+            self._position_entry_ts_ms = ts_ms
+        # Position closed completely
+        elif abs(new_pos) < 1e-9:
+            self._position_entry_bar = None
+            self._position_entry_price = None
+            self._position_entry_ts_ms = None
+        # Position flipped direction
+        elif (old_pos > 0 and new_pos < 0) or (old_pos < 0 and new_pos > 0):
+            self._position_entry_bar = current_bar
+            self._position_entry_price = current_price
+            self._position_entry_ts_ms = ts_ms
 
     def in_cooldown(self, now_ms: int) -> bool:
         return now_ms < self._cooldown_until_ts

@@ -15,6 +15,10 @@ class Thresholds:
     flip_model_bma: bool = True
     # If true, allow trading on model signal alone when cohort mood is neutral (< M_MIN)
     allow_model_only_when_mood_neutral: bool = True
+    # Exit-specific thresholds (lower than entry thresholds)
+    exit_conf_min: float = 0.40
+    exit_alpha_min: float = 0.30
+    max_position_duration_bars: int = 288
 
 
 def clamp(v: float, lo: float, hi: float) -> float:

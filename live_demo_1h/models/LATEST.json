@@ -1,9 +1,8 @@
 {
-  "meta_classifier": "meta_classifier_20251230_171052_d7a9e9fb3a42.joblib",
-  "calibrator": "calibrator_20251230_171052_d7a9e9fb3a42.joblib",
-  "feature_columns": "feature_columns_20251230_171052_d7a9e9fb3a42.json",
-  "training_meta": "training_meta_20251230_171052_d7a9e9fb3a42.json",
-  "git_commit": "354cd9c",
-  "trained_at_utc": "2026-01-17T12:27:00Z",
-  "feature_dim": 17
+  "meta_classifier": "meta_classifier_20251018_101628_d7a9e9fb3a42.joblib",
+  "feature_columns": "feature_columns_20251018_101628_d7a9e9fb3a42.json",
+  "training_meta": "training_meta_20251018_101628_d7a9e9fb3a42.json",
+  "calibrator": "calibrator_20251018_101628_d7a9e9fb3a42.joblib",
+  "timestamp": "20251018_101628",
+  "schema_hash": "d7a9e9fb3a42"
 }

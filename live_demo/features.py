@@ -80,6 +80,7 @@ class LiveFeatureComputer:
         self._funding: Deque[float] = deque(maxlen=rv_window)
         self._ema20: float = 0.0
         self._ema_alpha = 2.0 / (20 + 1)
+        self._last_valid_corr: float = 0.0  # Carry forward last valid correlation
 
     def _ret(self, a: float, b: float) -> float:
         if a is None or b is None or a == 0:
@@ -163,11 +164,16 @@ class LiveFeatureComputer:
                 rr.append(self._ret(self._closes[-1 - i], self._closes[-i]))
             vv = list(self._vols)[-len(rr) :]
             if len(rr) >= 3 and len(vv) == len(rr):
-                price_volume_corr = float(np.corrcoef(np.array(rr), np.array(vv))[0, 1])
+                corr_val = np.corrcoef(np.array(rr), np.array(vv))[0, 1]
+                if not np.isnan(corr_val):
+                    price_volume_corr = float(corr_val)
+                    self._last_valid_corr = price_volume_corr  # Update last valid
+                else:
+                    price_volume_corr = self._last_valid_corr  # Use last valid instead of 0.0
             else:
-                price_volume_corr = 0.0
+                price_volume_corr = self._last_valid_corr  # Use last valid during warm-up
         else:
-            price_volume_corr = 0.0
+            price_volume_corr = 0.0  # Only first 3 bars get 0.0
 
         vwap_momentum = r3  # proxy
         depth_proxy = 0.0  # no order book in live demo

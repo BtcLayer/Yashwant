@@ -2,7 +2,7 @@
   "data": {
     "symbol": "BTCUSDT",
     "interval": "5m",
-    "warmup_bars": 1000,
+    "warmup_bars": 200,
     "overlays": [
       "15m",
       "1h"
@@ -41,13 +41,16 @@
     "adv_window_days": 20
   },
   "thresholds": {
-    "S_MIN": 0.12,
-    "M_MIN": 0.12,
-    "CONF_MIN": 0.55,
-    "ALPHA_MIN": 0.02,
+    "S_MIN": 0.003,
+    "M_MIN": 0.003,
+    "CONF_MIN": 0.08,
+    "ALPHA_MIN": 0.008,
     "flip_mood": true,
     "flip_model": true,
-    "allow_model_only_when_mood_neutral": true
+    "allow_model_only_when_mood_neutral": true,
+    "exit_conf_min": 0.15,
+    "exit_alpha_min": 0.12,
+    "max_position_duration_bars": 288
   },
   "alerts": {
     "ic_drift": {
@@ -79,19 +82,23 @@
     "ws_staleness_ms_threshold": 60000
   },
   "risk": {
-    "sigma_target": 0.15,
+    "sigma_target": 0.20,
     "pos_max": 1.0,
     "cooldown_bars": 1,
     "realized_vol_window": 50,
     "base_notional": 25000.0,
-    "vol_floor": 0.3,
+    "vol_floor": 0.15,
     "adv_cap_pct": 1.5,
     "rebalance_min_pos_delta": 0.01,
     "daily_stop_dd_pct": 1.5,
     "warmup_skip_bars": 0,
     "cost_bps": 5.0,
-    "slippage_bps": 2.0,
-    "impact_k": 0.5
+    "slippage_bps": 10.0,
+    "impact_k": 1.0,
+    "enable_forced_exits": true,
+    "max_position_duration_bars": 288,
+    "stop_loss_bps": 200.0,
+    "take_profit_bps": 300.0
   },
   "costs": {
     "cost_bps": 5.0,
@@ -106,7 +113,7 @@
     "health_pred_window": 60,
     "mode": "market",
     "passive_timeout_s": 10,
-    "use_overlay": true,
+    "use_overlay": false,
     "bandit": {
       "enabled": true,
       "state_path": "paper_trading_outputs/runtime_bandit.json",
@@ -115,7 +122,7 @@
     }
   },
   "overlay": {
-    "enabled": true,
+    "enabled": false,
     "timeframes": [
       "15m",
       "1h"
