@@ -34,6 +34,11 @@ class RiskConfig:
     cost_bps: float = 5.0
     slippage_bps: float = 0.0
     impact_k: float = 0.0
+    max_impact_bps_hard: float = 200.0  # Hard veto threshold for impact cost
+    # Net-edge gating
+    min_net_edge_bps: float = 10.0
+    max_total_cost_bps: float = 25.0
+    enable_net_edge_gating: bool = True
     # Position exit management (optional)
     enable_forced_exits: bool = True
     max_position_duration_bars: int = 288
@@ -373,6 +378,80 @@ class RiskAndExec:
                         }}
             except Exception:
                 pass
+            
+            # Hard impact veto: block trades with critically high impact costs
+            try:
+                if self.cfg.max_impact_bps_hard > 0.0 and int(d.get('dir', 0)) != 0 and last_price is not None:
+                    impact_k = float(self.cfg.impact_k or 0.0)
+                    if impact_k > 0.0:
+                        tgt = self.target_position(int(d.get('dir', 0)), float(d.get('alpha', 0.0)))
+                        pos_delta_frac = abs(float(tgt) - float(self._pos))
+                        est_notional = pos_delta_frac * max(1e-6, float(self.cfg.base_notional))
+                        est_qty = est_notional / max(1e-6, last_price)
+                        
+                        # Estimate impact bps
+                        impact_est = impact_k * (est_qty ** 2) * last_price
+                        impact_bps_est = (impact_est / est_notional) * 10000 if est_notional > 0 else 0.0
+                        
+                        if impact_bps_est > self.cfg.max_impact_bps_hard:
+                            d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {
+                                **details_prev,
+                                'mode': GuardReasonCode.IMPACT_CRITICAL,
+                                'impact_bps_est': impact_bps_est,
+                                'max_impact_bps_hard': self.cfg.max_impact_bps_hard,
+                                'est_notional': est_notional,
+                                'est_qty': est_qty,
+                                'veto_reason': f"Impact {impact_bps_est:.1f} bps exceeds hard limit {self.cfg.max_impact_bps_hard}"
+                            }}
+            except Exception:
+                pass
+            
+            # Net-edge gating: require predicted edge to exceed total costs
+            try:
+                if self.cfg.enable_net_edge_gating and int(d.get('dir', 0)) != 0:
+                    # Extract signal strength in bps
+                    alpha = float(d.get('alpha', 0.0))
+                    signal_strength_bps = alpha * 10000  # Convert to bps
+                    
+                    # Estimate total cost
+                    base_cost_bps = float(self.cfg.cost_bps)
+                    slip_bps = float(self.cfg.slippage_bps)
+                    
+                    # Estimate impact cost
+                    impact_bps_est = 0.0
+                    if float(self.cfg.impact_k or 0.0) > 0.0 and last_price is not None:
+                        tgt = self.target_position(int(d.get('dir', 0)), alpha)
+                        pos_delta_frac = abs(float(tgt) - float(self._pos))
+                        est_notional = pos_delta_frac * max(1e-6, float(self.cfg.base_notional))
+                        est_qty = est_notional / max(1e-6, last_price)
+                        impact_est = float(self.cfg.impact_k) * (est_qty ** 2) * last_price
+                        impact_bps_est = (impact_est / est_notional) * 10000 if est_notional > 0 else 0.0
+                    
+                    total_cost_bps = base_cost_bps + slip_bps + impact_bps_est
+                    net_edge_bps = signal_strength_bps - total_cost_bps
+                    
+                    # Store for logging
+                    details = d.get('details', {})
+                    details['net_edge_bps'] = net_edge_bps
+                    details['estimated_cost_bps'] = total_cost_bps
+                    details['signal_strength_bps'] = signal_strength_bps
+                    
+                    # Check threshold
+                    if net_edge_bps < self.cfg.min_net_edge_bps:
+                        d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {
+                            **details_prev,
+                            'mode': GuardReasonCode.NET_EDGE_INSUFFICIENT,
+                            'net_edge_bps': net_edge_bps,
+                            'estimated_cost_bps': total_cost_bps,
+                            'signal_strength_bps': signal_strength_bps,
+                            'min_net_edge_bps': self.cfg.min_net_edge_bps
+                        }}
+                    else:
+                        # Update details even if passed
+                        d['details'] = details
+            except Exception:
+                pass
+            
             # Throttle: limit orders per second
             try:
                 mops = int((controls or {}).get('max_orders_per_sec', 0) or 0)

@@ -378,11 +378,7 @@ async def run_live(config_path: str, dry_run: bool = None):
     # This will result in near-zero signals and no trading (equity stays at $10,000)
     # Original state from before Jan 29 changes
     cohort = CohortState(
-        window=1,  # ORIGINAL: Single fill (no accumulation)
-        use_adv20_normalization=True,  # ORIGINAL: ADV20 normalized (crushes signals)
-        use_signal_decay=True,  # ORIGINAL: Decay enabled
-        timeframe_hours=1.0,
-        signal_half_life_minutes=10.0
+        window=1  # ORIGINAL: Single fill (no accumulation)
     )
     # ADV20 from warmup volume: 24 bars/day * 20 days = 480 bars
     adv20 = kl['volume'].tail(24 * 20).mean() if len(kl) >= 24 * 20 else max(1.0, kl['volume'].mean())

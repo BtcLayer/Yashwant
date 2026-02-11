@@ -1,0 +1,101 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "veto_reasons",
+    "description": "Detailed veto reasons for blocked trades with input parameters and thresholds",
+    "type": "object",
+    "required": [
+        "ts",
+        "asset",
+        "veto_type",
+        "reason_code"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts": {
+            "type": "string",
+            "minLength": 10,
+            "description": "ISO8601 timestamp in UTC"
+        },
+        "asset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading symbol (e.g., BTCUSDT)"
+        },
+        "bar_id": {
+            "type": "integer",
+            "description": "Bar ID when veto occurred"
+        },
+        "veto_type": {
+            "type": "string",
+            "enum": ["guard", "threshold", "overlay", "risk"],
+            "description": "Category of veto (guard=pre-trade, threshold=signal, overlay=HTF, risk=position)"
+        },
+        "reason_code": {
+            "type": "string",
+            "description": "Specific reason code (e.g., net_edge_insufficient, impact_guard)"
+        },
+        "signal_strength_bps": {
+            "type": ["number", "null"],
+            "description": "Raw signal strength in bps before veto"
+        },
+        "net_edge_bps": {
+            "type": ["number", "null"],
+            "description": "Net edge in bps (signal - costs)"
+        },
+        "threshold_value": {
+            "type": ["number", "null"],
+            "description": "The threshold that was violated"
+        },
+        "actual_value": {
+            "type": ["number", "null"],
+            "description": "The actual value that exceeded threshold"
+        },
+        "impact_bps_est": {
+            "type": ["number", "null"],
+            "description": "Estimated impact cost in bps"
+        },
+        "cost_breakdown": {
+            "type": "object",
+            "description": "Detailed cost breakdown (fee_bps, slip_bps, impact_bps)",
+            "properties": {
+                "fee_bps": {"type": "number"},
+                "slip_bps": {"type": "number"},
+                "impact_bps": {"type": "number"},
+                "total_bps": {"type": "number"}
+            }
+        },
+        "position_info": {
+            "type": "object",
+            "description": "Position-related information",
+            "properties": {
+                "current_pos": {"type": "number"},
+                "target_pos": {"type": "number"},
+                "notional_usd": {"type": "number"}
+            }
+        },
+        "market_context": {
+            "type": "object",
+            "description": "Market conditions at veto time",
+            "properties": {
+                "last_price": {"type": "number"},
+                "spread_bps": {"type": "number"},
+                "funding_rate": {"type": "number"},
+                "adv_usd": {"type": "number"}
+            }
+        },
+        "veto_message": {
+            "type": "string",
+            "description": "Human-readable explanation of veto"
+        },
+        "is_forced": {
+            "type": "boolean",
+            "description": "Whether this was a forced/validation trade",
+            "default": false
+        },
+        "is_synthetic": {
+            "type": "boolean",
+            "description": "Whether this is a synthetic event",
+            "default": false
+        }
+    }
+}

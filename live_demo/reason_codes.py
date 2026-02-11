@@ -20,3 +20,5 @@ class GuardReasonCode(str, Enum):
     ADV_HOUR_CAP = "adv_hour_cap"
     CALIBRATION_BAND = "calibration_band_gate"
     IMPACT_GUARD = "impact_guard"
+    IMPACT_CRITICAL = "impact_critical"
+    NET_EDGE_INSUFFICIENT = "net_edge_insufficient"

@@ -176,6 +176,60 @@ class AlertRouter:
                 channels=[AlertChannel.SLACK, AlertChannel.EMAIL],
                 cooldown_minutes=30,
             ),
+            # Day 4: Performance monitoring alerts
+            AlertRule(
+                name="sharpe_degraded_critical",
+                condition="metrics.get('Sharpe_1w', 0) < 0.5",
+                level=AlertLevel.CRITICAL,
+                channels=[AlertChannel.SLACK, AlertChannel.EMAIL],
+                cooldown_minutes=120,
+                escalation_minutes=240,
+                escalation_level=AlertLevel.EMERGENCY,
+            ),
+            AlertRule(
+                name="sharpe_degraded_warning",
+                condition="metrics.get('Sharpe_1w', 0) < 1.0 and metrics.get('Sharpe_1w', 0) > 0",
+                level=AlertLevel.WARNING,
+                channels=[AlertChannel.SLACK],
+                cooldown_minutes=60,
+            ),
+            AlertRule(
+                name="win_rate_low",
+                condition="metrics.get('win_rate_1w', 1.0) < 0.45 and metrics.get('total_trades_1w', 0) >= 50",
+                level=AlertLevel.WARNING,
+                channels=[AlertChannel.SLACK],
+                cooldown_minutes=120,
+            ),
+            AlertRule(
+                name="veto_rate_high",
+                condition="metrics.get('veto_rate', 0) > 0.65",
+                level=AlertLevel.WARNING,
+                channels=[AlertChannel.SLACK],
+                cooldown_minutes=120,
+            ),
+            AlertRule(
+                name="veto_rate_low",
+                condition="metrics.get('veto_rate', 1.0) < 0.30 and metrics.get('veto_rate', 1.0) > 0",
+                level=AlertLevel.WARNING,
+                channels=[AlertChannel.SLACK],
+                cooldown_minutes=240,
+            ),
+            AlertRule(
+                name="no_trades_timeout_5m",
+                condition="context.get('timeframe') == '5m' and context.get('minutes_since_last_trade', 0) > 120",
+                level=AlertLevel.WARNING,
+                channels=[AlertChannel.SLACK],
+                cooldown_minutes=60,
+            ),
+            AlertRule(
+                name="pnl_critical",
+                condition="metrics.get('pnl_24h', 0) < -0.05",
+                level=AlertLevel.CRITICAL,
+                channels=[AlertChannel.SLACK, AlertChannel.EMAIL],
+                cooldown_minutes=60,
+                escalation_minutes=120,
+                escalation_level=AlertLevel.EMERGENCY,
+            ),
         ]
 
         for rule in default_rules:

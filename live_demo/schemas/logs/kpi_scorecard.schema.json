@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "kpi_scorecard.schema.json",
+  "title": "KPI Scorecard Schema",
+  "description": "Schema for KPI scorecard logs tracking key performance indicators and gates",
+  "type": "object",
+  "required": ["asset", "event", "Sharpe_1w", "gates"],
+  "properties": {
+    "asset": {
+      "type": "string",
+      "description": "Asset symbol (e.g., BTC-USDT)",
+      "examples": ["BTC-USDT", "ETH-USDT"]
+    },
+    "event": {
+      "type": "string",
+      "const": "kpi_scorecard",
+      "description": "Event type identifier"
+    },
+    "Sharpe_1w": {
+      "type": ["number", "null"],
+      "description": "1-week rolling Sharpe ratio (annualized)",
+      "minimum": -10.0,
+      "maximum": 10.0
+    },
+    "win_rate_1w": {
+      "type": ["number", "null"],
+      "description": "1-week rolling win rate (hit rate)",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "max_DD_pct": {
+      "type": ["number", "null"],
+      "description": "Maximum drawdown percentage (positive value)",
+      "minimum": 0.0,
+      "maximum": 100.0
+    },
+    "turnover_bps_day": {
+      "type": ["number", "null"],
+      "description": "Daily turnover in basis points",
+      "minimum": 0.0,
+      "maximum": 100000.0
+    },
+    "in_band_share": {
+      "type": ["number", "null"],
+      "description": "Calibration in-band share (fraction)",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "cost_bps_avg": {
+      "type": ["number", "null"],
+      "description": "Average cost per trade in basis points (fees + impact)",
+      "minimum": 0.0,
+      "maximum": 100.0
+    },
+    "total_trades_1w": {
+      "type": ["integer", "null"],
+      "description": "Total number of trades in 1-week window",
+      "minimum": 0
+    },
+    "gates": {
+      "type": "object",
+      "description": "Performance gates (pass/fail criteria)",
+      "required": ["sharpe_pass", "dd_pass", "turnover_pass", "cost_pass"],
+      "properties": {
+        "sharpe_pass": {
+          "type": ["boolean", "null"],
+          "description": "Sharpe gate: true if Sharpe_1w >= 2.5"
+        },
+        "dd_pass": {
+          "type": ["boolean", "null"],
+          "description": "Drawdown gate: true if max_DD_pct <= 20%"
+        },
+        "turnover_pass": {
+          "type": ["boolean", "null"],
+          "description": "Turnover gate: true if turnover_bps_day <= config cap"
+        },
+        "cost_pass": {
+          "type": ["boolean", "null"],
+          "description": "Cost gate: true if cost_bps_avg <= 7.0 bps"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+{
+  "features": [
+    "ret_1",
+    "ret_12",
+    "ret_24",
+    "volume_ratio",
+    "volatility_12",
+    "rsi",
+    "bb_position",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "momentum_24",
+    "hl_range",
+    "S_top",
+    "S_bot",
+    "flow_diff"
+  ]
+}

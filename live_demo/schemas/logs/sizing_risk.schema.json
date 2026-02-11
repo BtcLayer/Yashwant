@@ -1,0 +1,85 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "sizing_risk",
+    "description": "Risk and position sizing calculations - volatility targeting, position delta, notional sizing",
+    "type": "object",
+    "required": [
+        "ts_ist",
+        "asset",
+        "bar_id"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts_ist": {
+            "type": "string",
+            "minLength": 10,
+            "description": "IST timestamp (ISO-8601+05:30)",
+            "example": "2025-10-22T10:05:00+05:30"
+        },
+        "asset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading asset symbol",
+            "example": "BTC-PERP"
+        },
+        "bar_id": {
+            "type": "integer",
+            "description": "Monotonic bar identifier",
+            "example": 9675312
+        },
+        "forecast_vol_20": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "20-bar forecast volatility (annualized_vol)",
+            "example": 0.18
+        },
+        "target_vol_ann": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Target annualized volatility",
+            "example": 0.20
+        },
+        "raw_score": {
+            "type": "number",
+            "description": "Raw model score",
+            "example": 0.65
+        },
+        "position_before": {
+            "type": "number",
+            "description": "Position before rebalance (fraction)",
+            "example": 0.25
+        },
+        "position_after": {
+            "type": "number",
+            "description": "Position after rebalance (fraction)",
+            "example": 0.30
+        },
+        "delta_pos": {
+            "type": "number",
+            "description": "Position change (fraction)",
+            "example": 0.05
+        },
+        "notional_target_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Target notional USD",
+            "example": 15000.0
+        },
+        "leverage_x": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Leverage multiplier",
+            "example": 1.0
+        },
+        "reduce_for_spread_flag": {
+            "type": "boolean",
+            "description": "Reduce for spread flag",
+            "example": false
+        },
+        "funding_bias": {
+            "type": "number",
+            "description": "Funding bias adjustment",
+            "example": 0.001
+        }
+    }
+}

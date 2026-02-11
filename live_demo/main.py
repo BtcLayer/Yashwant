@@ -378,14 +378,9 @@ async def run_live(config_path: str, dry_run: bool = False):
         retry_backoff_s=float(hl_f_cfg.get("retry_backoff_s", 0.75)),
     )
 
-    # Cohort state - 5m optimized configuration
+    # Cohort state - 5m optimized configuration (REVERTED to original)
     cohort = CohortState(
-        window=50,                      # 50 bars = 4.17 hours
-        use_adv20_normalization=False,  # Raw signals for 5m
-        use_signal_decay=False,         # Preserve momentum
-        timeframe_hours=0.0833,         # 5min = 0.0833h
-        signal_half_life_minutes=15.0,  # 3x bar if decay needed
-        bar_interval_ms=300000          # 5m = 300000ms (per-bar fix)
+        window=50                       # 50 bars = 4.17 hours
     )
     # Calculate bars per day based on interval
     bars_per_day = {
@@ -495,7 +490,7 @@ async def run_live(config_path: str, dry_run: bool = False):
         headers[tabs['overlay']] = ['ts_iso','ts','dir','alpha','confidence','alignment_rule','chosen_timeframes','individual_signals']
     # Optional KPI tab header for scorecard
     if tabs.get('kpi'):
-        headers[tabs['kpi']] = ['ts_iso','ts','sharpe_1w','max_dd_pct','turnover_bps_day','in_band_share','gate_sharpe','gate_dd','gate_cost','gate_turnover','summary']
+        headers[tabs['kpi']] = ['ts_iso','ts','sharpe_1w','win_rate_1w','max_dd_pct','turnover_bps_day','in_band_share','cost_bps_avg','total_trades_1w','gate_sharpe','gate_dd','gate_cost','gate_turnover','summary']
     # Optional health metrics tab header
     if tabs.get('health'):
         headers[tabs['health']] = [
@@ -1888,6 +1883,10 @@ async def run_live(config_path: str, dry_run: bool = False):
                         cost_bps_total = None
                         if impact_bps is not None:
                             cost_bps_total = round(fee_bps + (float(slip_bps) if slip_bps else 0.0) + impact_bps, 1)
+                        
+                        # Extract net-edge info from decision details
+                        det = decision.get('details', {}) if isinstance(decision, dict) else {}
+                        
                         costs_payload = {
                             "trade_notional": round(trade_notional, 2),
                             "fee_bps": round(fee_bps, 1),
@@ -1901,6 +1900,14 @@ async def run_live(config_path: str, dry_run: bool = False):
                             "fee_usd": round(float(exec_resp.get('fee', 0.0) or 0.0), 2),
                             "slip_usd": round((trade_notional * float(slip_bps) / 10000.0), 2) if (slip_bps is not None and trade_notional > 0) else None,
                             "impact_usd": round(impact_usd, 2),
+                            # Net-edge fields (from pre-trade guard evaluation)
+                            "net_edge_bps": det.get('net_edge_bps'),
+                            "signal_strength_bps": det.get('signal_strength_bps'),
+                            "estimated_cost_bps": det.get('estimated_cost_bps'),
+                            "edge_check_passed": decision.get('dir', 0) != 0,  # If not vetoed, edge check passed
+                            "veto_reason": det.get('mode') if decision.get('dir', 0) == 0 else None,
+                            "is_forced": cfg.get("execution", {}).get("force_validation_trade", False),
+                            "is_synthetic": cfg.get("execution", {}).get("force_validation_trade", False),
                         }
                         log_router.emit_costs(ts=ts, asset=sym, costs=costs_payload)
                     except Exception:
@@ -2148,16 +2155,43 @@ async def run_live(config_path: str, dry_run: bool = False):
                     try:
                         # Derive key KPIs and gates
                         sh_1w = health.get('Sharpe_roll_1w')
+                        win_rate_1w = health.get('hit_rate_w')  # Day 4: Add win rate tracking
                         dd = health.get('max_dd_to_date')
                         t_bps = health.get('turnover_bps_day')
                         inband = health.get('in_band_share')
-                        # Targets from prompt: Sharpe ≥ 2.5, DD ≤ 20%, costs ≤ 10 bps RT (placeholder), turnover ≤ cap (optional)
+                        
+                        # Day 4: Calculate average cost from PnL attribution
+                        try:
+                            # Get cumulative costs from PnL attribution tracker
+                            total_fees = pnl_attribution.cumulative_fees
+                            total_impact = pnl_attribution.cumulative_impact
+                            total_cost_usd = abs(total_fees) + abs(total_impact)
+                            
+                            # Estimate trade count from health monitor or execution history
+                            # Use a rolling window approach - count trades in last week
+                            # For now, estimate from turnover and position changes
+                            exec_count = health.get('exec_count_recent', 0)
+                            # Track total trades in a global counter (simplified)
+                            if 'total_trades_1w' not in locals():
+                                total_trades_1w = max(1, int(exec_count * 2016 / 60))  # Rough estimate for 1 week
+                            else:
+                                total_trades_1w = max(1, total_trades_1w)
+                            
+                            # Calculate average cost per trade in bps (assuming average notional)
+                            # Note: This is simplified; proper implementation would track notional per trade
+                            avg_notional_usd = float(cfg.get('risk', {}).get('max_pos_notional', 10000))
+                            cost_bps_avg = (total_cost_usd / total_trades_1w / avg_notional_usd * 10000) if total_trades_1w > 0 else None
+                        except Exception:
+                            cost_bps_avg = None
+                            total_trades_1w = 0
+                        
+                        # Targets from prompt: Sharpe ≥ 2.5, DD ≤ 20%, costs ≤ 7 bps RT, turnover ≤ cap (optional)
                         gate_sharpe = (sh_1w is not None) and (float(sh_1w) >= 2.5)
                         # max_dd_to_date tracked negative; convert to positive percent depth
                         dd_pct = (abs(float(dd)) * 100.0) if dd is not None else None
                         gate_dd = (dd_pct is not None) and (dd_pct <= 20.0)
-                        # Cost gate: placeholder None (requires aggregation of fees/slip/impact); mark as None
-                        gate_cost = None
+                        # Day 4: Implement cost gate (target: ≤7 bps per trade)
+                        gate_cost = (cost_bps_avg is not None) and (float(cost_bps_avg) <= 7.0)
                         # Turnover gate: if provided in config; otherwise not enforced
                         to_cap = float(cfg.get('risk', {}).get('turnover_cap_bps_day', 99999.0))
                         gate_turnover = (t_bps is not None) and (float(t_bps) <= to_cap)
@@ -2171,11 +2205,40 @@ async def run_live(config_path: str, dry_run: bool = False):
                             'asset': sym,
                             'event': 'kpi_scorecard',
                             'Sharpe_1w': sh_1w,
+                            'win_rate_1w': win_rate_1w,  # Day 4: Add win rate
                             'max_DD_pct': dd_pct,
                             'turnover_bps_day': t_bps,
                             'in_band_share': inband,
+                            'cost_bps_avg': cost_bps_avg,  # Day 4: Add average cost
+                            'total_trades_1w': total_trades_1w,  # Day 4: Add trade count
                             'gates': summary,
                         }, asset=sym)
+                        
+                        # Day 4: Evaluate alerts after KPI emission
+                        try:
+                            router = get_alert_router()
+                            if router:
+                                # Prepare metrics for alert evaluation
+                                alert_metrics = {
+                                    'Sharpe_1w': sh_1w if sh_1w is not None else 0,
+                                    'win_rate_1w': win_rate_1w if win_rate_1w is not None else 0,
+                                    'max_DD_pct': dd_pct if dd_pct is not None else 0,
+                                    'cost_bps_avg': cost_bps_avg if cost_bps_avg is not None else 0,
+                                    'total_trades_1w': total_trades_1w,
+                                }
+                                
+                                # Prepare context
+                                alert_context = {
+                                    'timeframe': cfg.get('timeframe', '5m'),
+                                    'asset': sym,
+                                    'timestamp': ts,
+                                }
+                                
+                                # Evaluate alerts
+                                router.evaluate_alerts(alert_metrics, alert_context)
+                        except Exception:
+                            pass  # Fail silently to not disrupt main loop
+                        
                         # Optional Sheets tab output
                         kpi_tab = cfg['sheets']['tabs'].get('kpi')
                         if kpi_tab:
@@ -2183,7 +2246,7 @@ async def run_live(config_path: str, dry_run: bool = False):
                                 tab=kpi_tab,
                                 row=[
                                     to_iso(ts), ts,
-                                    sh_1w, dd_pct, t_bps, inband,
+                                    sh_1w, win_rate_1w, dd_pct, t_bps, inband, cost_bps_avg, total_trades_1w,
                                     int(gate_sharpe) if isinstance(gate_sharpe, bool) else '',
                                     int(gate_dd) if isinstance(gate_dd, bool) else '',
                                     '' if gate_cost is None else int(bool(gate_cost)),

@@ -44,6 +44,7 @@ STREAM_SCHEMAS = {
     "hyperliquid_fills": ["asset", "coin"],
     "repro": ["ts", "symbol"],
     "feature_log": ["asset"],
+    "veto_reasons": ["ts", "asset", "veto_type", "reason_code"],
     "snapshot_health": [],  # Informational only, no required fields
 }
 
@@ -85,6 +86,9 @@ class LogValidator:
         
         # Check for deprecated paths
         self._check_deprecated_paths()
+        
+        # Check execution-cost linkage
+        self._check_execution_cost_linkage(logs_dir)
         
         # Print results
         self._print_results()
@@ -201,6 +205,45 @@ class LogValidator:
             return parts[1]
         return ""
 
+    def _validate_cost_semantics(self, record: Dict[str, Any], stream_name: str) -> List[str]:
+        """Validate cost field semantic constraints"""
+        errors = []
+        
+        if stream_name == 'costs' or stream_name == 'costs_log':
+            # Fee bounds
+            if 'fee_bps' in record and record['fee_bps'] is not None:
+                fee = record['fee_bps']
+                if not (0 <= fee <= 50):
+                    errors.append(f"fee_bps out of range [0, 50]: {fee}")
+            
+            # Impact bounds
+            if 'impact_bps' in record and record['impact_bps'] is not None:
+                impact = record['impact_bps']
+                if impact > 500:
+                    errors.append(f"impact_bps exceeds 500 (critical): {impact}")
+            
+            # Total cost sanity (if field exists)
+            if 'cost_bps' in record and record['cost_bps'] is not None:
+                total = record['cost_bps']
+                if total > 600:
+                    errors.append(f"cost_bps exceeds 600: {total}")
+            elif 'total_cost_bps' in record and record['total_cost_bps'] is not None:
+                total = record['total_cost_bps']
+                if total > 600:
+                    errors.append(f"total_cost_bps exceeds 600: {total}")
+        
+        if stream_name == 'signals':
+            # Probability sum check (if applicable)
+            if all(k in record for k in ['p_up', 'p_down', 'p_neutral']):
+                try:
+                    prob_sum = float(record['p_up']) + float(record['p_down']) + float(record['p_neutral'])
+                    if abs(prob_sum - 1.0) > 0.01:
+                        errors.append(f"probability sum != 1.0: {prob_sum:.4f}")
+                except (ValueError, TypeError):
+                    errors.append("Invalid probability values (not numeric)")
+        
+        return errors
+
     def _validate_record_schema(
         self, record: Dict[str, Any], stream_name: str, file_path: Path, line_num: int
     ):
@@ -227,6 +270,13 @@ class LogValidator:
                 f"{file_path}:{line_num} - Missing required fields: {missing_fields}"
             )
             self.stats["invalid_records"] += 1
+        
+        # Semantic validation
+        semantic_errors = self._validate_cost_semantics(record, stream_name)
+        if semantic_errors:
+            for err in semantic_errors:
+                self.errors.append(f"{file_path}:{line_num} - Semantic: {err}")
+            self.stats["invalid_records"] += 1
 
     def _check_deprecated_paths(self):
         """Check for logs in deprecated locations."""
@@ -251,6 +301,69 @@ class LogValidator:
                     f"  Should be: logs/{{stream}}/date=YYYY-MM-DD/asset={{symbol}}/{{stream}}.jsonl"
                 )
                 self.stats["deprecated_paths"] += 1
+
+    def _load_stream_records(self, stream_dir: Path) -> List[Dict[str, Any]]:
+        """Load all records from a stream directory"""
+        records = []
+        if not stream_dir.exists():
+            return records
+        
+        for jsonl_file in stream_dir.rglob("*.jsonl"):
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8', errors='replace') as f:
+                    for line in f:
+                        if line.strip():
+                            try:
+                                records.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass  # Skip invalid JSON
+            except Exception:
+                pass  # Skip files that can't be read
+        
+        return records
+
+    def _check_execution_cost_linkage(self, logs_dir: Path):
+        """Validate that executed trades have corresponding cost records"""
+        print(f"\n[INFO] Checking execution-cost linkage...")
+        
+        # Load execution and cost records
+        exec_records = self._load_stream_records(logs_dir / "execution")
+        cost_records = self._load_stream_records(logs_dir / "costs")
+        
+        if not exec_records:
+            print(f"  No execution records found, skipping linkage check")
+            return
+        
+        # Build cost index by (bar_id, asset) - normalize keys
+        cost_index = set()
+        for rec in cost_records:
+            bar_id = rec.get('bar_id')
+            asset = rec.get('asset') or rec.get('symbol')
+            if bar_id is not None and asset:
+                cost_index.add((bar_id, asset))
+        
+        # Check executed trades have costs
+        linkage_errors = 0
+        for exec_rec in exec_records:
+            # Only check filled/executed trades
+            result = exec_rec.get('result', '').upper()
+            if result in ['FILLED', 'EXECUTED']:
+                bar_id = exec_rec.get('bar_id')
+                asset = exec_rec.get('asset') or exec_rec.get('symbol')
+                
+                if bar_id is not None and asset:
+                    key = (bar_id, asset)
+                    if key not in cost_index:
+                        self.warnings.append(
+                            f"Execution at bar_id={bar_id}, asset={asset} "
+                            f"missing corresponding costs record"
+                        )
+                        linkage_errors += 1
+        
+        if linkage_errors == 0:
+            print(f"  ✓ All {len([r for r in exec_records if r.get('result', '').upper() in ['FILLED', 'EXECUTED']])} executed trades have corresponding costs")
+        else:
+            print(f"  ⚠ {linkage_errors} executed trades missing cost records")
 
     def _print_results(self):
         """Print validation results."""

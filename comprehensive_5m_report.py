@@ -22,6 +22,7 @@ def main():
     
     # 1. LOAD DATA
     print("📂 LOADING DATA...")
+    print("Note: Filtering OUT is_forced=true and is_synthetic=true trades for KPI calculations")
     
     # Order intents
     intents = []
@@ -33,6 +34,12 @@ def main():
                 except:
                     pass
     
+    # Filter intents: exclude forced/synthetic trades
+    intents_total = len(intents)
+    intents_forced = len([i for i in intents if i.get('is_forced', False)])
+    intents_synthetic = len([i for i in intents if i.get('is_synthetic', False)])
+    intents_organic = [i for i in intents if not i.get('is_forced', False) and not i.get('is_synthetic', False)]
+    
     # Signals
     signals = []
     if signals_file.exists():
@@ -42,6 +49,12 @@ def main():
                     signals.append(json.loads(line))
                 except:
                     pass
+    
+    # Filter signals: exclude forced/synthetic trades
+    signals_total = len(signals)
+    signals_forced = len([s for s in signals if s.get('is_forced', False)])
+    signals_synthetic = len([s for s in signals if s.get('is_synthetic', False)])
+    signals_organic = [s for s in signals if not s.get('is_forced', False) and not s.get('is_synthetic', False)]
     
     # Executions
     executions = []
@@ -53,7 +66,21 @@ def main():
                 except:
                     pass
     
-    print(f"✅ Loaded {len(intents)} intents, {len(signals)} signals, {len(executions)} executions\n")
+    # Filter executions: exclude forced/synthetic trades  
+    executions_total = len(executions)
+    executions_forced = len([e for e in executions if e.get('repro', {}).get('is_forced', False)])
+    executions_synthetic = len([e for e in executions if e.get('repro', {}).get('is_synthetic', False)])
+    executions_organic = [e for e in executions if not e.get('repro', {}).get('is_forced', False) and not e.get('repro', {}).get('is_synthetic', False)]
+    
+    # Print load summary with organic/forced/synthetic breakdown
+    print(f"✅ Loaded {intents_total} total intents ({len(intents_organic)} organic, {intents_forced} forced, {intents_synthetic} synthetic)")
+    print(f"   Loaded {signals_total} total signals ({len(signals_organic)} organic, {signals_forced} forced, {signals_synthetic} synthetic)")
+    print(f"   Loaded {executions_total} total executions ({len(executions_organic)} organic, {executions_forced} forced, {executions_synthetic} synthetic)\n")
+    
+    # Use only organic data for KPI calculations
+    intents = intents_organic
+    signals = signals_organic
+    executions = executions_organic
     
     # 2. ORDER INTENTS ANALYSIS
     print("="*100)

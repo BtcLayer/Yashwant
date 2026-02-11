@@ -111,6 +111,28 @@
         "manifest_id": {
             "type": "string",
             "description": "Manifest identifier"
+        },
+        "is_forced": {
+            "type": "boolean",
+            "description": "Whether this event was forced/synthetic for testing",
+            "default": false
+        },
+        "is_synthetic": {
+            "type": "boolean",
+            "description": "Whether this is a validation trade or synthetic event",
+            "default": false
+        },
+        "realized_pnl_bps": {
+            "type": ["number", "null"],
+            "description": "Realized PnL in bps after position closed (for calibration)"
+        },
+        "forward_return_bps": {
+            "type": ["number", "null"],
+            "description": "Forward return in bps over prediction horizon (for calibration)"
+        },
+        "outcome_bar_id": {
+            "type": ["integer", "null"],
+            "description": "Bar ID when outcome was realized"
         }
     }
 }

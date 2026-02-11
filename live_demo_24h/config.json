@@ -161,7 +161,7 @@
       "overlay": ["ts_ist", "asset", "bar_id", "direction", "alpha", "confidence", "alignment_rule", "chosen_timeframes"]
     },
     "sinks": {
-      "sheets": true,
+      "sheets": false,
       "emitter": true,
       "llm_jsonl": true
     },

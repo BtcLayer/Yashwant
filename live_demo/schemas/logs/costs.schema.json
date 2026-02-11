@@ -45,21 +45,25 @@
         "fee_bps": {
             "type": "number",
             "minimum": 0.0,
+            "maximum": 50.0,
             "description": "Fee in basis points"
         },
         "slippage_bps": {
             "type": "number",
             "minimum": 0.0,
+            "maximum": 100.0,
             "description": "Slippage in basis points"
         },
         "impact_bps": {
             "type": "number",
             "minimum": 0.0,
+            "maximum": 500.0,
             "description": "Impact in basis points"
         },
         "cost_bps": {
             "type": "number",
             "minimum": 0.0,
+            "maximum": 600.0,
             "description": "Total cost in basis points"
         },
         "cost_model_version": {
@@ -69,6 +73,32 @@
         "cost_gt_notional": {
             "type": "boolean",
             "description": "Sanity flag: true if cost exceeds notional (error)"
+        },
+        "is_forced": {
+            "type": "boolean",
+            "description": "Whether this event was forced/synthetic for testing",
+            "default": false
+        },
+        "is_synthetic": {
+            "type": "boolean",
+            "description": "Whether this is a validation trade or synthetic event",
+            "default": false
+        },
+        "net_edge_bps": {
+            "type": ["number", "null"],
+            "description": "Predicted edge minus total costs in bps"
+        },
+        "signal_strength_bps": {
+            "type": ["number", "null"],
+            "description": "Raw signal strength in bps before cost adjustment"
+        },
+        "edge_check_passed": {
+            "type": "boolean",
+            "description": "Whether net edge exceeded minimum threshold"
+        },
+        "veto_reason": {
+            "type": ["string", "null"],
+            "description": "Reason for edge-based veto if applicable"
         }
     }
 }

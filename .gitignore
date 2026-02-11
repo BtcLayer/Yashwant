@@ -125,3 +125,10 @@ cohort_workflow.py
 COHORT_INTEGRATION_COMPLETE.py
 SOLUTION_PLAN.py
 IMPLEMENTATION_STATUS.txt
+
+# Interview and task materials
+mlops_intern_task/
+
+# Quick validation and report scripts
+quick_validate_*.py
+trade_status_report.py

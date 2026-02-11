@@ -1,0 +1,98 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "order_intent",
+    "description": "Final order intent (post-risk) with sizing, reason codes, and risk scoring",
+    "type": "object",
+    "required": [
+        "ts_ist",
+        "bar_id_decision",
+        "asset",
+        "side"
+    ],
+    "additionalProperties": true,
+    "properties": {
+        "ts_ist": {
+            "type": "string",
+            "minLength": 10,
+            "description": "IST timestamp (ISO-8601+05:30)",
+            "example": "2025-10-22T10:05:00+05:30"
+        },
+        "bar_id_decision": {
+            "type": "integer",
+            "description": "Bar ID when decision made (monotonic_id)",
+            "example": 9675312
+        },
+        "asset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trading asset symbol",
+            "example": "BTC-PERP"
+        },
+        "side": {
+            "type": "string",
+            "enum": ["BUY", "SELL", "HOLD"],
+            "description": "Order side",
+            "example": "BUY"
+        },
+        "intent_qty": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Intended quantity (fraction)",
+            "example": 0.25
+        },
+        "intent_notional": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Intended notional USD",
+            "example": 15000.0
+        },
+        "reason_codes": {
+            "type": "object",
+            "description": "Reason codes for decision (flags)",
+            "example": {
+                "threshold": true,
+                "band": false,
+                "spread_guard": true
+            }
+        },
+        "signal_strength": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Signal strength",
+            "example": 0.34
+        },
+        "model_confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Model confidence",
+            "example": 0.78
+        },
+        "risk_score": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Risk score",
+            "example": 0.23
+        },
+        "market_conditions": {
+            "type": "object",
+            "description": "Market conditions (spread_bps, volatility, volume)",
+            "example": {
+                "spread_bps": 7.6,
+                "volatility": 0.23,
+                "volume": 1500.0
+            }
+        },
+        "is_forced": {
+            "type": "boolean",
+            "description": "Whether this event was forced/synthetic for testing",
+            "default": false
+        },
+        "is_synthetic": {
+            "type": "boolean",
+            "description": "Whether this is a validation trade or synthetic event",
+            "default": false
+        }
+    }
+}

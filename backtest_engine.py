@@ -10,6 +10,9 @@ from collections import deque
 from typing import Tuple, Dict, Optional
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
+import json  # Day 4: For saving backtest results
+import os
+from datetime import datetime
 
 
 class SimpleThompsonBandit:
@@ -61,6 +64,8 @@ def run_allocator_backtest(
     dd_stop: float = 0.05,
     latency_bars: int = 0,
     annualizer: float = None,
+    save_results: bool = False,  # Day 4: Optional save to JSON
+    save_results_path: Optional[str] = None,  # Day 4: Custom output path
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict]:
     """
     Comprehensive backtesting with bandit allocation
@@ -205,6 +210,10 @@ def run_allocator_backtest(
         'hit_rate': hit_rate,
     }
     
+    # Day 4: Save results to JSON if requested
+    if save_results:
+        _save_backtest_results(metrics, 'allocator', save_results_path)
+    
     return Eq, Tr, Bu, metrics
 
 
@@ -215,6 +224,8 @@ def run_simple_backtest(
     threshold: float = 0.0,
     cost_bps: float = 5.0,
     pos_max: float = 1.0,
+    save_results: bool = False,  # Day 4: Optional save to JSON
+    save_results_path: Optional[str] = None,  # Day 4: Custom output path
 ) -> Dict:
     """
     Simple backtest for a single signal
@@ -266,7 +277,44 @@ def run_simple_backtest(
         'win_rate': float((aligned['net_pnl'] > 0).sum() / len(aligned)),
     }
     
+    # Day 4: Save results to JSON if requested
+    if save_results:
+        _save_backtest_results(metrics, 'simple', save_results_path)
+    
     return metrics
+
+
+def _save_backtest_results(metrics: Dict, backtest_type: str, custom_path: Optional[str] = None):
+    """
+    Day 4: Save backtest results to JSON file
+    
+    Args:
+        metrics: Dictionary of performance metrics
+        backtest_type: Type of backtest ('allocator' or 'simple')
+        custom_path: Optional custom output path
+    """
+    # Create backtest_results directory if it doesn't exist
+    os.makedirs('backtest_results', exist_ok=True)
+    
+    # Generate filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    if custom_path:
+        output_path = custom_path
+    else:
+        output_path = f'backtest_results/{backtest_type}_backtest_{timestamp}.json'
+    
+    # Add metadata
+    result_data = {
+        'timestamp': datetime.now().isoformat(),
+        'backtest_type': backtest_type,
+        'metrics': metrics
+    }
+    
+    # Save to JSON
+    with open(output_path, 'w') as f:
+        json.dump(result_data, f, indent=2)
+    
+    print(f"✅ Backtest results saved to: {output_path}")
 
 
 if __name__ == "__main__":

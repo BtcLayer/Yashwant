@@ -81,6 +81,11 @@
         "fill_ts": {
             "type": "string",
             "description": "When order was filled"
+        },
+        "is_synthetic": {
+            "type": "boolean",
+            "description": "Whether this is a validation trade or synthetic event",
+            "default": false
         }
     }
 }
