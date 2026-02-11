@@ -84,9 +84,11 @@ class TestOverlayManager(unittest.TestCase):
             # After 3 bars, should generate 15m rollup
             if i >= 2:
                 self.assertIn("15m", overlay_bars)
-                self.assertEqual(overlay_bars["15m"].bar_id, 1)  # First rollup bar
+                # The bar_id increments with each rollup, so after i=2,3,4 we get bar_id=1,2,3
+                expected_bar_id = i - 1  # i=2 -> bar_id=1, i=3 -> bar_id=2, i=4 -> bar_id=3
+                self.assertEqual(overlay_bars["15m"].bar_id, expected_bar_id)
         
-        # Check 15m rollup values
+        # Check 15m rollup values (first rollup bar)
         rollup_15m = self.manager.overlay_bars["15m"][0]
         self.assertEqual(rollup_15m.open, 50000.0)  # First bar's open
         self.assertEqual(rollup_15m.close, 50070.0)   # Third bar's close
@@ -168,7 +170,8 @@ class TestOverlayFeatureComputer(unittest.TestCase):
         """Test computing features for all timeframes"""
         # Mock overlay manager
         self.mock_overlay_manager.config.overlay_timeframes = ["15m", "1h"]
-        self.mock_overlay_manager.is_timeframe_ready.side_effect = lambda tf: tf in ["5m", "15m", "1h"]
+        # Fix lambda to accept **kwargs to handle min_bars parameter
+        self.mock_overlay_manager.is_timeframe_ready.side_effect = lambda tf, **kwargs: tf in ["5m", "15m", "1h"]
         self.mock_overlay_manager.get_latest_bars.return_value = []
         
         cohort_signals = {"S_top": 0.1, "S_bot": -0.1}
@@ -244,25 +247,28 @@ class TestOverlaySignalGenerator(unittest.TestCase):
     
     def test_signal_calculation(self):
         """Test signal direction and strength calculation"""
+        # Use default thresholds for testing
+        thr = self.generator.thresholds_default
+        
         # Test positive signal
-        direction, alpha, confidence = self.generator._calculate_signal_components(
-            0.6, 0.2, 0.2, 0.4
+        direction, alpha, confidence = self.generator._calculate_signal_components_with_thresholds(
+            0.6, 0.2, 0.2, 0.4, thr
         )
         self.assertEqual(direction, 1)
         self.assertGreater(alpha, 0.0)
         self.assertEqual(confidence, 0.6)
         
         # Test negative signal
-        direction, alpha, confidence = self.generator._calculate_signal_components(
-            0.2, 0.6, 0.2, -0.4
+        direction, alpha, confidence = self.generator._calculate_signal_components_with_thresholds(
+            0.2, 0.6, 0.2, -0.4, thr
         )
         self.assertEqual(direction, -1)
         self.assertGreater(alpha, 0.0)
         self.assertEqual(confidence, 0.6)
         
         # Test neutral signal
-        direction, alpha, confidence = self.generator._calculate_signal_components(
-            0.35, 0.35, 0.3, 0.0
+        direction, alpha, confidence = self.generator._calculate_signal_components_with_thresholds(
+            0.35, 0.35, 0.3, 0.0, thr
         )
         self.assertEqual(direction, 0)
         self.assertEqual(alpha, 0.0)

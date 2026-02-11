@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import datetime
 import pytz
+import pytest
 
 # Add current directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -21,6 +22,7 @@ from features import LiveFeatureComputer, FeatureBuilder
 
 IST = pytz.timezone("Asia/Kolkata")
 
+@pytest.mark.asyncio
 async def test_overlay_integration():
     """Test the overlay system integration"""
     print("🧪 Starting Overlay System Integration Test")
@@ -117,6 +119,7 @@ async def test_overlay_integration():
     print("\n✅ Overlay System Integration Test Completed!")
     return True
 
+@pytest.mark.asyncio
 async def test_configuration_loading():
     """Test loading overlay configuration"""
     print("\n🔧 Testing Configuration Loading...")
@@ -167,10 +170,9 @@ def test_file_structure():
         print(f"\n❌ Missing files:")
         for file_path in missing_files:
             print(f"   ❌ {file_path}")
-        return False
+        assert False, f"Missing files: {missing_files}"
     
     print("✅ All required files exist")
-    return True
 
 async def main():
     """Main test function"""
