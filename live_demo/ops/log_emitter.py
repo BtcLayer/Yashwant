@@ -128,10 +128,15 @@ class LogEmitter:
         path = partitioned_path(topic_dir, ts_iso, f"{topic}.jsonl", asset=symbol)
         # Append JSONL
         try:
+            print(f"📝 Writing to: {path}")
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        except Exception:
+            print(f"✅ Write successful")
+        except Exception as e:
             # Best-effort only; don't raise to avoid crashing the bot
+            print(f"❌ Write failed: {e}")
+            import traceback
+            traceback.print_exc()
             return
 
     def emit_signals(
@@ -209,6 +214,14 @@ class LogEmitter:
             "cohort_pros": cohort.get('pros') if isinstance(cohort, dict) else None,
             "cohort_amateurs": cohort.get('amateurs') if isinstance(cohort, dict) else None,
             "cohort_mood": cohort.get('mood') if isinstance(cohort, dict) else None,
+            
+            # Ensemble 1.1 B2.3: Edge gating metrics (flattened)
+            "edge_after_costs_bps": decision_details.get('edge', {}).get('edge_after_costs_bps') if isinstance(decision_details, dict) else None,
+            "expected_return_bps": decision_details.get('edge', {}).get('expected_return_bps') if isinstance(decision_details, dict) else None,
+            "edge_cost_bps": decision_details.get('edge', {}).get('cost_bps') if isinstance(decision_details, dict) else None,
+            "edge_should_trade": decision_details.get('edge', {}).get('should_trade') if isinstance(decision_details, dict) else None,
+            "edge_gating_status": decision_details.get('edge_gating') if isinstance(decision_details, dict) else None,
+            "veto_reason": decision_details.get('veto_reason') if isinstance(decision_details, dict) else None,
             
             # Optional metadata
             "decision_tf": "5m",  # Default timeframe, can be parameterized later

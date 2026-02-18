@@ -1,0 +1,9 @@
+{
+  "baseline_brier": 2.0,
+  "calibrated_brier": 0.6883417681496786,
+  "improvement_abs": 1.3116582318503214,
+  "improvement_pct": 65.58291159251607,
+  "kpi_passed": true,
+  "sample_count": 1614,
+  "calibrator_path": "calibrators\\calibrator_5m_platt.pkl"
+}

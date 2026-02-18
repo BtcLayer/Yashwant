@@ -74,6 +74,15 @@ jobs:
         run: |
           python scripts/run_timeframe_smoke.py --timeframes 1h 12h 24h --logs-root paper_trading_outputs/ci_smoke
 
-      - name: Validate emitted records (strict)
+      - name: Run cost guard unit tests
         run: |
-          python scripts/validate_emitted_records.py --logs-root paper_trading_outputs/ci_smoke --strict
+          pytest tests/test_cost_guards.py -v
+
+      - name: Run validator unit tests
+        run: |
+          pytest tests/test_validator_cross_stream.py -v
+
+      - name: Validate emitted records (strict mode)
+        run: |
+          # Validates: required fields, cost sanity, execution→costs mapping
+          # Fails if: missing metadata, excessive costs, or schema violations

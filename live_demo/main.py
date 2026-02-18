@@ -14,9 +14,10 @@ from live_demo.market_data import MarketData
 from live_demo.hyperliquid_listener import HyperliquidListener
 from live_demo.funding_hl import FundingHL
 from live_demo.cohort_signals import CohortState
+from live_demo.cohort_cache import CohortCache
 from live_demo.features import FeatureBuilder, LiveFeatureComputer
 from live_demo.model_runtime import ModelRuntime
-from live_demo.decision import Thresholds, decide, gate_and_score
+from live_demo.decision import Thresholds, decide, gate_and_score, compute_edge_after_costs
 from live_demo.risk_and_exec import RiskConfig, RiskAndExec
 from live_demo.sheets_logger import SheetsLogger
 from live_demo.state import JSONState
@@ -395,6 +396,15 @@ async def run_live(config_path: str, dry_run: bool = False):
         else max(1.0, kl["volume"].mean())
     )
     cohort.set_adv20(float(adv20))
+    
+    # Initialize cohort cache for persistence across restarts
+    cohort_cache = CohortCache(cache_path=os.path.join(tf_root, 'cohort_state.json'))
+    cached_cohort = cohort_cache.load(max_age_hours=24)
+    if cached_cohort:
+        # Warm start with last known values (will decay naturally as new data arrives)
+        cohort.pros = cached_cohort["pros"]
+        cohort.amateurs = cached_cohort["amateurs"]
+        cohort.mood = cached_cohort["mood"]
 
     # Load cohort addresses
     addresses = []
@@ -578,9 +588,16 @@ async def run_live(config_path: str, dry_run: bool = False):
     # Seed ADV20 USD for ADV cap logic using last warmup close
     try:
         last_warm_close = float(kl["close"].iloc[-1])
-        risk.adv20_usd = float(last_warm_close * float(adv20))
-    except Exception:
-        risk.adv20_usd = 0.0
+        adv20_usd = float(last_warm_close * float(adv20))
+        # Ensure reasonable minimum to avoid division by near-zero in impact calculations
+        # For BTC at ~$67k, ADV20 of 1000 BTC = $67M daily volume (conservative floor)
+        min_adv20_usd = 10_000_000.0  # $10M minimum daily volume
+        risk.adv20_usd = max(adv20_usd, min_adv20_usd)
+        if adv20_usd < min_adv20_usd:
+            print(f"⚠️  ADV20 too low (${adv20_usd:,.0f}), using floor ${min_adv20_usd:,.0f}")
+    except Exception as e:
+        print(f"⚠️  ADV20 calculation error: {e}, using default $10M")
+        risk.adv20_usd = 10_000_000.0
 
     last_close = None
     last_ts = None
@@ -819,18 +836,42 @@ async def run_live(config_path: str, dry_run: bool = False):
                     ws_reconnects += 1
                 except Exception:
                     pass
-        async def _poll_user_fills_by_time(ts_end_ms: int, interval_ms: int):
+        async def _poll_user_fills_by_time(ts_end_ms: int, interval_ms: int, bar_id: int = 0):
+            """Poll user fills with rotation to avoid rate limiting (429 errors).
+            
+            Strategy:
+            - Split 629 addresses into 5 rotation groups (~126 addresses each)
+            - Poll one group per bar: 126 calls / 300s = 0.42 calls/second (under limit)
+            - Each address covered once every 5 bars (25 minutes at 5m interval)
+            - Use wider time window to compensate for rotation delay
+            """
             if offline:
                 return []
             # Poll userFillsByTime for cohort addresses and return processed fill dicts for BTC
             url = hl_base  # e.g., https://api.hyperliquid.xyz/info
-            # Use a wider window (2x interval) to avoid boundary misses
-            start_ms = max(0, int(ts_end_ms - (2 * interval_ms)))
-            addresses_to_query = list(top_set.union(bottom_set))
-            if not addresses_to_query:
+            
+            # Rotation configuration
+            rotation_groups = int(cfg.get('cohorts', {}).get('polling', {}).get('rotation_groups', 5))
+            
+            # Determine which group to poll this bar
+            addresses_all = list(top_set.union(bottom_set))
+            if not addresses_all:
                 return []
+            
+            group_size = len(addresses_all) // rotation_groups + 1
+            group_idx = bar_id % rotation_groups
+            start_idx = group_idx * group_size
+            end_idx = min(start_idx + group_size, len(addresses_all))
+            addresses_to_query = addresses_all[start_idx:end_idx]
+            
+            # Use wider time window to cover rotation period
+            start_ms = max(0, int(ts_end_ms - (rotation_groups * interval_ms)))
+            
+            if addresses_to_query:
+                print(f"📡 REST API: Polling group {group_idx+1}/{rotation_groups} ({len(addresses_to_query)} addresses)")
+            
             results = []
-            sem = asyncio.Semaphore(8)
+            sem = asyncio.Semaphore(4)  # Reduced from 8 to be more conservative
 
             async def fetch_for_addr(session: aiohttp.ClientSession, addr: str):
                 payload = {
@@ -883,13 +924,28 @@ async def run_live(config_path: str, dry_run: bool = False):
                                     )
                                 except (ValueError, TypeError):
                                     continue
-                    except (aiohttp.ClientError, asyncio.TimeoutError):
+                    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                        # Log rate limiting specifically
+                        if "429" in str(e):
+                            try:
+                                err_log_path = os.path.join(paper_root(), 'live_errors.log')
+                                with open(err_log_path, "a", encoding="utf-8") as err_fh:
+                                    err_fh.write(f"\n[{to_iso(ts_end_ms)}] 429 Rate Limited - Address: {addr}\n")
+                            except Exception:
+                                pass
                         return
 
             async with aiohttp.ClientSession() as session:
+                # Add small delay between batches to avoid burst rate limiting
+                await asyncio.sleep(0.5)
                 await asyncio.gather(
                     *(fetch_for_addr(session, a) for a in addresses_to_query)
                 )
+            
+            # Log results
+            if results:
+                print(f"✅ REST API: Found {len(results)} fills from {len(addresses_to_query)} addresses")
+            
             # Best-effort local debug of poll summary
             try:
                 out_dir = paper_root()
@@ -897,10 +953,10 @@ async def run_live(config_path: str, dry_run: bool = False):
                 dbg_path = os.path.join(out_dir, "user_fills_poll_debug.csv")
                 if not os.path.exists(dbg_path):
                     with open(dbg_path, "w", encoding="utf-8") as fh:
-                        fh.write("ts_iso,ts,window_ms,addresses,results_count\n")
+                        fh.write("ts_iso,ts,bar_id,group,window_ms,addresses_queried,results_count\n")
                 with open(dbg_path, "a", encoding="utf-8") as fh:
                     fh.write(
-                        f"{to_iso(ts_end_ms)},{ts_end_ms},{2*interval_ms},{len(addresses_to_query)},{len(results)}\n"
+                        f"{to_iso(ts_end_ms)},{ts_end_ms},{bar_id},{group_idx},{rotation_groups*interval_ms},{len(addresses_to_query)},{len(results)}\n"
                     )
             except OSError:
                 pass
@@ -908,6 +964,23 @@ async def run_live(config_path: str, dry_run: bool = False):
 
         # Start background consumer task to process Hyperliquid public trades
         _consumer_task = asyncio.create_task(_consume_ws())
+        
+        # WebSocket health monitoring task
+        async def _ws_health_check():
+            """Periodic check that WebSocket is receiving data"""
+            await asyncio.sleep(120)  # Wait 2 minutes for warmup
+            if len(fill_queue) == 0 and not offline:
+                print("⚠️  WARNING: WebSocket received ZERO trades in first 2 minutes")
+                print(f"   Check Hyperliquid WS subscription for {sym}")
+                try:
+                    err_log_path = os.path.join(paper_root(), 'live_errors.log')
+                    with open(err_log_path, 'a', encoding='utf-8') as f:
+                        f.write(f"\n[{to_iso(int(time.time()*1000))}] WebSocket health check FAILED - no trades received\n")
+                except Exception:
+                    pass
+        
+        _ws_health_task = asyncio.create_task(_ws_health_check())
+        
         csv_iterator = 1000
         error_count = 0 # Initialize this before the while loop starts
         while True:
@@ -1090,7 +1163,7 @@ async def run_live(config_path: str, dry_run: bool = False):
                 "1d": 86_400_000,
             }
             interval_ms = interval_map.get(interval, 300_000)
-            polled_user_fills = await _poll_user_fills_by_time(ts, interval_ms)
+            polled_user_fills = await _poll_user_fills_by_time(ts, interval_ms, bar_count)
             for uf in polled_user_fills:
                 addr = str(uf.get("address") or "").lower()
                 if addr and (addr in top_set or addr in bottom_set):
@@ -1366,6 +1439,48 @@ async def run_live(config_path: str, dry_run: bool = False):
                             decision['details']['overlay']['alignment_enforcement'] = 'applied'
                     except Exception:
                         pass
+                    
+                    # Ensemble 1.1 B2.3: Edge gating
+                    # Compute edge after costs and gate unprofitable trades
+                    try:
+                        costs_cfg = cfg.get('costs', {})
+                        enable_edge_gating = bool(costs_cfg.get('enable_net_edge_gating', True))
+                        cost_bps = float(costs_cfg.get('cost_bps', 5.0))
+                        expected_move_bps = float(costs_cfg.get('expected_move_bps', 50.0))
+                        
+                        # Only compute edge if decision is not already neutral
+                        if decision.get('dir', 0) != 0 and isinstance(model_out, dict):
+                            edge_result = compute_edge_after_costs(
+                                model_out=model_out,
+                                cost_bps=cost_bps,
+                                expected_move_bps=expected_move_bps
+                            )
+                            
+                            # Add edge metrics to decision details
+                            decision['details']['edge'] = edge_result
+                            
+                            # Gate the trade if edge is negative and gating is enabled
+                            if enable_edge_gating and not edge_result['should_trade']:
+                                decision['dir'] = 0
+                                decision['alpha'] = 0.0
+                                decision['details']['veto_reason'] = 'negative_edge'
+                                decision['details']['edge_gating'] = 'vetoed'
+                            else:
+                                decision['details']['edge_gating'] = 'passed'
+                        else:
+                            # Decision is already neutral, no edge calculation needed
+                            decision['details']['edge'] = {
+                                'edge_after_costs_bps': None,
+                                'expected_return_bps': None,
+                                'cost_bps': cost_bps,
+                                'direction': 0,
+                                'should_trade': False
+                            }
+                            decision['details']['edge_gating'] = 'skipped_neutral'
+                    except Exception as e:
+                        # If edge calculation fails, log but don't block the trade
+                        decision['details']['edge_gating'] = f'error: {str(e)}'
+                    
                     # Emit overlay_status via router (LLM-friendly)
                     try:
                         indiv = {}
@@ -1940,14 +2055,27 @@ async def run_live(config_path: str, dry_run: bool = False):
             # Emit signals JSONL for observability (best-effort)
             try:
                 emitter = get_emitter()
+                print(f"🔍 Emitting signal for {sym} at {ts}")
                 emitter.emit_signals(ts=ts, symbol=sym, features=x, model_out=model_out, decision=decision, cohort={'pros': cohort.pros, 'amateurs': cohort.amateurs, 'mood': cohort.mood})
-            except Exception:
-                pass
+                print(f"✅ Signal emitted successfully")
+            except Exception as e:
+                print(f"⚠️  Signal emission error: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Periodic health emission
             try:
                 if (bar_count % _health_emit_every) == 0:
                     mw.track_event('health', ts)
+                    # Save cohort cache every health emission (every 3 bars at 5m = 15 min)
+                    try:
+                        cohort_cache.save(cohort.snapshot())
+                    except Exception:
+                        pass
+                    # Hourly cohort diagnostics
+                    if bar_count % 12 == 0:  # Every hour at 5m
+                        print(f"📊 Cohort signals: pros={cohort.pros:.4f}, amateurs={cohort.amateurs:.4f}, mood={cohort.mood:.4f}")
+                        print(f"   WS queue size: {len(fill_queue)}, Public trades: {public_count}")
                     # compute simple rolling health metrics
                     p_downs = [p[0] for p in _health_preds if isinstance(p, tuple)]
                     p_ups = [p[1] for p in _health_preds if isinstance(p, tuple)]

@@ -393,6 +393,22 @@ class RiskAndExec:
                         impact_est = impact_k * (est_qty ** 2) * last_price
                         impact_bps_est = (impact_est / est_notional) * 10000 if est_notional > 0 else 0.0
                         
+                        # Debug logging for warning-level impacts (50 bps < impact < max)
+                        if impact_bps_est > 50.0:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(
+                                f"[COST_GUARD] High impact detected: "
+                                f"impact_bps={impact_bps_est:.2f}, "
+                                f"adv_ref={self.adv20_usd:.2f}, "
+                                f"price_ref={last_price:.2f}, "
+                                f"notional={est_notional:.2f}, "
+                                f"qty={est_qty:.6f}, "
+                                f"impact_k={impact_k:.6f}, "
+                                f"threshold={self.cfg.max_impact_bps_hard:.2f}"
+                            )
+                        
+                        # Hard veto if exceeds threshold
                         if impact_bps_est > self.cfg.max_impact_bps_hard:
                             d = {**d, 'dir': 0, 'alpha': 0.0, 'details': {
                                 **details_prev,
@@ -401,6 +417,9 @@ class RiskAndExec:
                                 'max_impact_bps_hard': self.cfg.max_impact_bps_hard,
                                 'est_notional': est_notional,
                                 'est_qty': est_qty,
+                                'adv_ref_used': self.adv20_usd,
+                                'price_ref_used': last_price,
+                                'impact_k_used': impact_k,
                                 'veto_reason': f"Impact {impact_bps_est:.1f} bps exceeds hard limit {self.cfg.max_impact_bps_hard}"
                             }}
             except Exception:

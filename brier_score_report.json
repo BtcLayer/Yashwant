@@ -1,0 +1,14 @@
+{
+  "brier_score": 0.6883,
+  "brier_up": 0.19,
+  "brier_neutral": 0.3,
+  "brier_down": 0.2,
+  "sample_count": 1614,
+  "outcome_distribution": {
+    "up": 304,
+    "neutral": 0,
+    "down": 1310
+  },
+  "calibration_method": "Platt",
+  "improvement_from_baseline": 65.6
+}

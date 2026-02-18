@@ -1,0 +1,44 @@
+{
+  "config": {
+    "conf_min_old": 0.6,
+    "pnn_min": 0.2,
+    "conf_dir_min": 0.6,
+    "strength_min": 0.07
+  },
+  "results": {
+    "old_logic": {
+      "total_signals": 89,
+      "eligible_count": 0,
+      "eligible_rate": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "brier_score": 1.0,
+      "avg_confidence": 0.0
+    },
+    "new_logic": {
+      "total_signals": 89,
+      "eligible_count": 3,
+      "eligible_rate": 0.033707865168539325,
+      "precision": NaN,
+      "recall": NaN,
+      "brier_score": NaN,
+      "avg_confidence": 0.5
+    },
+    "improvement": {
+      "total_signals_change_pct": 0.0,
+      "eligible_count_change_pct": Infinity,
+      "eligible_rate_change_pct": Infinity,
+      "precision_change_pct": Infinity,
+      "recall_change_pct": Infinity,
+      "brier_score_change_pct": NaN,
+      "avg_confidence_change_pct": Infinity
+    },
+    "gating_reasons": {
+      "LOW_DIR_CONF": 44,
+      "LOW_NON_NEUTRAL": 35,
+      "LOW_STRENGTH": 7,
+      "PASS": 3
+    },
+    "has_outcomes": false
+  }
+}

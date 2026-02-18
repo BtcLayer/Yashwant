@@ -38,7 +38,12 @@
     "bottom_file": "live_demo/bottom_cohort.csv",
     "weights_file": "paper_trading_outputs/models/weights_daily.csv",
     "smoothing_gamma": 0.6,
-    "adv_window_days": 20
+    "adv_window_days": 20,
+    "polling": {
+      "enabled": true,
+      "rotation_groups": 5,
+      "max_calls_per_second": 0.5
+    }
   },
   "thresholds": {
     "S_MIN": 0.003,
@@ -107,7 +112,8 @@
     "max_impact_bps_hard": 200.0,
     "min_net_edge_bps": 10.0,
     "max_total_cost_bps": 25.0,
-    "enable_net_edge_gating": true
+    "enable_net_edge_gating": true,
+    "expected_move_bps": 50.0
   },
   "execution": {
     "dry_run": true,
@@ -148,6 +154,9 @@
       "min_alpha": 0.02,
       "neutral_band": 0.10
     },
+    "shadow_mode": true,
+    "veto_confidence_threshold": 0.15,
+    "veto_on_timeframe_conflict": true,
     "signal_thresholds": {
       "default": {
         "min_confidence": 0.55,
@@ -304,6 +313,15 @@
       "Bot",
       "Micro"
     ]
+  },
+  "ensemble1.1_safety_thresholds": {
+    "IMPACT_BPS_MAX": 1000,
+    "COST_MAX_FRAC": 0.25,
+    "IMPACT_BPS_WARN": 500,
+    "IMPACT_BPS_ERROR": 5000,
+    "PNN_MIN": 0.20,
+    "CONF_DIR_MIN": 0.60,
+    "STRENGTH_MIN": 0.07
   },
   "artifacts": {
     "latest_manifest": "live_demo/models/LATEST.json"

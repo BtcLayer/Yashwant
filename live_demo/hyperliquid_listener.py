@@ -35,26 +35,42 @@ class HyperliquidListener:
                 except (aiohttp.ClientError, TypeError, AttributeError):
                     pass
         else:
-            # Public trades subscription; attempt several common patterns
-            payloads = [
-                {"type": "subscribe", "channel": "trades", "coin": self.coin},
-                {"op": "subscribe", "channel": "trades", "coin": self.coin},
-                {
-                    "type": "subscribe",
-                    "streams": [{"type": "trades", "coin": self.coin}],
-                },
-                {
-                    "op": "subscribe",
-                    "streams": [{"channel": "trades", "coin": self.coin}],
-                },
-                {"type": "subscribe", "channel": "trades"},
-            ]
-            for p in payloads:
+            # Public trades subscription using correct Hyperliquid format
+            try:
+                subscription = {
+                    "method": "subscribe",
+                    "subscription": {
+                        "type": "trades",
+                        "coin": self.coin
+                    }
+                }
+                await self._ws.send_json(subscription)
+                print(f"📡 WebSocket: Sent subscription for {self.coin} trades")
+                print(f"   Subscription payload: {subscription}")
+                
+                # Wait for subscription confirmation (with timeout)
                 try:
-                    await self._ws.send_json(p)
-                    break
-                except (aiohttp.ClientError, TypeError, AttributeError):
-                    continue
+                    import asyncio
+                    msg = await asyncio.wait_for(self._ws.receive(), timeout=5.0)
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        import json as _json
+                        data = _json.loads(msg.data)
+                        print(f"📥 WebSocket response: {data}")
+                        if data.get("channel") == "subscriptionResponse":
+                            sub_data = data.get("data", {})
+                            print(f"✅ WebSocket: Subscription confirmed for {self.coin}")
+                            print(f"   Response data: {sub_data}")
+                        else:
+                            print(f"📊 WebSocket: First message channel: {data.get('channel', 'unknown')}")
+                            # Not a subscription response, but connection is live
+                            # This is actually okay - some APIs send data immediately
+                except asyncio.TimeoutError:
+                    print(f"⚠️  WebSocket: No subscription confirmation within 5s")
+                    print(f"   This may be normal - trying to receive data anyway...")
+                except Exception as e:
+                    print(f"⚠️  WebSocket: Confirmation check error: {e}")
+            except (aiohttp.ClientError, TypeError, AttributeError) as e:
+                print(f"❌ WebSocket: Subscription failed: {e}")
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -113,6 +129,7 @@ class HyperliquidListener:
     def _normalize_trade(self, t: Dict) -> Dict:
         """Map varying trade payloads to a common dict for logging.
         Expected keys may include 'time' or 'ts', 'side', 'price' or 'px', 'size' or 'sz'.
+        Hyperliquid specific: 'side' is 'A' (ask/sell) or 'B' (bid/buy)
         """
         # Time
         ts = int(t.get("time") or t.get("ts") or t.get("t") or 0)
@@ -127,8 +144,18 @@ class HyperliquidListener:
             or 0
         )
         # Side detection via string or boolean keys
+        # Hyperliquid uses 'A' = ask/sell, 'B' = bid/buy
         side_raw = t.get("side") or t.get("s")
-        side = str(side_raw).lower() if side_raw is not None else ""
+        side = str(side_raw).upper() if side_raw is not None else ""
+        
+        # Map Hyperliquid format to standard buy/sell
+        if side == "A":
+            side = "sell"
+        elif side == "B":
+            side = "buy"
+        elif side:
+            side = side.lower()
+        
         if not side:
             # Fallback to boolean flags used by some feeds
             is_buy = t.get("isBuy")
@@ -136,6 +163,7 @@ class HyperliquidListener:
                 is_buy = t.get("is_buy")
             if isinstance(is_buy, bool):
                 side = "buy" if is_buy else "sell"
+        
         return {
             "ts": ts,
             "address": "",  # public stream has no user

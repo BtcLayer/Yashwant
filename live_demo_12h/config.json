@@ -124,6 +124,9 @@
       "min_alpha": 0.16,
       "neutral_band": 0.06
     },
+    "shadow_mode": true,
+    "veto_confidence_threshold": 0.25,
+    "veto_on_timeframe_conflict": true,
     "signal_thresholds": {
       "default": { "min_confidence": 0.65, "min_alpha": 0.16, "neutral_band": 0.06 },
       "1h":      { "min_confidence": 0.65, "min_alpha": 0.16, "neutral_band": 0.06 },

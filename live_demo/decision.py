@@ -9,6 +9,10 @@ class Thresholds:
     M_MIN: float = 0.12
     CONF_MIN: float = 0.60
     ALPHA_MIN: float = 0.10
+    # Tri-class gating thresholds (Ensemble 1.1) - Tuned Feb 16 for eligibility
+    PNN_MIN: float = 0.10          # Min non-neutral probability (was 0.20)
+    CONF_DIR_MIN: float = 0.40     # Min directional confidence given non-neutral (was 0.60)
+    STRENGTH_MIN: float = 0.03     # Min signal strength (abs(p_up - p_down)) (was 0.07)
     flip_mood: bool = True
     flip_model: bool = True
     # Optional separate flip for BMA arm (defaults to same behavior as model when not set)
@@ -184,11 +188,33 @@ def compute_signals_and_eligibility(
     if th.flip_model_bma:
         s_model_bma = -s_model_bma
 
-    # Model probabilities for confidence/alpha
-    p_down = float(model_out.get("p_down", 0.33))
-    p_up = float(model_out.get("p_up", 0.33))
-    conf_model = max(p_up, p_down)
-    alpha_model = abs(p_up - p_down)
+    # --- TRI-CLASS aware gating (p_non_neutral + conf_dir + strength)
+    # Ensemble 1.1: Use tri-class thresholds from config
+    PNN_MIN = th.PNN_MIN           # min non-neutral prob
+    CONF_DIR_MIN = th.CONF_DIR_MIN  # directional confidence given non-neutral
+    STRENGTH_MIN = th.STRENGTH_MIN  # signal strength
+    EPS = 1e-12
+
+    p_down = float(model_out.get("p_down", 0.0))
+    p_up = float(model_out.get("p_up", 0.0))
+    p_neutral = float(model_out.get("p_neutral", 1.0))
+
+    p_dir = p_up + p_down
+    p_non_neutral = max(0.0, 1.0 - p_neutral)
+    
+    # directional confidence conditional on being non-neutral; safe if p_dir==0
+    if p_dir > 0:
+        conf_dir = max(p_up, p_down) / (p_dir + EPS)
+    else:
+        conf_dir = 0.0
+
+    strength = abs(p_up - p_down)  # same as |s_model|
+
+    model_ok = (
+        (p_non_neutral >= PNN_MIN)
+        and (conf_dir >= CONF_DIR_MIN)
+        and (strength >= STRENGTH_MIN)
+    )
 
     signals = {
         'S_top': s_top,
@@ -200,13 +226,20 @@ def compute_signals_and_eligibility(
     eligible = {
         'pros': abs(s_top) >= th.S_MIN,
         'amateurs': abs(s_bot) >= th.S_MIN,
-        # Both model arms share the same probability-derived gating
-        'model_meta': (conf_model >= th.CONF_MIN) and (alpha_model >= th.ALPHA_MIN),
-        'model_bma': (conf_model >= th.CONF_MIN) and (alpha_model >= th.ALPHA_MIN),
+        'model_meta': model_ok,
+        'model_bma': model_ok,
     }
     # Per-arm thresholds: pros, amateurs use S_MIN; model arms use ALPHA_MIN
     side_eps_vec = (th.S_MIN, th.S_MIN, th.ALPHA_MIN, th.ALPHA_MIN)
-    extras = {'conf_model': conf_model, 'alpha_model': alpha_model}
+    
+    extras = {
+        'p_up': p_up, 
+        'p_down': p_down, 
+        'p_neutral': p_neutral,
+        'p_non_neutral': p_non_neutral,
+        'conf_dir': conf_dir,
+        'strength': strength
+    }
     return signals, eligible, side_eps_vec, extras
 
 
@@ -318,3 +351,69 @@ def decide(
         epsilon=epsilon,
         model_optimism=model_optimism,
     )
+
+
+def compute_edge_after_costs(
+    model_out: Dict,
+    cost_bps: float,
+    expected_move_bps: float = 50.0,
+) -> Dict:
+    """
+    Compute expected edge after transaction costs.
+    
+    Ensemble 1.1 B2.3: Edge gating to filter unprofitable trades.
+    
+    Args:
+        model_out: Model predictions containing p_up, p_down, p_neutral
+        cost_bps: Transaction cost in basis points (roundtrip)
+        expected_move_bps: Expected price move magnitude in basis points when directional
+    
+    Returns:
+        Dict with:
+            - edge_after_costs_bps: Net edge after costs (positive = profitable)
+            - expected_return_bps: Expected return before costs
+            - cost_bps: Transaction costs
+            - direction: Recommended direction (-1, 0, 1)
+            - should_trade: Boolean, True if edge_after_costs > 0
+    """
+    p_up = float(model_out.get('p_up', 0.0))
+    p_down = float(model_out.get('p_down', 0.0))
+    p_neutral = float(model_out.get('p_neutral', 1.0))
+    
+    # Expected return calculation
+    # Assume symmetric moves: up move = +expected_move_bps, down move = -expected_move_bps
+    # For a LONG position:
+    #   - If market goes up: profit = +expected_move_bps
+    #   - If market goes down: loss = -expected_move_bps
+    #   - If neutral: profit = 0
+    # Expected return = p_up * (+move) + p_down * (-move) + p_neutral * 0
+    expected_return_long_bps = p_up * expected_move_bps - p_down * expected_move_bps
+    
+    # For a SHORT position (flip signs):
+    expected_return_short_bps = p_down * expected_move_bps - p_up * expected_move_bps
+    
+    # Determine best direction
+    if expected_return_long_bps > 0 and expected_return_long_bps >= expected_return_short_bps:
+        direction = 1
+        expected_return_bps = expected_return_long_bps
+    elif expected_return_short_bps > 0:
+        direction = -1
+        expected_return_bps = expected_return_short_bps
+    else:
+        direction = 0
+        expected_return_bps = 0.0
+    
+    # Edge after costs
+    edge_after_costs_bps = expected_return_bps - cost_bps
+    should_trade = edge_after_costs_bps > 0
+    
+    return {
+        'edge_after_costs_bps': round(edge_after_costs_bps, 2),
+        'expected_return_bps': round(expected_return_bps, 2),
+        'cost_bps': round(cost_bps, 2),
+        'direction': direction,
+        'should_trade': should_trade,
+        'p_up': p_up,
+        'p_down': p_down,
+        'p_neutral': p_neutral,
+    }

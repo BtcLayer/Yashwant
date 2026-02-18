@@ -35,6 +35,10 @@ class OverlaySystemConfig:
     model_manifest_path: str = "live_demo/models/LATEST.json"
     # Optional per-timeframe signal thresholds configuration
     signal_thresholds: Dict[str, Any] = None
+    # Ensemble 1.1: Shadow mode for safe observation
+    shadow_mode: bool = False
+    veto_confidence_threshold: float = 0.15  # Min confidence to allow trade
+    veto_on_timeframe_conflict: bool = True  # Veto when 5m vs 15m conflict
 
     def __post_init__(self):
         if self.overlay_timeframes is None:
@@ -71,6 +75,9 @@ class OverlayDecision:
     reasoning: str
     timestamp: str
     bar_id: int
+    # Ensemble 1.1: Shadow mode fields
+    overlay_would_veto: bool = False
+    overlay_veto_reason: Optional[str] = None
 
 
 class UnifiedOverlaySystem:
@@ -110,6 +117,10 @@ class UnifiedOverlaySystem:
         # System status
         self.is_initialized = False
         self.last_update_time = None
+        
+        # Ensemble 1.1: Shadow mode tracking
+        self.veto_count = 0
+        self.total_decisions = 0
 
     def initialize(self, base_feature_computer: LiveFeatureComputer):
         """Initialize the overlay system with base feature computer"""
@@ -179,7 +190,10 @@ class UnifiedOverlaySystem:
     def generate_decision(
         self, cohort_signals: Dict[str, float], base_bar_id: int
     ) -> OverlayDecision:
-        """Generate a trading decision using overlay signals"""
+        """Generate a trading decision using overlay signals.
+        
+        Ensemble 1.1: Includes shadow mode veto checking.
+        """
 
         if (
             not self.is_initialized
@@ -216,6 +230,34 @@ class UnifiedOverlaySystem:
                 timestamp=datetime.now(IST).isoformat(),
                 bar_id=base_bar_id,
             )
+            
+            # Ensemble 1.1: Check veto conditions
+            self.total_decisions += 1
+            would_veto, veto_reason = self._check_veto_conditions(decision, combined_signal)
+            
+            decision.overlay_would_veto = would_veto
+            decision.overlay_veto_reason = veto_reason
+            
+            if would_veto:
+                self.veto_count += 1
+                
+                if self.config.shadow_mode:
+                    # Shadow mode: Log but don't enforce
+                    print(
+                        f"[OVERLAY_SHADOW] Would veto trade: {veto_reason} "
+                        f"(dir={decision.direction}, alpha={decision.alpha:.4f}, "
+                        f"conf={decision.confidence:.4f}, veto_rate={self.veto_count}/{self.total_decisions})"
+                    )
+                else:
+                    # Production mode: Enforce veto
+                    print(
+                        f"[OVERLAY_VETO] Trade vetoed: {veto_reason} "
+                        f"(dir={decision.direction}, alpha={decision.alpha:.4f}, conf={decision.confidence:.4f})"
+                    )
+                    # Override decision to neutral
+                    decision.direction = 0
+                    decision.alpha = 0.0
+                    decision.reasoning = f"VETOED: {veto_reason}"
 
             # Store in history
             self.decision_history.append(decision)
@@ -228,6 +270,45 @@ class UnifiedOverlaySystem:
             print(f"[UnifiedOverlaySystem] Error generating decision: {e}")
             return self._create_neutral_decision(base_bar_id, f"Error: {str(e)}")
 
+    def _check_veto_conditions(self, decision: OverlayDecision, combined_signal: Any) -> tuple[bool, Optional[str]]:
+        """Check if trade should be vetoed.
+        
+        Ensemble 1.1: Veto conditions:
+        1. Low confidence (< threshold)
+        2. Timeframe conflict (5m vs 15m disagreement)
+        3. Missing critical timeframes
+        
+        Returns:
+            (should_veto, reason)
+        """
+        # Skip veto check for neutral decisions
+        if decision.direction == 0:
+            return False, None
+        
+        # Condition 1: Low confidence
+        if decision.confidence < self.config.veto_confidence_threshold:
+            return True, f"low_overlay_confidence_{decision.confidence:.3f}"
+        
+        # Condition 2: Timeframe conflict (5m vs 15m)
+        if self.config.veto_on_timeframe_conflict:
+            signals_5m = decision.individual_signals.get("5m", {})
+            signals_15m = decision.individual_signals.get("15m", {})
+            
+            if signals_5m and signals_15m:
+                dir_5m = signals_5m.get("direction", 0)
+                dir_15m = signals_15m.get("direction", 0)
+                
+                # Veto if 5m and 15m point in opposite directions
+                if dir_5m != 0 and dir_15m != 0 and dir_5m != dir_15m:
+                    return True, f"timeframe_conflict_5m({dir_5m})_vs_15m({dir_15m})"
+        
+        # Condition 3: Missing critical timeframes
+        if not decision.chosen_timeframes or len(decision.chosen_timeframes) == 0:
+            return True, "no_timeframes_chosen"
+        
+        # All checks passed
+        return False, None
+    
     def _create_neutral_decision(self, bar_id: int, reason: str) -> OverlayDecision:
         """Create a neutral decision when system fails"""
         return OverlayDecision(
@@ -240,6 +321,8 @@ class UnifiedOverlaySystem:
             reasoning=reason,
             timestamp=datetime.now(IST).isoformat(),
             bar_id=bar_id,
+            overlay_would_veto=False,
+            overlay_veto_reason=None,
         )
 
     def get_system_status(self) -> Dict[str, Any]:

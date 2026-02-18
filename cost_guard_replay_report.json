@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-02-16T16:48:31.378753",
+  "parameters": {
+    "max_impact_bps_hard": 200.0,
+    "impact_k": 0.001,
+    "base_notional": 1000.0
+  },
+  "summary": {
+    "total_signals": 4324,
+    "executed_count": 349,
+    "vetoed_cost_count": 787,
+    "veto_rate_pct": 18.200740055504163,
+    "high_impact_executed_count": 0
+  },
+  "kpi_checks": {
+    "no_high_impact_trades": {
+      "threshold_bps": 200.0,
+      "passed": true,
+      "violations": 0
+    },
+    "cost_guard_active": {
+      "passed": true,
+      "veto_count": 787
+    }
+  },
+  "top_impact_trades": [
+    {
+      "rank": 1,
+      "estimated_impact_bps": 0.0,
+      "was_executed": false,
+      "was_vetoed_cost": false,
+      "dir": 0,
+      "alpha": 0.0,
+      "timestamp": ""
+    },
+    {
+      "rank": 2,
+      "estimated_impact_bps": 0.0,
+      "was_executed": false,
+      "was_vetoed_cost": false,
+      "dir": 0,
+      "alpha": 0.0,
+      "timestamp": ""
+    },
+    {
+      "rank": 3,
+      "estimated_impact_bps": 0.0,
+      "was_executed": false,
+      "was_vetoed_cost": false,
+      "dir": 0,
+      "alpha": 0.0,
+      "timestamp": ""
+    },
+    {
+      "rank": 4,
+      "estimated_impact_bps": 0.0,
+      "was_executed": false,
+      "was_vetoed_cost": false,
+      "dir": 0,
+      "alpha": 0.0,
+      "timestamp": ""
+    },
+    {
+      "rank": 5,
+      "estimated_impact_bps": 0.0,
+      "was_executed": false,
+      "was_vetoed_cost": false,
+      "dir": 0,
+      "alpha": 0.0,
+      "timestamp": ""
+    }
+  ]
+}

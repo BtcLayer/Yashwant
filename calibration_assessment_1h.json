@@ -1,0 +1,20 @@
+{
+  "total_signals": 89,
+  "signals_with_outcomes": 0,
+  "signals_without_outcomes": 89,
+  "labeled_percentage": 0.0,
+  "direction_counts": {
+    "0": 84,
+    "-1": 4,
+    "1": 1
+  },
+  "wins": 0,
+  "losses": 0,
+  "win_rate": 0,
+  "confidence_bins": {
+    "0.0": 89
+  },
+  "quartile_stats": {},
+  "calibration_ready": false,
+  "recommendation": "\ud83d\udd34 BLOCKER: No labeled outcomes found. Check if P&L data is being recorded in executions/fills. Cannot proceed with calibration."
+}

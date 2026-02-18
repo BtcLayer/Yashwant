@@ -1,0 +1,30 @@
+{
+  "config": {
+    "cost_bps": 5.0,
+    "expected_move_bps": 50.0,
+    "enable_edge_gating": true,
+    "sample_count": 2000,
+    "calibrator_path": "live_demo\\models\\calibrator_5m_platt.pkl",
+    "timestamp": "2026-02-16T16:23:11.871212"
+  },
+  "uncalibrated": {
+    "trade_count": 1156,
+    "total_pnl": 358.16,
+    "win_rate": 0.8201,
+    "avg_pnl_per_trade": 0.31,
+    "profit_factor": 6.71,
+    "sharpe_ratio": 246.16,
+    "max_drawdown": 2.24,
+    "ece": 0.3663
+  },
+  "calibrated": {
+    "trade_count": 1106,
+    "total_pnl": 342.37,
+    "win_rate": 0.821,
+    "avg_pnl_per_trade": 0.31,
+    "profit_factor": 6.7,
+    "sharpe_ratio": 246.558,
+    "max_drawdown": 2.22,
+    "ece": 0.398
+  }
+}

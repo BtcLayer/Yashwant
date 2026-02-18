@@ -1,0 +1,50 @@
+{
+  "daily_rates": [
+    {
+      "date": "2025-12-18",
+      "total_bars": 3,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-19",
+      "total_bars": 2,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-20",
+      "total_bars": 1,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-22",
+      "total_bars": 4,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-15",
+      "total_bars": 1,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    }
+  ],
+  "total_bars": 11,
+  "total_eligible": 0,
+  "overall_eligibility_rate": 0.0,
+  "avg_daily_eligible_bars": 0.0,
+  "num_days": 5,
+  "kpi_check": {
+    "target_min": 5,
+    "target_max": 50,
+    "actual": 0.0,
+    "status": "FAIL_LOW"
+  },
+  "thresholds": {
+    "pnn_min": 0.1,
+    "conf_dir_min": 0.4,
+    "strength_min": 0.03
+  }
+}

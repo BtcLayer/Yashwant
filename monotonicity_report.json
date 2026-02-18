@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-02-16T17:01:51.423094",
+  "parameters": {
+    "num_buckets": 10
+  },
+  "summary": {
+    "total_matched_signals": 25,
+    "num_buckets": 10
+  },
+  "buckets": [
+    {
+      "bucket_id": 1,
+      "conf_min": 0.0005171817267245294,
+      "conf_max": 0.026246320518955826,
+      "count": 3,
+      "wins": 1,
+      "losses": 2,
+      "win_rate": 33.33333333333333,
+      "avg_pnl_bps": -23.5
+    },
+    {
+      "bucket_id": 2,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 3,
+      "wins": 0,
+      "losses": 3,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -59.0
+    },
+    {
+      "bucket_id": 3,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 3,
+      "wins": 0,
+      "losses": 3,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -53.0
+    },
+    {
+      "bucket_id": 4,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 3,
+      "wins": 0,
+      "losses": 3,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -56.56666666666666
+    },
+    {
+      "bucket_id": 5,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 3,
+      "wins": 1,
+      "losses": 2,
+      "win_rate": 33.33333333333333,
+      "avg_pnl_bps": -6.5
+    },
+    {
+      "bucket_id": 6,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 2,
+      "wins": 0,
+      "losses": 2,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -21.7
+    },
+    {
+      "bucket_id": 7,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 2,
+      "wins": 0,
+      "losses": 2,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -42.1
+    },
+    {
+      "bucket_id": 8,
+      "conf_min": 0.026246320518955826,
+      "conf_max": 0.026246320518955826,
+      "count": 2,
+      "wins": 0,
+      "losses": 2,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -6.5
+    },
+    {
+      "bucket_id": 9,
+      "conf_min": 0.027262607165457326,
+      "conf_max": 0.027262607165457326,
+      "count": 2,
+      "wins": 0,
+      "losses": 2,
+      "win_rate": 0.0,
+      "avg_pnl_bps": -36.300000000000004
+    },
+    {
+      "bucket_id": 10,
+      "conf_min": 0.2178,
+      "conf_max": 0.5153069597813225,
+      "count": 2,
+      "wins": 1,
+      "losses": 1,
+      "win_rate": 50.0,
+      "avg_pnl_bps": -41.3
+    }
+  ],
+  "monotonicity_analysis": {
+    "top_decile_win_rate": 50.0,
+    "bottom_decile_win_rate": 33.33333333333333,
+    "spread": 16.66666666666667,
+    "target_spread": 10.0,
+    "kpi_spread_pass": true,
+    "inversions": 2,
+    "kpi_no_inversions_pass": false,
+    "r_squared": 0.4601329584136954,
+    "kpi_r_squared_pass": false
+  }
+}

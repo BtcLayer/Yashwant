@@ -1,0 +1,332 @@
+{
+  "daily_rates": [
+    {
+      "date": "2025-11-20",
+      "total_bars": 62,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-21",
+      "total_bars": 1026,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-22",
+      "total_bars": 212,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-24",
+      "total_bars": 2,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-25",
+      "total_bars": 10,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-26",
+      "total_bars": 8,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-11-30",
+      "total_bars": 2,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-01",
+      "total_bars": 14,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-02",
+      "total_bars": 4,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-06",
+      "total_bars": 1,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-07",
+      "total_bars": 26,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-08",
+      "total_bars": 90,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-09",
+      "total_bars": 37,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-11",
+      "total_bars": 3,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-12",
+      "total_bars": 77,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-13",
+      "total_bars": 49,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-17",
+      "total_bars": 2,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-18",
+      "total_bars": 17,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-19",
+      "total_bars": 72,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-20",
+      "total_bars": 34,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-22",
+      "total_bars": 20,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-23",
+      "total_bars": 263,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-24",
+      "total_bars": 90,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-25",
+      "total_bars": 54,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-26",
+      "total_bars": 163,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-27",
+      "total_bars": 60,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-28",
+      "total_bars": 1,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-29",
+      "total_bars": 37,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2025-12-30",
+      "total_bars": 189,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-02",
+      "total_bars": 81,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-03",
+      "total_bars": 65,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-05",
+      "total_bars": 76,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-06",
+      "total_bars": 60,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-07",
+      "total_bars": 12,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-09",
+      "total_bars": 278,
+      "eligible_bars": 58,
+      "eligibility_rate": 0.20863309352517986
+    },
+    {
+      "date": "2026-01-10",
+      "total_bars": 423,
+      "eligible_bars": 113,
+      "eligibility_rate": 0.26713947990543735
+    },
+    {
+      "date": "2026-01-15",
+      "total_bars": 1,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-19",
+      "total_bars": 24,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-21",
+      "total_bars": 5,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-22",
+      "total_bars": 5,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-23",
+      "total_bars": 60,
+      "eligible_bars": 27,
+      "eligibility_rate": 0.45
+    },
+    {
+      "date": "2026-01-24",
+      "total_bars": 26,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-26",
+      "total_bars": 10,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-27",
+      "total_bars": 18,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-28",
+      "total_bars": 7,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-29",
+      "total_bars": 8,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-01-31",
+      "total_bars": 9,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-02-02",
+      "total_bars": 62,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-02-03",
+      "total_bars": 11,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-02-04",
+      "total_bars": 102,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-02-09",
+      "total_bars": 60,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    },
+    {
+      "date": "2026-02-10",
+      "total_bars": 92,
+      "eligible_bars": 0,
+      "eligibility_rate": 0.0
+    }
+  ],
+  "total_bars": 4120,
+  "total_eligible": 198,
+  "overall_eligibility_rate": 0.048058252427184464,
+  "avg_daily_eligible_bars": 3.8076923076923075,
+  "num_days": 52,
+  "kpi_check": {
+    "target_min": 5,
+    "target_max": 50,
+    "actual": 3.8076923076923075,
+    "status": "FAIL_LOW"
+  },
+  "thresholds": {
+    "pnn_min": 0.05,
+    "conf_dir_min": 0.3,
+    "strength_min": 0.02
+  }
+}

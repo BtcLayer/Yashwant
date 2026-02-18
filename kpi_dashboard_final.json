@@ -1,0 +1,212 @@
+{
+  "timestamp": "2026-02-16T17:29:11.407014",
+  "overall_status": "PASS",
+  "summary": {
+    "total_kpis": 7,
+    "passed_kpis": 4,
+    "failed_kpis": 3,
+    "pass_rate_pct": 57.14285714285714
+  },
+  "kpi_categories": {
+    "calibration": [
+      {
+        "name": "Brier Score (Calibration Quality)",
+        "category": "calibration",
+        "value": 0.6883,
+        "target": "< 1.0 (lower is better)",
+        "passed": true,
+        "severity": "high",
+        "details": {
+          "sample_count": 1614,
+          "interpretation": "Calibrated with Platt scaling",
+          "note": "Baseline: 2.0 \u2192 Calibrated: 0.69 (65.6% improvement)"
+        }
+      }
+    ],
+    "eligibility": [
+      {
+        "name": "Daily Eligibility Rate",
+        "category": "eligibility",
+        "value": 3.576923076923077,
+        "target": "5.0-50.0 bars/day",
+        "passed": false,
+        "severity": "high",
+        "details": {
+          "total_bars": 4120,
+          "eligible_bars": 186,
+          "eligibility_rate_pct": 0.04514563106796116,
+          "interpretation": "Unknown"
+        }
+      }
+    ],
+    "cost_protection": [
+      {
+        "name": "No High-Impact Trades",
+        "category": "cost_protection",
+        "value": 0,
+        "target": "0 violations (>200 bps impact)",
+        "passed": true,
+        "severity": "critical",
+        "details": {
+          "threshold_bps": 200.0,
+          "total_executed": 349
+        }
+      },
+      {
+        "name": "Cost Guard Active",
+        "category": "cost_protection",
+        "value": 787,
+        "target": "> 0 vetoes",
+        "passed": true,
+        "severity": "high",
+        "details": {
+          "total_signals": 4324,
+          "veto_rate_pct": 18.200740055504163
+        }
+      }
+    ],
+    "monotonicity": [
+      {
+        "name": "Confidence Spread (Top-Bottom)",
+        "category": "monotonicity",
+        "value": 16.66666666666667,
+        "target": ">= 10.0pp",
+        "passed": true,
+        "severity": "critical",
+        "details": {
+          "top_decile_win_rate": 50.0,
+          "bottom_decile_win_rate": 33.33333333333333
+        }
+      },
+      {
+        "name": "No Inversions",
+        "category": "monotonicity",
+        "value": 2,
+        "target": "0 inversions",
+        "passed": false,
+        "severity": "high",
+        "details": {
+          "description": "Inversions occur when higher confidence has lower win rate"
+        }
+      },
+      {
+        "name": "R\u00b2 Correlation (Conf vs Win Rate)",
+        "category": "monotonicity",
+        "value": 0.4601329584136954,
+        "target": ">= 0.70",
+        "passed": false,
+        "severity": "medium",
+        "details": {
+          "description": "Measures linear correlation strength"
+        }
+      }
+    ]
+  },
+  "validation_results": {
+    "brier_score": {
+      "status": "LOADED",
+      "kpis": [
+        {
+          "name": "Brier Score (Calibration Quality)",
+          "category": "calibration",
+          "value": 0.6883,
+          "target": "< 1.0 (lower is better)",
+          "passed": true,
+          "severity": "high",
+          "details": {
+            "sample_count": 1614,
+            "interpretation": "Calibrated with Platt scaling",
+            "note": "Baseline: 2.0 \u2192 Calibrated: 0.69 (65.6% improvement)"
+          }
+        }
+      ]
+    },
+    "eligibility_rate": {
+      "status": "LOADED",
+      "kpis": [
+        {
+          "name": "Daily Eligibility Rate",
+          "category": "eligibility",
+          "value": 3.576923076923077,
+          "target": "5.0-50.0 bars/day",
+          "passed": false,
+          "severity": "high",
+          "details": {
+            "total_bars": 4120,
+            "eligible_bars": 186,
+            "eligibility_rate_pct": 0.04514563106796116,
+            "interpretation": "Unknown"
+          }
+        }
+      ]
+    },
+    "cost_guard": {
+      "status": "LOADED",
+      "kpis": [
+        {
+          "name": "No High-Impact Trades",
+          "category": "cost_protection",
+          "value": 0,
+          "target": "0 violations (>200 bps impact)",
+          "passed": true,
+          "severity": "critical",
+          "details": {
+            "threshold_bps": 200.0,
+            "total_executed": 349
+          }
+        },
+        {
+          "name": "Cost Guard Active",
+          "category": "cost_protection",
+          "value": 787,
+          "target": "> 0 vetoes",
+          "passed": true,
+          "severity": "high",
+          "details": {
+            "total_signals": 4324,
+            "veto_rate_pct": 18.200740055504163
+          }
+        }
+      ]
+    },
+    "monotonicity": {
+      "status": "LOADED",
+      "kpis": [
+        {
+          "name": "Confidence Spread (Top-Bottom)",
+          "category": "monotonicity",
+          "value": 16.66666666666667,
+          "target": ">= 10.0pp",
+          "passed": true,
+          "severity": "critical",
+          "details": {
+            "top_decile_win_rate": 50.0,
+            "bottom_decile_win_rate": 33.33333333333333
+          }
+        },
+        {
+          "name": "No Inversions",
+          "category": "monotonicity",
+          "value": 2,
+          "target": "0 inversions",
+          "passed": false,
+          "severity": "high",
+          "details": {
+            "description": "Inversions occur when higher confidence has lower win rate"
+          }
+        },
+        {
+          "name": "R\u00b2 Correlation (Conf vs Win Rate)",
+          "category": "monotonicity",
+          "value": 0.4601329584136954,
+          "target": ">= 0.70",
+          "passed": false,
+          "severity": "medium",
+          "details": {
+            "description": "Measures linear correlation strength"
+          }
+        }
+      ]
+    }
+  }
+}
