@@ -86,3 +86,4 @@ jobs:
         run: |
           # Validates: required fields, cost sanity, execution→costs mapping
           # Fails if: missing metadata, excessive costs, or schema violations
+          python scripts/validate_emitted_records.py --logs-root paper_trading_outputs/ci_smoke --strict

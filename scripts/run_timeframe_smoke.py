@@ -117,6 +117,30 @@ def _emit_signal(logs_dir: Path, tf: str, strategy_id: str, schema_version: str)
     record = json.loads(lines[-1])
     if record.get("strategy_id") != strategy_id or record.get("schema_version") != schema_version:
         raise SystemExit(f"Signal metadata mismatch for {tf}")
+    
+    # Also emit order_intent and costs for complete smoke test coverage
+    emitter.emit_order_intent({
+        "ts": 1234567890,
+        "symbol": "BTCUSDT",
+        "result": "EXECUTED",
+        "run_id": "smoke_test_run",
+        "bar_id": 1
+    })
+    
+    emitter.emit_costs(
+        ts=1234567890,
+        symbol="BTCUSDT",
+        costs={
+            "trade_notional": 100.0,
+            "fee_bps": 5.0,
+            "slip_bps": 1.0,
+            "impact_bps": 0.5,
+            "cost_bps_total": 6.5,
+            "run_id": "smoke_test_run",
+            "bar_id": 1
+        }
+    )
+    
     return signals_path
 
 

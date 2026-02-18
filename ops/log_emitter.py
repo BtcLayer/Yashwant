@@ -97,7 +97,8 @@ class LogEmitter:
         self._write_jsonl(f"{self.base_dir}/repro/repro.jsonl", record)
 
     def emit_costs(self, ts, symbol, costs):
-        record = {"ts": ts, "symbol": symbol, "costs": costs}
+        # Flatten costs dict to top level for validator compatibility
+        record = {"ts": ts, "symbol": symbol, **costs}
         self._write_jsonl(f"{self.base_dir}/costs/costs.jsonl", record)
 
     def emit_order_intent(self, order_intent):
