@@ -46,19 +46,15 @@
     }
   },
   "thresholds": {
-    "S_MIN": 0.001,
-    "M_MIN": 0.001,
-    "CONF_MIN": 0.05,
-    "ALPHA_MIN": 0.005,
-    "PNN_MIN": 0.10,
-    "CONF_DIR_MIN": 0.40,
-    "STRENGTH_MIN": 0.03,
-    "flip_mood": false,
-    "flip_model": false,
-    "flip_model_bma": false,
+    "S_MIN": 0.003,
+    "M_MIN": 0.003,
+    "CONF_MIN": 0.08,
+    "ALPHA_MIN": 0.008,
+    "flip_mood": true,
+    "flip_model": true,
     "allow_model_only_when_mood_neutral": true,
     "exit_conf_min": 0.15,
-    "exit_alpha_min": 0.003,
+    "exit_alpha_min": 0.12,
     "max_position_duration_bars": 288
   },
   "alerts": {
@@ -91,19 +87,19 @@
     "ws_staleness_ms_threshold": 60000
   },
   "risk": {
-    "sigma_target": 0.25,
+    "sigma_target": 0.2,
     "pos_max": 1.0,
     "cooldown_bars": 1,
     "realized_vol_window": 50,
-    "base_notional": 30000.0,
-    "vol_floor": 0.10,
-    "adv_cap_pct": 2.0,
+    "base_notional": 25000.0,
+    "vol_floor": 0.15,
+    "adv_cap_pct": 1.5,
     "rebalance_min_pos_delta": 0.01,
     "daily_stop_dd_pct": 1.5,
     "warmup_skip_bars": 0,
     "cost_bps": 5.0,
     "slippage_bps": 10.0,
-    "impact_k": 0.1,
+    "impact_k": 1.0,
     "enable_forced_exits": true,
     "max_position_duration_bars": 288,
     "stop_loss_bps": 200.0,
@@ -113,8 +109,8 @@
     "cost_bps": 5.0,
     "impact_k": 0.0,
     "slippage_bps": 0.0,
-    "max_impact_bps_hard": 0.0,
-    "min_net_edge_bps": 0.0,
+    "max_impact_bps_hard": 500.0,
+    "min_net_edge_bps": 10.0,
     "max_total_cost_bps": 25.0,
     "enable_net_edge_gating": true,
     "expected_move_bps": 50.0
@@ -190,7 +186,7 @@
     "min_book_qty": 0.0
   },
   "sheets": {
-    "sheet_id": "",
+    "sheet_id": "1YRnjIhhkbhNhRk7mb8o1LMuC-YP7lO_X1DRocW66-ls",
     "creds_json": "C:/Users/yashw/secrets/gcp-sheets.json",
     "tabs": {
       "hyperliquid": "hyperliquid_sheet",
@@ -255,7 +251,7 @@
       ]
     },
     "sinks": {
-      "sheets": false,
+      "sheets": true,
       "emitter": true,
       "llm_jsonl": true
     },
@@ -304,7 +300,7 @@
     "funding_guard_bias": 0.1,
     "min_sign_flip_gap_s": 5,
     "max_orders_per_sec": 1,
-    "max_impact_bps": 0.0
+    "max_impact_bps": 150.0
   },
   "bandit": {
     "algo": "exp3",

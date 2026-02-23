@@ -238,7 +238,12 @@ def compute_signals_and_eligibility(
         'p_neutral': p_neutral,
         'p_non_neutral': p_non_neutral,
         'conf_dir': conf_dir,
-        'strength': strength
+        'strength': strength,
+        # conf_model and alpha_model are used by decide_bandit for alpha sizing
+        # conf_dir = directional confidence (max(p_up,p_down)/(p_up+p_down))
+        # strength = signal magnitude (abs(p_up - p_down))
+        'conf_model': conf_dir,
+        'alpha_model': strength,
     }
     return signals, eligible, side_eps_vec, extras
 

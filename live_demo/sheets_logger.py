@@ -128,7 +128,7 @@ class SheetsLogger:
         Proactively create tabs and insert header rows (if provided) before any data rows are appended.
         Safe to call multiple times.
         """
-        if not self.gc or not self._headers:
+        if not self.gc or not self._headers or not self.sheet_id:
             return
         # Open sheet; if it fails via gspread, just return
         try:
@@ -208,9 +208,12 @@ class SheetsLogger:
                 pass
             self._flush_to_csv_fallback()
             return
+        if not self.sheet_id:
+            self._flush_to_csv_fallback()
+            return
         try:
             sh = self.gc.open_by_key(self.sheet_id)
-        except gspread.exceptions.APIError as e:
+        except (gspread.exceptions.APIError, gspread.exceptions.SpreadsheetNotFound) as e:
             # Fallback to local CSV for all tabs
             try:
                 if not self._warned_api_error:

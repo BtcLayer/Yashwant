@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLOps Engineering Intern - Technical Assessment</title>
+    <style>
+        @page {
+            margin: 2cm;
+            size: A4;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 28px;
+        }
+        
+        h2 {
+            color: #2980b9;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 20px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .header-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header-box h1 {
+            color: white;
+            border: none;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .header-box p {
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            opacity: 0.95;
+        }
+        
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .danger-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #e83e8c;
+        }
+        
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            margin: 15px 0;
+        }
+        
+        pre code {
+            background: transparent;
+            color: #f8f8f2;
+            padding: 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        th {
+            background: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .checklist li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .rejection-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .rejection-list li:before {
+            content: "✗ ";
+            color: #dc3545;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .metric-card h4 {
+            margin: 0 0 10px 0;
+            color: #3498db;
+            font-size: 14px;
+        }
+        
+        .metric-card p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        
+        strong {
+            color: #2c3e50;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-box">
+    <h1>MLOps Engineering Intern</h1>
+    <p><strong>Technical Assessment - Reproducible Pipeline & Deployment</strong></p>
+    <p>Time Limit: 60 minutes | Difficulty: Intermediate</p>
+</div>
+
+<h2>📋 Task Overview</h2>
+<p>Build a small MLOps-style pipeline that demonstrates reproducibility, basic deployment, logging, and structured metrics output. This task should be completed within 60 minutes.</p>
+
+<div class="info-box">
+    <strong>Objective:</strong> Create a Python program that runs deterministically using a config file, can be executed as a batch job, is containerized using Docker, emits machine-readable metrics, and logs the full execution.
+</div>
+
+<h2>🖥️ Required CLI Interface</h2>
+<p>Your program must accept these command-line arguments:</p>
+<pre><code>python run.py --input data.csv --config config.yaml --output metrics.json --log-file run.log</code></pre>
+
+<h2>⚙️ Configuration File (config.yaml)</h2>
+<p>Create a YAML configuration file with these exact fields:</p>
+<pre><code>seed: 42
+window: 5
+version: "v1"</code></pre>
+
+<h2>📊 Dataset Information</h2>
+<p>You will receive a CSV file named <code>data.csv</code> containing cryptocurrency OHLCV (Open, High, Low, Close, Volume) data with 10,000 rows.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Column</th>
+            <th>Description</th>
+            <th>Usage</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>timestamp</code></td>
+            <td>Date and time of each data point</td>
+            <td>Reference</td>
+        </tr>
+        <tr>
+            <td><code>open</code></td>
+            <td>Opening price (USD)</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td><code>high</code></td>
+            <td>Highest price in period (USD)</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td><code>low</code></td>
+            <td>Lowest price in period (USD)</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td><code>close</code></td>
+            <td>Closing price (USD)</td>
+            <td><strong>← USE THIS COLUMN</strong></td>
+        </tr>
+        <tr>
+            <td><code>volume_btc</code></td>
+            <td>Trading volume in BTC</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td><code>volume_usd</code></td>
+            <td>Trading volume in USD</td>
+            <td>-</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="warning-box">
+    <strong>Important:</strong> Use the <code>close</code> column for all calculations in this task.
+</div>
+
+<div class="page-break"></div>
+
+<h2>🔧 Required Logic</h2>
+<p>Your <code>run.py</code> must implement the following steps:</p>
+
+<h3>1. Load Configuration</h3>
+<ul>
+    <li>Read the <code>config.yaml</code> file</li>
+    <li>Extract <code>seed</code>, <code>window</code>, and <code>version</code> values</li>
+    <li>Set the random seed using <code>numpy.random.seed(seed)</code> or equivalent</li>
+</ul>
+
+<h3>2. Read Input Data</h3>
+<ul>
+    <li>Load the CSV file specified by <code>--input</code> argument</li>
+    <li>Validate that the file exists and is readable</li>
+    <li>Ensure it contains the required <code>close</code> column</li>
+</ul>
+
+<h3>3. Compute Rolling Mean</h3>
+<ul>
+    <li>Calculate a rolling mean on the <code>close</code> column</li>
+    <li>Use the window size from config (window=5)</li>
+    <li>Handle the first few rows that don't have enough data for the window</li>
+</ul>
+
+<h3>4. Generate Signal</h3>
+<ul>
+    <li>For each row, compare <code>close</code> price to its rolling mean</li>
+    <li>Signal = 1 if close > rolling_mean</li>
+    <li>Signal = 0 if close ≤ rolling_mean</li>
+</ul>
+
+<h3>5. Calculate Metrics</h3>
+<ul>
+    <li>Count total rows processed</li>
+    <li>Calculate <code>signal_rate</code> = mean of all signals (proportion of 1s)</li>
+    <li>Measure total runtime in milliseconds</li>
+</ul>
+
+<h3>6. Handle Errors Gracefully</h3>
+<p>Your code must handle these error cases:</p>
+<ul>
+    <li>Missing input file</li>
+    <li>Invalid CSV format</li>
+    <li>Empty input file</li>
+    <li>Missing required columns</li>
+    <li>Invalid config file</li>
+</ul>
+
+<h2>📤 Expected Metrics Output (JSON)</h2>
+<p>Write a JSON file to the path specified by <code>--output</code> with this exact structure:</p>
+
+<pre><code>{
+  "version": "v1",
+  "rows_processed": 10000,
+  "metric": "signal_rate",
+  "value": 0.4990,
+  "latency_ms": 127,
+  "seed": 42,
+  "status": "success"
+}</code></pre>
+
+<h3>Field Descriptions:</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Field</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>version</code></td>
+            <td>From config.yaml</td>
+        </tr>
+        <tr>
+            <td><code>rows_processed</code></td>
+            <td>Total number of rows in the dataset</td>
+        </tr>
+        <tr>
+            <td><code>metric</code></td>
+            <td>Always "signal_rate"</td>
+        </tr>
+        <tr>
+            <td><code>value</code></td>
+            <td>The calculated signal rate (between 0 and 1)</td>
+        </tr>
+        <tr>
+            <td><code>latency_ms</code></td>
+            <td>Total execution time in milliseconds</td>
+        </tr>
+        <tr>
+            <td><code>seed</code></td>
+            <td>From config.yaml</td>
+        </tr>
+        <tr>
+            <td><code>status</code></td>
+            <td>"success" or "error"</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>If an error occurs, output:</p>
+<pre><code>{
+  "version": "v1",
+  "status": "error",
+  "error_message": "Description of what went wrong"
+}</code></pre>
+
+<div class="page-break"></div>
+
+<h2>📝 Logging Requirements</h2>
+<p>Write logs to the file specified by <code>--log-file</code> argument. Include:</p>
+
+<ol>
+    <li><strong>Job start</strong> - Timestamp and configuration loaded</li>
+    <li><strong>Config loading</strong> - Confirm seed, window, version values</li>
+    <li><strong>Data loading</strong> - Number of rows loaded</li>
+    <li><strong>Processing</strong> - Key steps (rolling mean calculation, signal generation)</li>
+    <li><strong>Metrics</strong> - Final signal_rate and rows processed</li>
+    <li><strong>Job completion</strong> - Timestamp and status</li>
+    <li><strong>Errors</strong> - Any validation errors or exceptions</li>
+</ol>
+
+<p><strong>Example log format:</strong></p>
+<pre><code>2024-01-06 16:00:00 - INFO - Job started
+2024-01-06 16:00:00 - INFO - Config loaded: seed=42, window=5, version=v1
+2024-01-06 16:00:00 - INFO - Data loaded: 10000 rows
+2024-01-06 16:00:01 - INFO - Rolling mean calculated with window=5
+2024-01-06 16:00:01 - INFO - Signals generated
+2024-01-06 16:00:01 - INFO - Metrics: signal_rate=0.4990, rows_processed=10000
+2024-01-06 16:00:01 - INFO - Job completed successfully in 127ms</code></pre>
+
+<h2>🐳 Deployment Requirement - Docker (MANDATORY)</h2>
+
+<div class="danger-box">
+    <strong>Critical:</strong> Docker containerization is mandatory. Your submission will be rejected if Docker build or run fails.
+</div>
+
+<h3>Dockerized Batch Job Requirements</h3>
+<p>Create a <code>Dockerfile</code> that:</p>
+<ol>
+    <li>Uses a Python base image (e.g., <code>python:3.9-slim</code>)</li>
+    <li>Installs required dependencies (pandas, numpy, pyyaml)</li>
+    <li>Copies your code and data files</li>
+    <li>Runs the job automatically</li>
+</ol>
+
+<p><strong>Your Docker setup must work with these exact commands:</strong></p>
+<pre><code>docker build -t mlops-task .
+docker run --rm mlops-task</code></pre>
+
+<div class="info-box">
+    <strong>The container must:</strong>
+    <ul>
+        <li>Include <code>data.csv</code> and <code>config.yaml</code> inside the image</li>
+        <li>Generate <code>metrics.json</code> and <code>run.log</code> during execution</li>
+        <li>Print the metrics to stdout at the end</li>
+        <li>Exit with code 0 on success, non-zero on failure</li>
+    </ul>
+</div>
+
+<p><strong>Example Dockerfile structure:</strong></p>
+<pre><code>FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy application files
+COPY run.py .
+COPY config.yaml .
+COPY data.csv .
+
+# Run the job
+CMD ["python", "run.py", "--input", "data.csv", \
+     "--config", "config.yaml", "--output", "metrics.json", \
+     "--log-file", "run.log"]</code></pre>
+
+<div class="page-break"></div>
+
+<h2>📦 Deliverables</h2>
+<p>Submit a GitHub repository (or ZIP file) containing:</p>
+
+<ul class="checklist">
+    <li><code>run.py</code> - Main Python script</li>
+    <li><code>config.yaml</code> - Configuration file</li>
+    <li><code>data.csv</code> - The provided dataset</li>
+    <li><code>requirements.txt</code> - Python dependencies</li>
+    <li><code>Dockerfile</code> - Container definition</li>
+    <li><code>README.md</code> - Instructions to run your solution</li>
+    <li><code>metrics.json</code> - Example output (from a successful run)</li>
+    <li><code>run.log</code> - Example log file (from a successful run)</li>
+</ul>
+
+<h2>📖 README Requirements</h2>
+<p>Your README.md must include:</p>
+
+<h3>1. Setup Instructions</h3>
+<pre><code># Install dependencies
+pip install -r requirements.txt</code></pre>
+
+<h3>2. Local Run Instructions</h3>
+<pre><code># Run locally
+python run.py --input data.csv --config config.yaml \
+              --output metrics.json --log-file run.log</code></pre>
+
+<h3>3. Docker Instructions</h3>
+<pre><code># Build the Docker image
+docker build -t mlops-task .
+
+# Run the container
+docker run --rm mlops-task</code></pre>
+
+<h3>4. Expected Output</h3>
+<p>Show what the metrics.json should look like</p>
+
+<h3>5. Dependencies</h3>
+<p>List all Python packages required</p>
+
+<h2>📊 Evaluation Criteria</h2>
+
+<div class="metric-grid">
+    <div class="metric-card">
+        <h4>Correctness (40%)</h4>
+        <p>✓ Rolling mean calculated correctly</p>
+        <p>✓ Signal generation logic is correct</p>
+        <p>✓ Metrics output matches expected format</p>
+        <p>✓ Results are reproducible</p>
+    </div>
+    
+    <div class="metric-card">
+        <h4>Docker & Deployment (25%)</h4>
+        <p>✓ Docker build succeeds without errors</p>
+        <p>✓ Docker run executes successfully</p>
+        <p>✓ Container produces correct output</p>
+        <p>✓ No hard-coded paths or parameters</p>
+    </div>
+    
+    <div class="metric-card">
+        <h4>Code Quality (20%)</h4>
+        <p>✓ Clean, readable code structure</p>
+        <p>✓ Proper error handling</p>
+        <p>✓ Good variable names and comments</p>
+        <p>✓ Follows Python best practices</p>
+    </div>
+    
+    <div class="metric-card">
+        <h4>Logging & Observability (15%)</h4>
+        <p>✓ Comprehensive logging</p>
+        <p>✓ Structured log format</p>
+        <p>✓ Errors are logged properly</p>
+        <p>✓ Execution flow is traceable</p>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<h2>❌ Immediate Rejection Criteria</h2>
+<div class="danger-box">
+    <p><strong>Your submission will be immediately rejected if:</strong></p>
+    <ul class="rejection-list">
+        <li>Docker build fails</li>
+        <li>Docker run fails or crashes</li>
+        <li>No reproducible run (different results each time)</li>
+        <li>Metrics not written to JSON file</li>
+        <li>Hard-coded file paths or parameters</li>
+        <li>Missing run instructions in README</li>
+        <li>Code doesn't handle the provided CSV file</li>
+    </ul>
+</div>
+
+<h2>💡 Tips for Success</h2>
+<ol>
+    <li><strong>Start simple</strong> - Get the basic pipeline working first, then add error handling</li>
+    <li><strong>Test locally first</strong> - Make sure it works with <code>python run.py</code> before Dockerizing</li>
+    <li><strong>Verify reproducibility</strong> - Run multiple times and ensure identical output</li>
+    <li><strong>Test Docker early</strong> - Don't wait until the end to test your Dockerfile</li>
+    <li><strong>Handle edge cases</strong> - Test with missing files, empty files, etc.</li>
+    <li><strong>Use logging library</strong> - Python's <code>logging</code> module is recommended</li>
+    <li><strong>Keep it clean</strong> - Simple, readable code is better than complex optimizations</li>
+</ol>
+
+<h2>💻 Sample Code Snippet (Rolling Mean)</h2>
+<p>Here's a hint for the rolling mean calculation:</p>
+<pre><code>import pandas as pd
+import numpy as np
+
+# Load data
+df = pd.read_csv('data.csv')
+
+# Calculate rolling mean
+df['rolling_mean'] = df['close'].rolling(window=5).mean()
+
+# Generate signal (handle NaN from rolling window)
+df['signal'] = (df['close'] > df['rolling_mean']).astype(int)
+
+# Calculate signal rate (skip first 'window' rows with NaN)
+signal_rate = df['signal'].iloc[5:].mean()</code></pre>
+
+<h2>⏱️ Time Limit</h2>
+<div class="warning-box">
+    <strong>60 minutes</strong> from when you receive this task.
+</div>
+
+<h2>🎯 Context: MetaStackerBandit Project</h2>
+<div class="success-box">
+    <p>This task simulates the type of work you'll do on the <strong>MetaStackerBandit</strong> project - a multi-agent reinforcement learning trading system. The project uses:</p>
+    <ul>
+        <li>Real-time cryptocurrency OHLCV data</li>
+        <li>Rolling statistics and technical indicators</li>
+        <li>Signal generation for trading decisions</li>
+        <li>Docker containers for deployment</li>
+        <li>Structured logging and metrics</li>
+        <li>Reproducible ML pipelines</li>
+    </ul>
+    <p>Your ability to complete this task demonstrates the core MLOps skills needed for the role.</p>
+</div>
+
+<div class="footer">
+    <p><strong>Good luck! We're looking forward to seeing your solution. 🚀</strong></p>
+    <p>MetaStackerBandit Team | MLOps Engineering Intern Assessment</p>
+    <p>© 2026 | Confidential</p>
+</div>
+
+</body>
+</html>

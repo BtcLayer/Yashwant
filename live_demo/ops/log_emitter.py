@@ -605,11 +605,17 @@ def get_emitter(bot_version: Optional[str] = None, base_dir: Optional[str] = Non
     """Return a process-wide emitter using the specified base directory.
     
     If base_dir is provided, it forces the emitter to use that root.
+    If base_dir is None and a global emitter exists, return the existing one.
     """
     global _GLOBAL, _GLOBAL_ROOT
     
+    # If no base_dir specified and global exists, reuse it
+    if base_dir is None and _GLOBAL is not None:
+        return _GLOBAL
+    
     target_root = base_dir
     
+    # Create new emitter if none exists or base_dir changed
     if _GLOBAL is None or _GLOBAL_ROOT != target_root:
         _GLOBAL = LogEmitter(root=target_root)
         _GLOBAL_ROOT = target_root

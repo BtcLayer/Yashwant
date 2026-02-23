@@ -66,7 +66,7 @@ class OrderIntentTracker:
 
         # Determine reason codes
         reason_codes = {
-            VetoReasonCode.THRESHOLD.value: abs(decision.get("alpha", 0.0)) >= 0.12,
+            VetoReasonCode.THRESHOLD.value: abs(decision.get("alpha", 0.0)) >= 0.001,
             VetoReasonCode.BAND.value: self._check_band_conditions(model_out, market_data),
             VetoReasonCode.SPREAD.value: self._check_spread_conditions(market_data),
             VetoReasonCode.VOLATILITY.value: self._check_volatility_conditions(market_data),
@@ -143,8 +143,8 @@ class OrderIntentTracker:
             signal_strength = abs(decision.get("alpha", 0.0))
             details['threshold'] = {
                 "signal_strength": round(signal_strength, 4),
-                "required": 0.12,
-                "gap": round(0.12 - signal_strength, 4)
+                "required": 0.001,
+                "gap": round(0.001 - signal_strength, 4)
             }
         
         # Band guard - model prediction strength
@@ -152,8 +152,8 @@ class OrderIntentTracker:
             s_model = abs(model_out.get("s_model", 0.0))
             details['band'] = {
                 "s_model": round(s_model, 4),
-                "required": 0.12,
-                "gap": round(0.12 - s_model, 4)
+                "required": 0.001,
+                "gap": round(0.001 - s_model, 4)
             }
         
         # Spread guard - market spread check
@@ -170,9 +170,9 @@ class OrderIntentTracker:
             volatility = market_data.get("rv_1h", 0.0)
             details['volatility'] = {
                 "rv_1h": round(volatility, 4),
-                "min_threshold": 0.01,
+                "min_threshold": 0.0,
                 "max_threshold": 0.50,
-                "out_of_range": "too_low" if volatility < 0.01 else "too_high" if volatility > 0.50 else "in_range"
+                "out_of_range": "too_low" if volatility < 0.0 else "too_high" if volatility > 0.50 else "in_range"
             }
         
         # Liquidity guard - volume check
@@ -201,7 +201,7 @@ class OrderIntentTracker:
     ) -> bool:
         """Check if model predictions are within acceptable bands"""
         s_model = model_out.get("s_model", 0.0)
-        return abs(s_model) >= 0.12  # S_MIN threshold
+        return abs(s_model) >= 0.001  # S_MIN threshold
 
     def _check_spread_conditions(self, market_data: Dict[str, Any]) -> bool:
         """Check if spread conditions are acceptable"""
@@ -211,7 +211,7 @@ class OrderIntentTracker:
     def _check_volatility_conditions(self, market_data: Dict[str, Any]) -> bool:
         """Check if volatility conditions are acceptable"""
         volatility = market_data.get("rv_1h", 0.0)
-        return 0.01 <= volatility <= 0.50  # Reasonable volatility range
+        return 0.0 <= volatility <= 0.50  # Reasonable volatility range (min lowered to 0.0)
 
     def _check_liquidity_conditions(self, market_data: Dict[str, Any]) -> bool:
         """Check if liquidity conditions are acceptable"""

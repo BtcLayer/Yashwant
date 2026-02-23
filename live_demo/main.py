@@ -395,7 +395,7 @@ async def run_live(config_path: str, dry_run: bool = False):
         if len(kl) >= adv20_window
         else max(1.0, kl["volume"].mean())
     )
-    cohort.set_adv20(float(adv20))
+    # NOTE: cohort.set_adv20() is called AFTER adv20_usd calculation below (line ~602)
     
     # Initialize cohort cache for persistence across restarts
     cohort_cache = CohortCache(cache_path=os.path.join(tf_root, 'cohort_state.json'))
@@ -457,8 +457,11 @@ async def run_live(config_path: str, dry_run: bool = False):
                 except Exception:
                     pass
         addresses = list(dict.fromkeys(addresses))  # dedupe preserving order
+        # DEBUG: Log cohort address counts
+        print(f"📊 Cohort loaded: {len(top_set)} top (pros), {len(bottom_set)} bottom (amateurs) = {len(addresses)} total")
     except (ImportError, ValueError, KeyError):
         addresses = []
+        print(f"⚠️  Cohort loading failed - no cohort addresses available")
 
     # Artifacts/model
     manifest_rel = cfg["artifacts"]["latest_manifest"]
@@ -590,14 +593,18 @@ async def run_live(config_path: str, dry_run: bool = False):
         last_warm_close = float(kl["close"].iloc[-1])
         adv20_usd = float(last_warm_close * float(adv20))
         # Ensure reasonable minimum to avoid division by near-zero in impact calculations
-        # For BTC at ~$67k, ADV20 of 1000 BTC = $67M daily volume (conservative floor)
-        min_adv20_usd = 10_000_000.0  # $10M minimum daily volume
+        # CRITICAL FIX: Lowered from $10M to $1M for stronger cohort signals (10x impact)
+        min_adv20_usd = 1_000_000.0  # $1M minimum daily volume (was $10M)
         risk.adv20_usd = max(adv20_usd, min_adv20_usd)
         if adv20_usd < min_adv20_usd:
             print(f"⚠️  ADV20 too low (${adv20_usd:,.0f}), using floor ${min_adv20_usd:,.0f}")
     except Exception as e:
-        print(f"⚠️  ADV20 calculation error: {e}, using default $10M")
-        risk.adv20_usd = 10_000_000.0
+        print(f"⚠️  ADV20 calculation error: {e}, using default $1M")
+        risk.adv20_usd = 1_000_000.0  # CRITICAL FIX: Lowered from $10M to $1M
+
+    # CRITICAL FIX: Set cohort ADV20 to USD value (not BTC volume)
+    cohort.set_adv20(risk.adv20_usd)
+    print(f"📊 Cohort ADV20 initialized: ${risk.adv20_usd:,.0f}")
 
     last_close = None
     last_ts = None
@@ -1093,6 +1100,7 @@ async def run_live(config_path: str, dry_run: bool = False):
             # Drain up to a reasonable cap to avoid blocking too long
             max_drains = 5000
             public_count = 0
+            cohort_fills_ws = 0  # DEBUG: Count cohort fills from WebSocket
             while fill_queue and max_drains > 0:
                 fill = fill_queue.popleft()
                 src = str(fill.get("source") or "")
@@ -1103,11 +1111,18 @@ async def run_live(config_path: str, dry_run: bool = False):
                         # Weight pros vs amateurs based on cohort membership
                         if addr in top_set:
                             w = {"pros": 1.0, "amateurs": 0.0, "mood": 1.0}
+                            cohort_type = "TOP"
                         elif addr in bottom_set:
                             w = {"pros": 0.0, "amateurs": 1.0, "mood": 1.0}
+                            cohort_type = "BOT"
                         else:
                             w = {"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
+                            cohort_type = "UNK"
                         cohort.update_from_fill(fill, weights=w)
+                        cohort_fills_ws += 1
+                        # DEBUG: Log first few cohort fills each bar
+                        if cohort_fills_ws <= 3:
+                            print(f"✓ WS cohort fill [{cohort_type}]: {addr[:8]}... size={fill.get('size'):.4f}, side={fill.get('side')}")
                         drained_fills.append(fill)  # keep user-fill logging to Sheets
                 elif src == "public" and str(fill.get("coin") or "").upper() == "BTC":
                     # Update only 'mood' from public trades; no Sheets logging per-trade to avoid noise
@@ -1164,20 +1179,31 @@ async def run_live(config_path: str, dry_run: bool = False):
             }
             interval_ms = interval_map.get(interval, 300_000)
             polled_user_fills = await _poll_user_fills_by_time(ts, interval_ms, bar_count)
+            cohort_fills_rest = 0  # DEBUG: Count cohort fills from REST API
             for uf in polled_user_fills:
                 addr = str(uf.get("address") or "").lower()
                 if addr and (addr in top_set or addr in bottom_set):
                     # Weight pros vs amateurs based on cohort membership
                     if addr in top_set:
                         w = {"pros": 1.0, "amateurs": 0.0, "mood": 1.0}
+                        cohort_type = "TOP"
                     elif addr in bottom_set:
                         w = {"pros": 0.0, "amateurs": 1.0, "mood": 1.0}
+                        cohort_type = "BOT"
                     else:
                         w = {"pros": 0.0, "amateurs": 0.0, "mood": 1.0}
+                        cohort_type = "UNK"
                     cohort.update_from_fill(uf, weights=w)
+                    cohort_fills_rest += 1
+                    # DEBUG: Log first few cohort fills from REST
+                    if cohort_fills_rest <= 3:
+                        print(f"✓ REST cohort fill [{cohort_type}]: {addr[:8]}... size={uf.get('size'):.4f}, side={uf.get('side')}")
                     drained_fills.append(uf)
 
             # Route drained fills via router (emitter/llm) and continue Sheets buffering (back-compat)
+            # DEBUG: Log cohort fill summary every bar
+            if cohort_fills_ws > 0 or cohort_fills_rest > 0:
+                print(f"📊 Cohort fills this bar: WS={cohort_fills_ws}, REST={cohort_fills_rest}, Total={cohort_fills_ws + cohort_fills_rest}")
             for fill_row in drained_fills:
                 try:
                     log_router.emit_hyperliquid_fill(ts=fill_row.get('ts'), asset=sym, fill=fill_row)
@@ -1597,7 +1623,8 @@ async def run_live(config_path: str, dry_run: bool = False):
             # 6.3) Calibration no-trade band gate (±band_bps on calibrated prediction in bps)
             try:
                 cal_cfg = cfg.get('calibration', {})
-                band_bps = float(cal_cfg.get('band_bps', 15))
+                # TEMPORARY FIX: Lowered from 15 to 5 bps for testing (restore to 15 once cohort signals working)
+                band_bps = float(cal_cfg.get('band_bps', 5))
                 a = float(model_out.get('a', 0.0)) if isinstance(model_out, dict) else 0.0
                 b = float(model_out.get('b', 1.0)) if isinstance(model_out, dict) else 1.0
                 s_model_cal = float((decision_model_out if 'decision_model_out' in locals() else model_out).get('s_model', 0.0)) if isinstance(model_out, dict) else 0.0
@@ -2068,6 +2095,9 @@ async def run_live(config_path: str, dry_run: bool = False):
                 if (bar_count % _health_emit_every) == 0:
                     mw.track_event('health', ts)
                     # Save cohort cache every health emission (every 3 bars at 5m = 15 min)
+                    # DEBUG: Log cohort signals periodically
+                    adv20_millions = cohort.adv20 / 1_000_000.0
+                    print(f"📊 Cohort signals: pros={cohort.pros:.6f}, amateurs={cohort.amateurs:.6f}, mood={cohort.mood:.6f}, adv20=${adv20_millions:.2f}M")
                     try:
                         cohort_cache.save(cohort.snapshot())
                     except Exception:
