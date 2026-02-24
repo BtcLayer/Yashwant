@@ -1,23 +1,13 @@
-"""Small config helper for strategy metadata.
-
-This is intentionally tiny and non-invasive: it reads environment variables
-STRATEGY_ID and SCHEMA_VERSION when present, otherwise falls back to safe defaults.
-This is useful for injecting metadata into logs without changing runtime behavior.
-"""
-import os
-
-
-def get_strategy_id() -> str:
-    return os.environ.get("STRATEGY_ID", "ensemble_1_0")
-
-
-def get_schema_version() -> str:
-    return os.environ.get("SCHEMA_VERSION", "v1")
 """Central config utilities for strategy defaults and runtime overrides.
 
 This module reads config/ensemble_config.json when present and provides
 helpers to fetch thresholds and strategy metadata. It is intentionally
 lightweight and falls back to sensible defaults for backward compatibility.
+
+Environment variables:
+- STRATEGY_ID: Override strategy identifier (default: "ensemble_1_0")
+- SCHEMA_VERSION: Override log schema version (default: "v1")
+- STRATEGY_CONFIG: JSON string with full config override
 """
 import json
 import os

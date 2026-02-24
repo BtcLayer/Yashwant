@@ -35,11 +35,27 @@ top_cohort.csv
 models_backup_*/
 */models/backup/
 
+# Secrets & environment files (contain private keys / Sheet IDs)
+.env
+.env.*
+!.env.example
+
 # Google Cloud credentials (security)
 *-*.json
 hyperliquid-*.json
 *.key.json
 secrets/
+
+# Live config files (contain real Google Sheet IDs)
+# Keep *.template.json — only ignore the populated runtime configs
+live_demo/config.json
+live_demo/config_overlay.json
+live_demo_1h/config.json
+live_demo_1h/config_overlay.json
+live_demo_12h/config.json
+live_demo_12h/config_overlay.json
+live_demo_24h/config.json
+live_demo_24h/config_overlay.json
 
 # Markdown files
 *.md

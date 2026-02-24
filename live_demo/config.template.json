@@ -1,0 +1,53 @@
+{
+  "data": {
+    "symbol": "BTCUSDT",
+    "interval": "5m",
+    "warmup_bars": 200,
+    "overlays": [
+      "15m",
+      "1h"
+    ]
+  },
+  "exchanges": {
+    "active": "hyperliquid",
+    "binance_testnet": {
+      "api_key": "${BINANCE_TESTNET_API_KEY}",
+      "api_secret": "${BINANCE_TESTNET_API_SECRET}",
+      "base_url": "https://testnet.binancefuture.com"
+    },
+    "binance_mainnet": {
+      "api_key": "${BINANCE_MAINNET_API_KEY}",
+      "api_secret": "${BINANCE_MAINNET_API_SECRET}",
+      "base_url": "https://fapi.binance.com"
+    },
+    "hyperliquid": {
+      "base_url": "https://api.hyperliquid.xyz/info",
+      "ws_url": "wss://api.hyperliquid.xyz/ws",
+      "funding": {
+        "mode": "settled",
+        "epoch_hours": 8,
+        "ttl_seconds": 600,
+        "path": "/v1/funding",
+        "key_time": "time",
+        "key_rate": "funding"
+      }
+    }
+  },
+  "sheets": {
+    "sheet_id": "${GOOGLE_SHEET_ID}",
+    "creds_json": "secrets/metastackerbandit-989fa6fd6bd4.json",
+    "tabs": {
+      "hyperliquid": "hyperliquid_sheet",
+      "signals": "signals",
+      "mirror": "log_mirror",
+      "bandit": "bandit",
+      "executions": "executions_paper",
+      "equity": "equity",
+      "overlay": "overlay",
+      "health": "health_metrics",
+      "alerts": "system_alerts",
+      "pnl": "pnl_analysis"
+    }
+  },
+  "_comment": "This is a template file. Copy to config.json and replace all ${VARIABLE} placeholders with actual values, or set them as environment variables."
+}

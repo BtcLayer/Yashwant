@@ -22,9 +22,10 @@ import sys
 
 app = FastAPI(title="MetaStackerBandit API", version="1.0.0")
 
-# Start trading bots when backend starts (default: enabled)
-# Set AUTO_START_BOTS=false to disable
-AUTO_START_BOTS = os.environ.get("AUTO_START_BOTS", "true").lower() not in ("false", "0", "no", "off")
+# SECURITY: Trading bots auto-start is DISABLED by default to prevent unintended execution
+# Set AUTO_START_BOTS=true explicitly to enable auto-start
+# This prevents accidental bot launches when starting the dashboard
+AUTO_START_BOTS = os.environ.get("AUTO_START_BOTS", "false").lower() not in ("false", "0", "no", "off")
 BOTS_PROCESS = None
 
 def safe_print(message: str):
