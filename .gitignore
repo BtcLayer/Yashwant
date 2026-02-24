@@ -52,6 +52,7 @@ live_demo/*.json
 live_demo_1h/*.json
 live_demo_12h/*.json
 live_demo_24h/*.json
+!live_demo/config_overlay.json
 !live_demo/config.template.json
 !live_demo_1h/config.template.json
 !live_demo_12h/config.template.json
