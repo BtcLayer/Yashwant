@@ -40,11 +40,22 @@ models_backup_*/
 .env.*
 !.env.example
 
-# Google Cloud credentials (security)
+# Google Cloud / Service Account key files (security)
+# Matches files like: projectname-abc123.json (GCP SA key naming convention)
 *-*.json
 hyperliquid-*.json
 *.key.json
 secrets/
+
+# Explicitly block SA key files in all live_demo variants
+live_demo/*.json
+live_demo_1h/*.json
+live_demo_12h/*.json
+live_demo_24h/*.json
+!live_demo/config.template.json
+!live_demo_1h/config.template.json
+!live_demo_12h/config.template.json
+!live_demo_24h/config.template.json
 
 # Live config files (contain real Google Sheet IDs)
 # Keep *.template.json — only ignore the populated runtime configs
