@@ -52,10 +52,14 @@ live_demo/*.json
 live_demo_1h/*.json
 live_demo_12h/*.json
 live_demo_24h/*.json
+# Allow sanitized config files (no real secrets — env var placeholders only)
 !live_demo/config_overlay.json
 !live_demo/config.template.json
+!live_demo_1h/config.json
 !live_demo_1h/config.template.json
+!live_demo_12h/config.json
 !live_demo_12h/config.template.json
+!live_demo_24h/config.json
 !live_demo_24h/config.template.json
 
 # Live config files (contain real Google Sheet IDs)

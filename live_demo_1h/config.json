@@ -1,0 +1,304 @@
+{
+  "data": {
+    "symbol": "BTCUSDT",
+    "interval": "1h",
+    "warmup_bars": 200,
+    "overlays": [
+      "15m",
+      "1h"
+    ]
+  },
+  "exchanges": {
+    "active": "hyperliquid",
+    "binance_testnet": {
+      "api_key": "${BINANCE_TESTNET_API_KEY}",
+      "api_secret": "${BINANCE_TESTNET_API_SECRET}",
+      "base_url": "https://testnet.binancefuture.com"
+    },
+    "binance_mainnet": {
+      "api_key": "",
+      "api_secret": "",
+      "base_url": "https://fapi.binance.com"
+    },
+    "hyperliquid": {
+      "base_url": "https://api.hyperliquid.xyz/info",
+      "ws_url": "wss://api.hyperliquid.xyz/ws",
+      "funding": {
+        "mode": "settled",
+        "epoch_hours": 8,
+        "ttl_seconds": 600,
+        "path": "/v1/funding",
+        "key_time": "time",
+        "key_rate": "funding"
+      }
+    }
+  },
+  "cohorts": {
+    "top_file": "live_demo_1h/top_cohort.csv",
+    "bottom_file": "live_demo_1h/bottom_cohort.csv",
+    "weights_file": "paper_trading_outputs/models/weights_daily.csv",
+    "smoothing_gamma": 0.6,
+    "adv_window_days": 20
+  },
+  "thresholds": {
+    "S_MIN": 0.05,
+    "M_MIN": 0.06,
+    "CONF_MIN": 0.20,
+    "ALPHA_MIN": 0.10,
+    "flip_mood": true,
+    "flip_model": true,
+    "allow_model_only_when_mood_neutral": true
+  },
+  "alerts": {
+    "ic_drift": {
+      "warning": -0.03,
+      "critical": -0.05,
+      "check_interval_bars": 12
+    },
+    "drawdown": {
+      "warning": -0.02,
+      "critical": -0.03,
+      "check_interval_bars": 1
+    },
+    "costs": {
+      "warning": 7.0,
+      "critical": 10.0,
+      "check_interval_bars": 12
+    },
+    "capacity": {
+      "warning": 0.015,
+      "critical": 0.03,
+      "check_interval_bars": 12
+    }
+  },
+  "health": {
+    "ic_window": 200,
+    "vol_window": 20,
+    "hit_rate_window": 100,
+    "pnl_window": 252,
+    "ws_staleness_ms_threshold": 60000
+  },
+  "risk": {
+    "sigma_target": 0.15,
+    "pos_max": 1.0,
+    "cooldown_bars": 1,
+    "realized_vol_window": 50,
+    "base_notional": 25000.0,
+    "vol_floor": 0.3,
+    "adv_cap_pct": 1.5,
+    "rebalance_min_pos_delta": 0.01,
+    "daily_stop_dd_pct": 1.5,
+    "warmup_skip_bars": 0,
+    "cost_bps": 5.0,
+    "slippage_bps": 1.0,
+    "impact_k": 0.1
+  },
+  "costs": {
+    "cost_bps": 5.0,
+    "impact_k": 0.0,
+    "slippage_bps": 0.0
+  },
+  "execution": {
+    "dry_run": true,
+    "one_shot": false,
+    "force_validation_trade": false,
+    "health_emit_every_bars": 60,
+    "health_pred_window": 60,
+    "mode": "market",
+    "passive_timeout_s": 10,
+    "use_overlay": false,
+    "bandit": {
+      "enabled": true,
+      "state_path": "paper_trading_outputs/runtime_bandit.json",
+      "epsilon": 0.05,
+      "model_optimism": 0.03
+    }
+  },
+  "overlay": {
+    "enabled": false,
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "rollup_windows": {
+      "15m": 4,
+      "1h": 12,
+      "4h": 6
+    },
+    "weights": {
+      "15m": 0.25,
+      "1h": 0.55,
+      "4h": 0.20
+    },
+    "alignment_rules": {
+      "require_5m_15m_agreement": true,
+      "allow_1h_override": true,
+      "neutral_1h_override": true,
+      "min_confidence": 0.60,
+      "min_alpha": 0.10,
+      "neutral_band": 0.05
+    },
+    "shadow_mode": true,
+    "veto_confidence_threshold": 0.20,
+    "veto_on_timeframe_conflict": true,
+    "signal_thresholds": {
+      "default": {
+        "min_confidence": 0.60,
+        "min_alpha": 0.10,
+        "neutral_band": 0.05
+      },
+      "15m": {
+        "min_confidence": 0.60,
+        "min_alpha": 0.10,
+        "neutral_band": 0.05
+      },
+      "1h": {
+        "min_confidence": 0.60,
+        "min_alpha": 0.10,
+        "neutral_band": 0.10
+      },
+      "4h": {
+        "min_confidence": 0.68,
+        "min_alpha": 0.14,
+        "neutral_band": 0.07
+      }
+    }
+  },
+  "microstructure": {
+    "enable": true,
+    "max_spread_bps": 5.0,
+    "min_book_qty": 0.0
+  },
+  "sheets": {
+    "sheet_id": "${GOOGLE_SHEETS_1H_ID}",
+    "creds_json": "${GOOGLE_SHEETS_CREDENTIALS_JSON}",
+    "tabs": {
+      "hyperliquid": "hyperliquid_sheet_1h",
+      "signals": "signals_1h",
+      "mirror": "log_mirror_1h",
+      "bandit": "bandit_1h",
+      "executions": "executions_paper_1h",
+      "equity": "equity_1h",
+      "overlay": "overlay_1h",
+      "health": "health_metrics_1h",
+      "alerts": "system_alerts_1h",
+      "pnl": "pnl_analysis_1h"
+    }
+  },
+  "logging": {
+    "retention_days": 30,
+    "base_dir": "paper_trading_outputs/logs",
+    "formats": {
+      "market": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "mid",
+        "bid1",
+        "ask1",
+        "spread_bps",
+        "rv_1h"
+      ],
+      "signals": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "S_top",
+        "S_bot",
+        "F_top_norm",
+        "F_bot_norm"
+      ],
+      "ensemble": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "pred_stack",
+        "pred_bma",
+        "bandit_arm",
+        "ic_200"
+      ],
+      "health": [
+        "ts_ist",
+        "Sharpe_roll_1d",
+        "max_dd_to_date",
+        "ic_drift"
+      ],
+      "overlay": [
+        "ts_ist",
+        "asset",
+        "bar_id",
+        "direction",
+        "alpha",
+        "confidence",
+        "alignment_rule",
+        "chosen_timeframes"
+      ]
+    },
+    "sinks": {
+      "sheets": true,
+      "emitter": true,
+      "llm_jsonl": true
+    },
+    "topics": {
+      "signals": "emitter",
+      "executions": "llm",
+      "costs": "emitter",
+      "health": "emitter",
+      "ensemble": "llm",
+      "equity": "llm",
+      "overlay_status": "llm",
+      "alerts": "llm",
+      "hyperliquid_fills": "llm"
+    }
+  },
+  "ensemble": {
+    "enable_bma": true,
+    "source": "bma",
+    "bma": {
+      "kappa": 8.0,
+      "ic_window_bars": 200,
+      "min_coverage_bars": 600,
+      "freeze": false
+    }
+  },
+  "alignment": {
+    "agree_5m_15m_full": true,
+    "halve_on_1h_opposition": true,
+    "skip_if_5m_vs_15m_conflict_unless_score_gt_band_x": 2.0
+  },
+  "calibration": {
+    "band_bps": 15,
+    "report_windows": {
+      "ab_rolling_hours": 24
+    }
+  },
+  "risk_controls": {
+    "sigma_target_ann": 0.10,
+    "pi_max": 3.0,
+    "daily_stop_sigma_mult": 3.0,
+    "adv_order_cap": 0.005,
+    "adv_hour_cap": 0.02,
+    "delta_pi_min_bps": 5.0,
+    "spread_mult_cap": 2.0,
+    "funding_guard_sigma": 2.0,
+    "funding_guard_bias": 0.1,
+    "min_sign_flip_gap_s": 5,
+    "max_orders_per_sec": 1
+  },
+  "bandit": {
+    "algo": "exp3",
+    "eta": 0.06,
+    "floor": 0.06,
+    "arms": [
+      "Base",
+      "BMA",
+      "Top",
+      "Bot",
+      "Micro"
+    ]
+  },
+  "artifacts": {
+    "latest_manifest": "live_demo_1h/models/LATEST.json"
+  }
+}
