@@ -476,7 +476,8 @@ async def run_live(config_path: str, dry_run: bool = None):
     print(f"   ✅ Warmup complete")
 
     # Logger
-    sheet_id = cfg['sheets']['sheet_id']
+    # Prefer environment variable for Sheet ID, fallback to config.json
+    sheet_id = os.environ.get("GOOGLE_SHEETS_1H_ID") or cfg['sheets']['sheet_id']
     creds_path = abspath(cfg['sheets'].get('creds_json'))
     # Sheet tab headers (optional but helpful)
     tabs = cfg['sheets']['tabs']

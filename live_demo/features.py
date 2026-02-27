@@ -13,6 +13,8 @@
 
 
 import json
+import math
+import statistics
 from collections import deque
 from typing import Deque, Dict, List
 
@@ -72,7 +74,7 @@ class LiveFeatureComputer:
         self.rv_window = rv_window
         self.vol_window = vol_window
         self.corr_window = corr_window
-        self.timeframe = timeframe  # Add timeframe detection
+        self.timeframe = timeframe
         self._closes: Deque[float] = deque(maxlen=max(3, vol_window))
         self._highs: Deque[float] = deque(maxlen=max(3, vol_window))
         self._lows: Deque[float] = deque(maxlen=max(3, vol_window))
@@ -80,7 +82,26 @@ class LiveFeatureComputer:
         self._funding: Deque[float] = deque(maxlen=rv_window)
         self._ema20: float = 0.0
         self._ema_alpha = 2.0 / (20 + 1)
-        self._last_valid_corr: float = 0.0  # Carry forward last valid correlation
+        self._last_valid_corr: float = 0.0
+
+        # ── FIX: mr_ema20_z normalization ──────────────────────────────────
+        # BUG (old): (close - EMA20) / rv_1h
+        #   rv_1h is a dimensionless return (~0.0003 in quiet markets)
+        #   close - EMA20 is a dollar difference (~$60)
+        #   Result: 60 / 0.0003 = 200,000  →  model sees garbage, outputs p=0.5
+        #
+        # FIX (new): (close - EMA20) / rolling_std(close - EMA20)
+        #   Both numerator and denominator are in dollar-scale.
+        #   This is a true price z-score, expected range: [-5, +5]
+        # ───────────────────────────────────────────────────────────────────
+        self._price_dev_hist: Deque[float] = deque(maxlen=max(3, vol_window))
+        self._bar_count: int = 0        # incremented every update_and_build call
+        self._min_warm_bars: int = 50   # bars needed before is_warmed() = True
+
+    def is_warmed(self) -> bool:
+        """True once >= 50 bars have been fed. Gate live trading on this flag.
+        Prevents garbage mr_ema20_z from reaching the model during cold start."""
+        return self._bar_count >= self._min_warm_bars
 
     def _ret(self, a: float, b: float) -> float:
         if a is None or b is None or a == 0:
@@ -89,8 +110,6 @@ class LiveFeatureComputer:
 
     def _gk_vol(self, o: float, h: float, l: float, c: float) -> float:
         # Single bar GK estimator (approx)
-        import math
-
         if o <= 0 or h <= 0 or l <= 0 or c <= 0:
             return 0.0
         return math.sqrt(
@@ -107,6 +126,9 @@ class LiveFeatureComputer:
         c = float(bar_row.get("close", 0.0))
         v = float(bar_row.get("volume", 0.0))
 
+        # Increment bar counter
+        self._bar_count += 1
+
         # Update state
         prev_close = self._closes[-1] if self._closes else None
         self._closes.append(c)
@@ -114,6 +136,7 @@ class LiveFeatureComputer:
         self._lows.append(l)
         self._vols.append(v)
         self._funding.append(float(funding))
+
         # EMA20
         self._ema20 = (
             (1 - self._ema_alpha) * self._ema20 + self._ema_alpha * c
@@ -128,15 +151,12 @@ class LiveFeatureComputer:
             r3 = self._ret(self._closes[-3], c)
 
         # rv_1h: sqrt(sum r^2 over last rv_window)
-        import math
-
         rets = []
         for i in range(1, min(len(self._closes), self.rv_window)):
             rets.append(self._ret(self._closes[-1 - i], self._closes[-i]))
         rv_1h = math.sqrt(sum(r * r for r in rets)) if rets else 0.0
 
-        # regime_high_vol: simple threshold vs rolling median of rv
-        # Approx: use rv_1h > 2x median of last window
+        # regime_high_vol
         rv_hist = []
         for k in range(2, min(len(self._closes), self.rv_window + 2)):
             seg = []
@@ -162,21 +182,21 @@ class LiveFeatureComputer:
             rr = []
             for i in range(1, min(len(self._closes), self.corr_window)):
                 rr.append(self._ret(self._closes[-1 - i], self._closes[-i]))
-            vv = list(self._vols)[-len(rr) :]
+            vv = list(self._vols)[-len(rr):]
             if len(rr) >= 3 and len(vv) == len(rr):
                 corr_val = np.corrcoef(np.array(rr), np.array(vv))[0, 1]
                 if not np.isnan(corr_val):
                     price_volume_corr = float(corr_val)
-                    self._last_valid_corr = price_volume_corr  # Update last valid
+                    self._last_valid_corr = price_volume_corr
                 else:
-                    price_volume_corr = self._last_valid_corr  # Use last valid instead of 0.0
+                    price_volume_corr = self._last_valid_corr
             else:
-                price_volume_corr = self._last_valid_corr  # Use last valid during warm-up
+                price_volume_corr = self._last_valid_corr
         else:
-            price_volume_corr = 0.0  # Only first 3 bars get 0.0
+            price_volume_corr = 0.0
 
         vwap_momentum = r3  # proxy
-        depth_proxy = 0.0  # no order book in live demo
+        depth_proxy = 0.0   # no order book in live demo
 
         # funding
         funding_rate = float(funding)
@@ -191,10 +211,20 @@ class LiveFeatureComputer:
         s_bot = float(cohort.get("amateurs", 0.0))
         flow_diff = s_top - s_bot
 
+        # ── FIX: mr_ema20_z using price-scale z-score ────────────────────
+        price_dev = c - self._ema20
+        self._price_dev_hist.append(price_dev)
+        if len(self._price_dev_hist) >= 3:
+            dev_std = statistics.stdev(self._price_dev_hist)
+            mr_ema20_z = price_dev / (dev_std + 1e-9)
+        else:
+            mr_ema20_z = 0.0  # neutral during first 2 bars
+        # ─────────────────────────────────────────────────────────────────
+
         feature_map = {
             "mom_1": r1,
             "mom_3": r3,
-            "mr_ema20_z": (c - self._ema20) / (rv_1h + 1e-9),
+            "mr_ema20_z": mr_ema20_z,
             "rv_1h": rv_1h,
             "regime_high_vol": regime_high_vol,
             "gk_volatility": gk,

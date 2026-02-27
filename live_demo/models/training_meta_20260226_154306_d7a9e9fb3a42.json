@@ -1,0 +1,19 @@
+{
+  "timestamp_utc": "20260226_154306",
+  "trained_at": "2026-02-26T10:13:06.990654+00:00",
+  "target": "direction_5m_adaptive",
+  "threshold": 0.0008444413523358399,
+  "metrics": {
+    "raw_accuracy": 0.43608247422680413,
+    "cal_accuracy": 0.47525773195876286,
+    "raw_signal_corr": 0.00820784690346042,
+    "cal_signal_corr": 0.003621437749442427,
+    "zero_cost_pnl": 36.28071858800831,
+    "test_trades": 841,
+    "test_size": 970
+  },
+  "mr_ema20_z_formula": "price_dev / rolling_std(price_dev, 50)",
+  "calibrator_type": "CalibrationWrapper_isotonic",
+  "n_features": 17,
+  "schema_hash": "d7a9e9fb3a42"
+}

@@ -470,8 +470,46 @@ async def run_live(config_path: str, dry_run: bool = False):
     fb = FeatureBuilder(mr.feature_schema_path)
     lf = LiveFeatureComputer(fb.columns, timeframe="5m")
 
+
+    # ── EMA / rv_1h pre-warmup ──────────────────────────────────────────────
+    # Fix: replay all warmup candles through lf so all deques are seeded.
+    # Without this, LiveFeatureComputer starts with EMA=0 and _price_dev_hist
+    # empty, causing mr_ema20_z to be astronomically large on first live bar.
+    print(f"[PREWARM] Pre-warming feature computer with {len(kl)} historical bars...")
+    _null_cohort = {"pros": 0.0, "amateurs": 0.0, "mood": 0.0}
+    for _wi in range(len(kl)):
+        _wr = kl.iloc[_wi]
+        _bar = {
+            "open": float(_wr["open"]),
+            "high": float(_wr["high"]),
+            "low": float(_wr["low"]),
+            "close": float(_wr["close"]),
+            "volume": float(_wr["volume"]),
+        }
+        lf.update_and_build(_bar, _null_cohort, 0.0)
+    # Sanity check: last bar must give sensible mr_ema20_z
+    _last_wr = kl.iloc[-1]
+    _last_bar = {"open": float(_last_wr["open"]), "high": float(_last_wr["high"]),
+                 "low": float(_last_wr["low"]), "close": float(_last_wr["close"]),
+                 "volume": float(_last_wr["volume"])}
+    _check_feats = lf.update_and_build(_last_bar, _null_cohort, 0.0)
+    _feat_names = fb.columns
+    _mr_z_idx = _feat_names.index("mr_ema20_z") if "mr_ema20_z" in _feat_names else None
+    if _mr_z_idx is not None:
+        _mr_z_val = _check_feats[_mr_z_idx]
+        print(f"[PREWARM] Done. mr_ema20_z sanity check = {_mr_z_val:.4f} (expect abs < 10)")
+        if abs(_mr_z_val) > 500:
+            print("[PREWARM] WARNING: mr_ema20_z is still out of range! "
+                  "Check features.py formula or increase warmup_bars. "
+                  f"Got {_mr_z_val:.2f}")
+    else:
+        print("[PREWARM] Done. (mr_ema20_z not found in schema)")
+    print(f"[PREWARM] is_warmed={lf.is_warmed()} after {lf._bar_count} bars")
+    # ────────────────────────────────────────────────────────────────────────
+
     # Logger
-    sheet_id = cfg["sheets"]["sheet_id"]
+    # Prefer environment variable for Sheet ID, fallback to config.json
+    sheet_id = os.environ.get("GOOGLE_SHEETS_5MIN_ID") or cfg["sheets"]["sheet_id"]
     creds_path = abspath(cfg["sheets"].get("creds_json"))
     # Sheet tab headers (optional but helpful)
     tabs = cfg["sheets"]["tabs"]
@@ -1239,6 +1277,14 @@ async def run_live(config_path: str, dry_run: bool = False):
                 "volume": v,
             }
             x = lf.update_and_build(bar_row, cohort.snapshot(), funding_rate)
+
+            # is_warmed() gate: skip model inference until EMA/rv deques are stable
+            if not lf.is_warmed():
+                print(f"[WARMUP] Bar {bar_count}: skipping model inference "
+                      f"({lf._bar_count}/{lf._min_warm_bars} warmup bars fed)")
+                bar_count += 1
+                await asyncio.sleep(1)
+                continue
 
             # 5) Model inference
             model_out = mr.infer(x)

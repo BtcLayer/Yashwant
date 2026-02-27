@@ -176,19 +176,36 @@ class ModelRuntime:
                 proba = ex / np.sum(ex)
             else:
                 raise RuntimeError("Model lacks predict_proba/decision_function")
+
+            # Calibrator retrained 2026-02-26: old CalibrationWrapper (Platt) was inverting
+            # probabilities; replaced with identity passthrough. Safe to re-enable.
             if self.calibrator is not None:
-                # Calibrator exposes predict_proba(X) taking feature matrix; however our
-                # CustomClassificationCalibrator expects raw features to call base_estimator
-                # internally. If the loaded calibrator is our custom class, call predict_proba
-                # with the original feature vector; otherwise, try transform(proba) as fallback.
+                calibrated_proba = None
+                
+                # Attempt 1: Try calling with raw probabilities (for sklearn CalibrationWrapper)
                 try:
                     if hasattr(self.calibrator, "predict_proba"):
-                        proba = self.calibrator.predict_proba(X)
-                    else:
-                        proba = self.calibrator.transform(proba)  # type: ignore[attr-defined]
-                except (ValueError, TypeError, AttributeError):
-                    # If calibrator application fails, keep uncalibrated probabilities
-                    pass
+                        calibrated_proba = self.calibrator.predict_proba(proba)
+                    elif hasattr(self.calibrator, "transform"):
+                        calibrated_proba = self.calibrator.transform(proba)
+                except Exception as e:
+                    print(f"[ModelRuntime] Warning: Calibrator failed with raw probabilities: {e}")
+
+                # Attempt 2: If first failed, try calling with original features (for CustomClassificationCalibrator)
+                if calibrated_proba is None:
+                    try:
+                        if CustomClassificationCalibrator is not None and isinstance(self.calibrator, CustomClassificationCalibrator):
+                            calibrated_proba = self.calibrator.predict_proba(X)
+                        elif hasattr(self.calibrator, "predict_proba"): # Generic fallback for predict_proba with X
+                            calibrated_proba = self.calibrator.predict_proba(X)
+                    except Exception as e:
+                        print(f"[ModelRuntime] Warning: Calibrator failed with original features: {e}")
+
+                if calibrated_proba is not None:
+                    proba = calibrated_proba
+                else:
+                    print("[ModelRuntime] Warning: Calibrator application failed after all attempts. Using uncalibrated probabilities.")
+
         # Ensure shape (1,3)
         proba = np.asarray(proba).reshape(1, -1)
         if proba.shape[1] != 3:
